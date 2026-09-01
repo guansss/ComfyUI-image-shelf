@@ -1,16 +1,28 @@
 [project]
-name = "comfyui_react_extension_template"
-description = "A minimal template for creating React/TypeScript frontend extensions for ComfyUI, with complete boilerplate setup including internationalization and unit testing."
+name = "comfyui-image-shelf"
+description = "Browse, search, and manage generated images from within ComfyUI."
 version = "0.1.0"
 license = {file = "LICENSE"}
-dependencies = []
+dependencies = [
+	"aiohttp",
+	"Pillow",
+	"python-dotenv",
+	"watchdog",
+]
 
 [project.urls]
-Repository = "https://github.com/Comfy-Org/ComfyUI-React-Extension-Template"
+Repository = "https://github.com/guansss/ComfyUI-image-shelf"
 
 # Used by Comfy Registry https://comfyregistry.org
 [tool.comfy]
-PublisherId = "your_publisher_id" # Change this to your actual publisher ID
-DisplayName = "ComfyUI React Extension Template"
+PublisherId = "guansss"
+DisplayName = "ComfyUI Image Shelf"
 Icon = ""
 includes = ["dist/"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["image_shelf*"]

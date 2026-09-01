@@ -3,30 +3,54 @@ import LanguageDetector from 'i18next-browser-languagedetector'
 import Backend from 'i18next-http-backend'
 import { initReactI18next } from 'react-i18next'
 
-// Define fallback translations for debugging
 interface TranslationResource {
   [language: string]: {
     [namespace: string]: {
-      app: {
+      gallery: {
         title: string
-        description: string
-        noNodes: string
-        nodeList: {
-          title: string
-          id: string
-          type: string
-          category: string
-          inputs: string
-          outputs: string
-        }
-        nodeStats: {
-          title: string
-          totalNodes: string
-          uniqueNodeTypes: string
-        }
-        footer: {
-          clickToHighlight: string
-        }
+        close: string
+        search: string
+        filters: string
+        searchHelp: string
+        searchSyntax: string
+        groupByDay: string
+        allImages: string
+        addTab: string
+        newTab: string
+        tabName: string
+        folderPath: string
+        renameTab: string
+        changeFolder: string
+        removeTab: string
+        removeTabMessage: string
+        reindex: string
+        reindexFailed: string
+        reveal: string
+        revealFailed: string
+        metadataWarning: string
+        dimensions: string
+        creationDate: string
+        fileSize: string
+        tags: string
+        negativeTags: string
+        sort: string
+        newest: string
+        oldest: string
+        filenameAscending: string
+        filenameDescending: string
+        pagination: string
+        previous: string
+        next: string
+        page: string
+        sendToFavorites: string
+        favoriteSent: string
+        favoriteFailed: string
+        favoriteConflict: string
+        favoriteConflictMessage: string
+        loading: string
+        error: string
+        empty: string
+        favoritesUnconfigured: string
       }
     }
   }
@@ -35,27 +59,51 @@ interface TranslationResource {
 const fallbackResources: TranslationResource = {
   en: {
     main: {
-      app: {
-        title: 'React Example Extension (Fallback)',
-        description: 'Shows statistics about nodes in the current workflow',
-        noNodes: 'No nodes in the workflow',
-        nodeList: {
-          title: 'Node List',
-          id: 'ID',
-          type: 'Type',
-          category: 'Category',
-          inputs: 'Inputs',
-          outputs: 'Outputs'
-        },
-        nodeStats: {
-          title: 'Node Statistics',
-          totalNodes: 'Total nodes',
-          uniqueNodeTypes: 'Unique node types'
-        },
-        footer: {
-          clickToHighlight:
-            'Click on any node in the list to highlight it in the workflow'
-        }
+      gallery: {
+        title: 'Image Shelf',
+        close: 'Close image shelf',
+        search: 'Search tags and filenames',
+        filters: 'Filters',
+        searchHelp: 'Search syntax',
+        searchSyntax: 'cat and tag:cat find positive tags. tag:-cat finds negative tags. -tag:cat excludes a positive tag. name:foo searches filenames. prompt:foo searches workflow text. Use quotes for spaces.',
+        groupByDay: 'Group by creation day',
+        allImages: 'All images',
+        addTab: 'Add tab',
+        newTab: 'New folder',
+        tabName: 'Tab name',
+        folderPath: 'Folder path',
+        renameTab: 'Rename tab',
+        changeFolder: 'Change folder',
+        removeTab: 'Remove tab',
+        removeTabMessage: 'Remove {{name}} from Image Shelf?',
+        reindex: 'Re-index',
+        reindexFailed: 'Could not start re-indexing',
+        reveal: 'Reveal in file explorer',
+        revealFailed: 'Could not reveal image',
+        metadataWarning: 'Metadata warning',
+        dimensions: 'Dimensions',
+        creationDate: 'Creation date',
+        fileSize: 'File size',
+        tags: 'Tags',
+        negativeTags: 'Negative tags',
+        sort: 'Sort images',
+        newest: 'Newest first',
+        oldest: 'Oldest first',
+        filenameAscending: 'Filename: A to Z',
+        filenameDescending: 'Filename: Z to A',
+        pagination: 'Gallery pagination',
+        previous: 'Previous',
+        next: 'Next',
+        page: 'Page {{page}} of {{total}}',
+        sendToFavorites: 'Send to Favorites',
+        favoriteSent: 'Sent to Favorites',
+        favoriteFailed: 'Could not send to Favorites',
+        favoriteConflict: 'File already exists',
+        favoriteConflictMessage: 'Choose a new filename or cancel.',
+        loading: 'Loading images...',
+        error: 'Could not load the image shelf.',
+        empty: 'No images match this view.',
+        favoritesUnconfigured: 'Set a Favorites folder in Image Shelf settings to browse favorites.'
       }
     }
   }
@@ -71,8 +119,7 @@ void i18n
   .use(initReactI18next)
   // Initialize i18next
   .init({
-    // Always enable debug mode to see what's happening
-    debug: true,
+    debug: false,
 
     // Fallback language
     fallbackLng: 'en',
@@ -84,11 +131,7 @@ void i18n
     // Do not load from bundled resources first
     initImmediate: true,
 
-    // Custom handling for missing keys
-    saveMissing: true,
-    missingKeyHandler: (lng, ns, key) => {
-      console.log(`Missing translation: [${lng}] ${ns}:${key}`)
-    },
+    saveMissing: false,
 
     // Language detection configuration
     detection: {
@@ -120,13 +163,7 @@ void i18n
     }
   })
 
-// Add fallback resources only if HTTP loading fails
 i18n.on('failedLoading', (lng, ns) => {
-  console.log(
-    `Failed loading translation file for ${lng} and ${ns}, using fallback`
-  )
-
-  // Add the fallback resources for this language
   if (fallbackResources[lng] && fallbackResources[lng][ns]) {
     i18n.addResourceBundle(lng, ns, fallbackResources[lng][ns], true, true)
   }

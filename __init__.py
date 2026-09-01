@@ -1,53 +1,72 @@
+import asyncio
 import os
+
 import server
 from aiohttp import web
 import folder_paths
 import nodes
 
-NODE_CLASS_MAPPINGS = {}
-__all__ = ["NODE_CLASS_MAPPINGS"]
+from .image_shelf.api import GalleryApi
+from .image_shelf.database import ImageRepository
+from .image_shelf.models import GalleryTab
+from .image_shelf.nodes import SaveAsJPEG, SendToFavorites
 
-# Define the path to our extension
+NODE_CLASS_MAPPINGS = {
+    "ImageShelfSaveAsJPEG": SaveAsJPEG,
+    "ImageShelfSendToFavorites": SendToFavorites,
+}
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "ImageShelfSaveAsJPEG": "Save as JPEG",
+    "ImageShelfSendToFavorites": "Send to Favorites",
+}
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
+
 workspace_path = os.path.dirname(__file__)
-dist_path = os.path.join(workspace_path, "dist/example_ext")
+dist_path = os.path.join(workspace_path, "dist/image_shelf")
 dist_locales_path = os.path.join(workspace_path, "dist/locales")
+database_path = os.path.join(workspace_path, "image-shelf.sqlite3")
 
-# Print the current paths for debugging
-print(f"ComfyUI_example_frontend_extension workspace path: {workspace_path}")
-print(f"Dist path: {dist_path}")
-print(f"Dist locales path: {dist_locales_path}")
-print(f"Locales exist: {os.path.exists(dist_locales_path)}")
 
-# Register the static route for serving our React app assets
+def register_gallery_api() -> None:
+    app = server.PromptServer.instance.app
+    repository = ImageRepository(database_path)
+    api = GalleryApi(
+        repository,
+        [
+            GalleryTab("outputs", "Outputs", (folder_paths.get_output_directory(),)),
+            GalleryTab("favorites", "Favorites", (), editable=True),
+        ],
+    )
+    app["image_shelf_api"] = api
+    api.register(app)
+
+    for folder in api._tracked_folders():
+        api.indexing_tasks[folder] = asyncio.get_event_loop().create_task(
+            api.indexer.index_folder(folder)
+        )
+    api.start_monitoring(asyncio.get_event_loop())
+
+
+register_gallery_api()
+
 if os.path.exists(dist_path):
-    # Add the routes for the extension
     server.PromptServer.instance.app.add_routes([
-        web.static("/example_ext/", dist_path),
+        web.static("/image_shelf/", dist_path),
     ])
 
-    # Register the locale files route
     if os.path.exists(dist_locales_path):
         server.PromptServer.instance.app.add_routes([
             web.static("/locales/", dist_locales_path),
         ])
-        print(f"Registered locale files route at /locales/")
-    else:
-        print("WARNING: Locale directory not found!")
-
-    # Also register the standard ComfyUI extension web directory
 
     project_name = os.path.basename(workspace_path)
 
     try:
-        # Method added in https://github.com/comfyanonymous/ComfyUI/pull/8357
         from comfy_config import config_parser
 
         project_config = config_parser.extract_node_configuration(workspace_path)
         project_name = project_config.project.name
-        print(f"project name read from pyproject.toml: {project_name}")
-    except Exception as e:
-        print(f"Could not load project config, using default name '{project_name}': {e}")
+    except Exception:
+        pass
 
     nodes.EXTENSION_WEB_DIRS[project_name] = os.path.join(workspace_path, "dist")
-else:
-    print("ComfyUI Example React Extension: Web directory not found")

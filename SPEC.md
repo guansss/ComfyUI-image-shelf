@@ -131,6 +131,8 @@ For development purposes, the image gallery's backend will be implemented in a w
 
 A `gallery_backend.py` script will be provided that can be run independently of ComfyUI. This script will start an aiohttp server that serves the gallery's API endpoints and handles image indexing, searching, and metadata parsing.
 
+A `.env` file will be used to provide ComfyUI's installation path and the output folder path to the standalone backend.
+
 The frontend, when launched in development mode, will add a "Debug" switch to the settings page that allows users to connect the frontend to the standalone backend instead of ComfyUI's backend. This will allow developers to test the gallery without needing to reboot ComfyUI.
 
 ### API Endpoints
@@ -185,6 +187,8 @@ Images that cannot be opened by Pillow will be skipped and ignored.
 When a custom tab is added, the extension will immediately index the folder.
 
 When a custom tab is removed, the extension will stop monitoring the folder and remove all associated records from the database if the folder is not being tracked by any other tab.
+
+The output folder can be read with ComfyUI's `folder_paths.get_output_directory()` (https://github.com/Comfy-Org/ComfyUI/blob/master/folder_paths.py). In standalone mode, the extension will read the output folder path from the `.env` file instead.
 
 ### Database Schema
 
@@ -264,6 +268,8 @@ When saving an image to the "Favorites" folder, if a file with the same name alr
 On startup, the extension will load the initial settings by sending a request to ComfyUI's [settings API endpoint](https://github.com/Comfy-Org/ComfyUI/blob/master/app/app_settings.py).
 
 To react to changes in the settings, the extension's frontend will listen for the `settings_changed` event emitted by ComfyUI's frontend, and when this event is received, it will notify the backend to reload the settings. The backend will then load the latest settings and determine if anything should be updated (e.g., if a custom folder has changed, the backend will re-index the new folder).
+
+In standalone mode, the extension will read the settings from `<ComfyUI installation path>/user/default/comfy.settings.json` instead.
 
 ## Development
 

@@ -1,5 +1,6 @@
-// Import jest-dom additions
-import '@testing-library/jest-dom';
+require('@testing-library/jest-dom')
+
+global.fetch = jest.fn()
 
 // Mock window.app for ComfyUI integration testing
 global.window.app = {

@@ -2,6 +2,7 @@
   "tabWidth": 2,
   "semi": false,
   "printWidth": 100,
+  "singleQuote": false,
   "overrides": [
     {
       "files": "*.{js,cjs,mjs,ts,cts,mts,tsx,vue}",

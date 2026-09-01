@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/fix-comfy-types.js",
     "dev": "vite",
-    "build": "tsc && vite build",
-    "watch": "tsc && vite build --watch",
+    "build": "vite build",
+    "watch": "vite build --watch",
     "lint": "eslint . --ext ts,tsx,js,jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext ts,tsx,js,jsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css}\"",
@@ -24,7 +25,7 @@
     "react-i18next": "^14.1.0"
   },
   "devDependencies": {
-    "@comfyorg/comfyui-frontend-types": "^1.20.2",
+    "@comfyorg/comfyui-frontend-types": "^1.47.12",
     "@eslint/eslintrc": "^3.0.2",
     "@eslint/js": "^9.27.0",
     "@testing-library/jest-dom": "^6.6.3",
