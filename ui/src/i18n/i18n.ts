@@ -1,10 +1,11 @@
-import { preserveLineBreaks } from "../utils/react.tsx"
-import ESSENTIALS from "./generated/essentials"
 import { atom, getDefaultStore, useAtomValue } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { get, isObject, isString } from "lodash-es"
 import mitt from "mitt"
 import { Fragment, ReactElement, ReactNode, createElement } from "react"
+
+import { preserveLineBreaks } from "../utils/react.tsx"
+import ESSENTIALS from "./generated/essentials"
 
 export const languages = ["cn", "en"] as const
 const defaultLanguage = navigator.language.startsWith("zh") ? "cn" : "en"

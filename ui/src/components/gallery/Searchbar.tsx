@@ -1,3 +1,7 @@
+import { debounce } from "lodash-es"
+import { CircleQuestionMarkIcon, LoaderCircleIcon, SearchIcon } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+
 import { fetchTagSuggestions, GalleryTab, TagSuggestion } from "../../galleryApi"
 import { useTranslation } from "../../i18n/i18n"
 import {
@@ -10,9 +14,6 @@ import {
 } from "../reui/autocomplete"
 import { InputGroup, InputGroupAddon, InputGroupButton } from "../ui/input-group"
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "../ui/popover"
-import { debounce } from "lodash-es"
-import { CircleQuestionMarkIcon, LoaderCircleIcon, SearchIcon } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
 
 interface SearchbarProps {
   apiRoot: string

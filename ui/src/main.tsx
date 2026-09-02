@@ -1,11 +1,12 @@
+import React from "react"
+import ReactDOM from "react-dom/client"
+
 import { app } from "./comfy"
 import { Gallery } from "./components/gallery/Gallery"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { EXTENSION_ID, rootContainer } from "./global"
 import { I18NProvider } from "./i18n/I18NProvider"
 import "./index.css"
-import React from "react"
-import ReactDOM from "react-dom/client"
 
 const OPEN_EVENT = "image-shelf:open"
 const DEBUG_EVENT = "image-shelf:debug-changed"

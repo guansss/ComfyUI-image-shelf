@@ -1,15 +1,3 @@
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -26,6 +14,20 @@ import {
   TrashIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
 import { app } from "../../comfy"
 import {
   DimensionFacet,
@@ -395,7 +397,8 @@ export function Gallery({ openEvent }: GalleryProps) {
     <Dialog onOpenChange={setIsOpen} open={isOpen}>
       <DialogContent
         aria-describedby={undefined}
-        className="flex h-[min(900px,calc(100vh-2rem))] w-[calc(100%-2rem)] sm:max-w-375 gap-0 overflow-hidden rounded-xl border-border p-0 shadow-2xl"
+        className="flex h-[calc(100vh-12rem)] w-375 gap-0 overflow-hidden rounded-xl bg-card p-0"
+        closeButtonProps={{ size: "icon", className: "top-4 right-4" }}
       >
         <aside className="w-80 shrink-0 flex flex-col overflow-y-auto border-r">
           <DialogHeader className="flex-row items-center gap-3 border-b p-4">
@@ -409,7 +412,7 @@ export function Gallery({ openEvent }: GalleryProps) {
                 className={cn("flex rounded-md", tab === selectedTab && "bg-(--chart-3)")}
               >
                 <Button
-                  variant="ghost"
+                  variant="flat"
                   className={cn(
                     "grow justify-start",
                     tab === selectedTab && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
@@ -428,7 +431,7 @@ export function Gallery({ openEvent }: GalleryProps) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      variant="ghost"
+                      variant="flat"
                       className={cn(
                         tab === selectedTab && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
                       )}
@@ -475,7 +478,7 @@ export function Gallery({ openEvent }: GalleryProps) {
             <Button
               className="grow justify-start"
               onClick={() => void addCustomTab()}
-              variant="ghost"
+              variant="flat"
             >
               <PlusIcon data-icon="inline-start" />
               {t.gallery.addTab}
@@ -648,6 +651,7 @@ export function Gallery({ openEvent }: GalleryProps) {
             <DialogContent
               aria-describedby={undefined}
               className="max-w-screen! w-screen h-screen flex gap-0 overflow-hidden p-0 bg-transparent"
+              closeButtonProps={{ size: "icon", className: "size-12 top-4 right-4 p-2" }}
             >
               <aside className="w-80 overflow-y-auto border-r bg-card">
                 <DialogHeader className="p-4 border-b">

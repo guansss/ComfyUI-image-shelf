@@ -1,9 +1,10 @@
-import { Language, RawTranslations, i18n, languageAtom, rawTranslationsAtom } from "./i18n"
 import { useAtomValue, useSetAtom } from "jotai"
 import { useHydrateAtoms } from "jotai/utils"
 import { noop } from "lodash-es"
 import { Suspense, useEffect } from "react"
 import useSWR from "swr"
+
+import { Language, RawTranslations, i18n, languageAtom, rawTranslationsAtom } from "./i18n"
 
 let refresh: () => void = noop
 
