@@ -1,11 +1,9 @@
 // @ts-expect-error I don't know how to properly get this to work
-import { app } from "/scripts/app.js"
+import { app as _app } from "/scripts/app.js"
 // @ts-expect-error I don't know how to properly get this to work
-import { api } from "/scripts/api.js"
+import { api as _api } from "/scripts/api.js"
 
 import { ComfyApi, ComfyApp } from "@comfyorg/comfyui-frontend-types"
 
-declare const app: ComfyApp
-declare const api: ComfyApi
-
-export { api, app }
+export const app: ComfyApp = _app
+export const api: ComfyApi = _api

@@ -155,8 +155,9 @@ function AutocompleteItem({
   )
 }
 
-export interface AutocompleteContentProps
-  extends React.ComponentProps<typeof AutocompletePrimitive.Popup> {
+export interface AutocompleteContentProps extends React.ComponentProps<
+  typeof AutocompletePrimitive.Popup
+> {
   align?: AutocompletePrimitive.Positioner.Props["align"]
   sideOffset?: AutocompletePrimitive.Positioner.Props["sideOffset"]
   alignOffset?: AutocompletePrimitive.Positioner.Props["alignOffset"]

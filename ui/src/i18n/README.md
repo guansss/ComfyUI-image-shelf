@@ -49,7 +49,7 @@ function SomeComponent() {
   t.pages.index.title
 
   // other kinds of messages are converted to functions that return a string
-  t.pages.index.error({ error: '404' })
+  t.pages.index.error({ error: "404" })
 
   // a pluralized message generates an extra `count` key to determine the plural form
   t.pages.index.posts({ count: 1, user: userName })
@@ -72,7 +72,7 @@ Note that this won't make the component re-render when the language changes, so 
 function getMessages() {
   return {
     title: i18n.pages.index.title,
-    error: i18n.pages.index.error({ error: '404' }),
+    error: i18n.pages.index.error({ error: "404" }),
   }
 }
 
@@ -91,7 +91,7 @@ const error = i18nDefer.pages.index.error
 
 function Component() {
   title()
-  error({ error: '404' })
+  error({ error: "404" })
 }
 ```
 

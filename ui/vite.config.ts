@@ -1,8 +1,8 @@
-import { generateTranslations } from "./scripts/generate-translations"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import path from "path"
 import { defineConfig } from "vite"
+import { generateTranslations } from "./scripts/generate-translations"
 
 interface RewriteComfyImportsOptions {
   isDev: boolean
@@ -58,8 +58,11 @@ export default defineConfig(({ mode }) => ({
         chunkFileNames: "[name]-[hash].js",
         assetFileNames: "[name][extname]",
         // Split React into a separate vendor chunk for better caching
-        manualChunks: {
-          vendor: ["react", "react-dom"],
+        manualChunks(id) {
+          if (["react", "react-dom"].some((pkg) => id.includes(`/node_modules/${pkg}/`))) {
+            return "vendor"
+          }
+          return null
         },
       },
     },

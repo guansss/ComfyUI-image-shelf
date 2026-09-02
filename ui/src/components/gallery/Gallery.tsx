@@ -1,3 +1,31 @@
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  FolderCogIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  ImageIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  RotateCcwClockIcon,
+  Settings2Icon,
+  SettingsIcon,
+  StarIcon,
+  TrashIcon,
+} from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { app } from "../../comfy"
 import {
   DimensionFacet,
@@ -34,34 +62,6 @@ import { Field } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Searchbar } from "./Searchbar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  FolderCogIcon,
-  FolderIcon,
-  FolderOpenIcon,
-  ImageIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  RotateCcwClockIcon,
-  Settings2Icon,
-  SettingsIcon,
-  StarIcon,
-  TrashIcon,
-} from "lucide-react"
-import { useEffect, useRef, useState } from "react"
 
 interface GalleryProps {
   openEvent: string
@@ -267,7 +267,7 @@ export function Gallery({ openEvent }: GalleryProps) {
   const removeCustomTab = async (tab: GalleryTab) => {
     const confirmed = await app.extensionManager.dialog.confirm({
       title: t.gallery.removeTab,
-      message: t("gallery.removeTabMessage", { name: tab.name }),
+      message: t.gallery.removeTabMessage({ name: tab.name }),
       type: "default",
     })
     if (!confirmed) return

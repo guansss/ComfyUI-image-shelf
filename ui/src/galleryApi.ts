@@ -28,7 +28,7 @@ export interface DimensionFacet {
 
 export interface TagSuggestion {
   name: string
-  type: 'positive' | 'negative'
+  type: "positive" | "negative"
 }
 
 export interface ImageDetails {
@@ -46,7 +46,7 @@ export interface ImageDetails {
 
 export class FavoriteConflictError extends Error {
   constructor(public readonly suggestedFilename: string) {
-    super('A file with that name already exists in Favorites.')
+    super("A file with that name already exists in Favorites.")
   }
 }
 
@@ -54,8 +54,8 @@ export interface ImageQuery {
   tab: string
   query: string
   dimensions: string[]
-  sort: 'created_at' | 'filename'
-  direction: 'asc' | 'desc'
+  sort: "created_at" | "filename"
+  direction: "asc" | "desc"
   page: number
   pageSize: number
 }
@@ -67,28 +67,21 @@ export interface ImageListResponse {
   total: number
 }
 
-async function request<T>(
-  apiRoot: string,
-  path: string,
-  signal?: AbortSignal
-): Promise<T> {
+async function request<T>(apiRoot: string, path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${apiRoot}${path}`, { signal })
   if (!response.ok) throw new Error(await response.text())
   return response.json() as Promise<T>
 }
 
-export async function fetchTabs(
-  apiRoot: string,
-  signal?: AbortSignal
-): Promise<GalleryTab[]> {
-  const response = await request<{ items: GalleryTab[] }>(apiRoot, '/tabs', signal)
+export async function fetchTabs(apiRoot: string, signal?: AbortSignal): Promise<GalleryTab[]> {
+  const response = await request<{ items: GalleryTab[] }>(apiRoot, "/tabs", signal)
   return response.items
 }
 
 export async function fetchImages(
   imageQuery: ImageQuery,
   apiRoot: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<ImageListResponse> {
   const parameters = new URLSearchParams({
     tab: imageQuery.tab,
@@ -96,10 +89,10 @@ export async function fetchImages(
     sort: imageQuery.sort,
     direction: imageQuery.direction,
     page: String(imageQuery.page),
-    page_size: String(imageQuery.pageSize)
+    page_size: String(imageQuery.pageSize),
   })
   for (const dimension of imageQuery.dimensions) {
-    parameters.append('dimension', dimension)
+    parameters.append("dimension", dimension)
   }
   return request<ImageListResponse>(apiRoot, `/images?${parameters}`, signal)
 }
@@ -108,13 +101,13 @@ export async function fetchDimensions(
   tab: string,
   query: string,
   apiRoot: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<DimensionFacet[]> {
   const parameters = new URLSearchParams({ tab, query })
   const response = await request<{ items: DimensionFacet[] }>(
     apiRoot,
     `/dimensions?${parameters}`,
-    signal
+    signal,
   )
   return response.items
 }
@@ -123,21 +116,17 @@ export async function fetchTagSuggestions(
   tab: string,
   query: string,
   apiRoot: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<TagSuggestion[]> {
   const parameters = new URLSearchParams({ tab, q: query })
-  const response = await request<{ items: TagSuggestion[] }>(
-    apiRoot,
-    `/tags?${parameters}`,
-    signal
-  )
+  const response = await request<{ items: TagSuggestion[] }>(apiRoot, `/tags?${parameters}`, signal)
   return response.items
 }
 
 export function fetchImageDetails(
   imageId: string,
   apiRoot: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<ImageDetails> {
   return request<ImageDetails>(apiRoot, `/images/${encodeURIComponent(imageId)}`, signal)
 }
@@ -145,12 +134,12 @@ export function fetchImageDetails(
 export async function sendToFavorites(
   imageId: string,
   apiRoot: string,
-  filename?: string
+  filename?: string,
 ): Promise<{ filename: string; mode: string }> {
   const response = await fetch(`${apiRoot}/images/${encodeURIComponent(imageId)}/favorite`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode: 'copy', filename })
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "copy", filename }),
   })
   if (response.status === 409) {
     const payload = (await response.json()) as { suggested_filename: string }
@@ -162,14 +151,14 @@ export async function sendToFavorites(
 
 export async function reindexTab(tab: string, apiRoot: string): Promise<void> {
   const response = await fetch(`${apiRoot}/reindex?${new URLSearchParams({ tab })}`, {
-    method: 'POST'
+    method: "POST",
   })
   if (!response.ok) throw new Error(await response.text())
 }
 
 export async function revealImage(imageId: string, apiRoot: string): Promise<void> {
   const response = await fetch(`${apiRoot}/images/${encodeURIComponent(imageId)}/reveal`, {
-    method: 'POST'
+    method: "POST",
   })
   if (!response.ok) throw new Error(await response.text())
 }
