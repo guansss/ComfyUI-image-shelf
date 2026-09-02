@@ -22,7 +22,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 
 workspace_path = os.path.dirname(__file__)
-dist_path = os.path.join(workspace_path, "dist/image_shelf")
+dist_path = os.path.join(workspace_path, "dist")
 dist_locales_path = os.path.join(workspace_path, "dist/locales")
 database_path = os.path.join(workspace_path, "image-shelf.sqlite3")
 
@@ -49,6 +49,8 @@ def register_gallery_api() -> None:
 
 register_gallery_api()
 
+print(f"[Image Shelf] initialized. Database path: {database_path}")
+
 if os.path.exists(dist_path):
     server.PromptServer.instance.app.add_routes([
         web.static("/image_shelf/", dist_path),
@@ -66,7 +68,9 @@ if os.path.exists(dist_path):
 
         project_config = config_parser.extract_node_configuration(workspace_path)
         project_name = project_config.project.name
-    except Exception:
-        pass
+    except Exception as e:
+        print(
+            f"Could not load project config, using default name '{project_name}': {e}"
+        )
 
     nodes.EXTENSION_WEB_DIRS[project_name] = os.path.join(workspace_path, "dist")

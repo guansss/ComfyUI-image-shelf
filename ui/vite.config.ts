@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import path from "path"
 import { defineConfig } from "vite"
@@ -26,7 +27,12 @@ const rewriteComfyImports = ({ isDev }: RewriteComfyImportsOptions) => {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), rewriteComfyImports({ isDev: mode === "development" })],
+  plugins: [tailwindcss(), react(), rewriteComfyImports({ isDev: mode === "development" })],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
   server: {
     proxy: {
       "/api/image-shelf": "http://127.0.0.1:8188",

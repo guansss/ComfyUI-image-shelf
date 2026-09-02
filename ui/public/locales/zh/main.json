@@ -26,7 +26,7 @@
     "fileSize": "文件大小",
     "tags": "标签",
     "negativeTags": "负面标签",
-    "sort": "排序图像",
+    "sort": "排序",
     "newest": "最新优先",
     "oldest": "最早优先",
     "filenameAscending": "文件名：A 到 Z",

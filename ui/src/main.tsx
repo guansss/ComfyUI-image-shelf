@@ -1,6 +1,7 @@
-import { GalleryShell } from "./GalleryShell"
 import { app } from "./comfy"
-import { EXTENSION_ID } from "./global"
+import { Gallery } from "./components/gallery/Gallery"
+import { TooltipProvider } from "./components/ui/tooltip"
+import { EXTENSION_ID, rootContainer } from "./global"
 import "./index.css"
 import "./utils/i18n"
 import React from "react"
@@ -14,12 +15,11 @@ const FAVORITES_SETTING = "image-shelf.favorites-folder"
 const CUSTOM_TABS_SETTING = "image-shelf.custom-tabs"
 
 function mountGallery(): void {
-  const container = document.createElement("div")
-  container.id = "comfyui-image-shelf-root"
-  document.body.appendChild(container)
-  ReactDOM.createRoot(container).render(
+  ReactDOM.createRoot(rootContainer).render(
     <React.StrictMode>
-      <GalleryShell openEvent={OPEN_EVENT} />
+      <TooltipProvider>
+        <Gallery openEvent={OPEN_EVENT} />
+      </TooltipProvider>
     </React.StrictMode>,
   )
 }
@@ -92,12 +92,6 @@ function registerExtension(): void {
         },
       },
     ],
-    // menuCommands: [
-    //   {
-    //     path: ['Extensions', 'Image Shelf'],
-    //     commands: ['imageShelf.openGallery']
-    //   }
-    // ],
     setup: (app) => {
       console.log("ComfyUI.ImageShelf extension setup")
       const openGalleryButton = new window.comfyAPI.button.ComfyButton({
