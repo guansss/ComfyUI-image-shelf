@@ -2,8 +2,8 @@ import { app } from "./comfy"
 import { Gallery } from "./components/gallery/Gallery"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { EXTENSION_ID, rootContainer } from "./global"
+import { I18NProvider } from "./i18n/I18NProvider"
 import "./index.css"
-import "./utils/i18n"
 import React from "react"
 import ReactDOM from "react-dom/client"
 
@@ -14,12 +14,14 @@ const STANDALONE_API_ROOT = "http://127.0.0.1:8189/api/image-shelf/v1"
 const FAVORITES_SETTING = "image-shelf.favorites-folder"
 const CUSTOM_TABS_SETTING = "image-shelf.custom-tabs"
 
-function mountGallery(): void {
+function mountUI(): void {
   ReactDOM.createRoot(rootContainer).render(
     <React.StrictMode>
-      <TooltipProvider>
-        <Gallery openEvent={OPEN_EVENT} />
-      </TooltipProvider>
+      <I18NProvider>
+        <TooltipProvider>
+          <Gallery openEvent={OPEN_EVENT} />
+        </TooltipProvider>
+      </I18NProvider>
     </React.StrictMode>,
   )
 }
@@ -117,7 +119,7 @@ function loadStylesheet(): void {
 
 function main() {
   loadStylesheet()
-  mountGallery()
+  mountUI()
   registerExtension()
 }
 

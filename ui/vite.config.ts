@@ -1,3 +1,4 @@
+import { generateTranslations } from "./scripts/generate-translations"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import path from "path"
@@ -27,7 +28,12 @@ const rewriteComfyImports = ({ isDev }: RewriteComfyImportsOptions) => {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [tailwindcss(), react(), rewriteComfyImports({ isDev: mode === "development" })],
+  plugins: [
+    tailwindcss(),
+    react(),
+    rewriteComfyImports({ isDev: mode === "development" }),
+    generateTranslations(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

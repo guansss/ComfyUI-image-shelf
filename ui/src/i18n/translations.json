@@ -1,0 +1,194 @@
+{
+  "essentials": {
+    "language": {
+      "cn": "简体中文",
+      "en": "English"
+    },
+    "translations_not_loaded": {
+      "cn": "翻译未加载",
+      "en": "Translations have not been loaded."
+    },
+    "translation_load_failed": {
+      "cn": "翻译加载失败",
+      "en": "Failed to load translations."
+    }
+  },
+  "gallery": {
+    "title": {
+      "en": "Image Shelf",
+      "cn": "图像库"
+    },
+    "close": {
+      "en": "Close image shelf",
+      "cn": "关闭图像库"
+    },
+    "search": {
+      "en": "Search tags and filenames",
+      "cn": "搜索标签和文件名"
+    },
+    "filters": {
+      "en": "Filters",
+      "cn": "筛选"
+    },
+    "searchHelp": {
+      "en": "Search syntax",
+      "cn": "搜索语法"
+    },
+    "searchSyntax": {
+      "en": "cat and tag:cat find positive tags. tag:-cat finds negative tags. -tag:cat excludes a positive tag. name:foo searches filenames. prompt:foo searches workflow text. Use quotes for spaces.",
+      "cn": "cat 和 tag:cat 搜索正向标签。tag:-cat 搜索负向标签。-tag:cat 排除正向标签。name:foo 搜索文件名。prompt:foo 搜索工作流文本。含空格的内容请使用引号。"
+    },
+    "groupByDay": {
+      "en": "Group by creation day",
+      "cn": "按创建日期分组"
+    },
+    "allImages": {
+      "en": "All images",
+      "cn": "所有图像"
+    },
+    "addTab": {
+      "en": "Add tab",
+      "cn": "添加标签页"
+    },
+    "newTab": {
+      "en": "New folder",
+      "cn": "新文件夹"
+    },
+    "tabName": {
+      "en": "Tab name",
+      "cn": "标签页名称"
+    },
+    "folderPath": {
+      "en": "Folder path",
+      "cn": "文件夹路径"
+    },
+    "renameTab": {
+      "en": "Rename tab",
+      "cn": "重命名标签页"
+    },
+    "changeFolder": {
+      "en": "Change folder",
+      "cn": "更改文件夹"
+    },
+    "removeTab": {
+      "en": "Remove tab",
+      "cn": "移除标签页"
+    },
+    "removeTabMessage": {
+      "en": "Remove {{name}} from Image Shelf?",
+      "cn": "要从图像库移除 {{name}} 吗？"
+    },
+    "reindex": {
+      "en": "Re-index",
+      "cn": "重新索引"
+    },
+    "reindexFailed": {
+      "en": "Could not start re-indexing",
+      "cn": "无法开始重新索引"
+    },
+    "reveal": {
+      "en": "Reveal in file explorer",
+      "cn": "在文件资源管理器中显示"
+    },
+    "revealFailed": {
+      "en": "Could not reveal image",
+      "cn": "无法显示图像"
+    },
+    "metadataWarning": {
+      "en": "Metadata warning",
+      "cn": "元数据警告"
+    },
+    "dimensions": {
+      "en": "Dimensions",
+      "cn": "尺寸"
+    },
+    "creationDate": {
+      "en": "Creation date",
+      "cn": "创建日期"
+    },
+    "fileSize": {
+      "en": "File size",
+      "cn": "文件大小"
+    },
+    "tags": {
+      "en": "Tags",
+      "cn": "标签"
+    },
+    "negativeTags": {
+      "en": "Negative tags",
+      "cn": "负面标签"
+    },
+    "sort": {
+      "en": "Sort",
+      "cn": "排序"
+    },
+    "newest": {
+      "en": "Newest first",
+      "cn": "最新优先"
+    },
+    "oldest": {
+      "en": "Oldest first",
+      "cn": "最早优先"
+    },
+    "filenameAscending": {
+      "en": "Filename: A to Z",
+      "cn": "文件名：A 到 Z"
+    },
+    "filenameDescending": {
+      "en": "Filename: Z to A",
+      "cn": "文件名：Z 到 A"
+    },
+    "pagination": {
+      "en": "Gallery pagination",
+      "cn": "图库分页"
+    },
+    "previous": {
+      "en": "Previous",
+      "cn": "上一页"
+    },
+    "next": {
+      "en": "Next",
+      "cn": "下一页"
+    },
+    "page": {
+      "en": "Page {{page}} of {{total}}",
+      "cn": "第 {{page}} 页，共 {{total}} 页"
+    },
+    "sendToFavorites": {
+      "en": "Send to Favorites",
+      "cn": "发送到收藏夹"
+    },
+    "favoriteSent": {
+      "en": "Sent to Favorites",
+      "cn": "已发送到收藏夹"
+    },
+    "favoriteFailed": {
+      "en": "Could not send to Favorites",
+      "cn": "无法发送到收藏夹"
+    },
+    "favoriteConflict": {
+      "en": "File already exists",
+      "cn": "文件已存在"
+    },
+    "favoriteConflictMessage": {
+      "en": "Choose a new filename or cancel.",
+      "cn": "请选择新文件名或取消。"
+    },
+    "loading": {
+      "en": "Loading images...",
+      "cn": "正在加载图像..."
+    },
+    "error": {
+      "en": "Could not load the image shelf.",
+      "cn": "无法加载图像库。"
+    },
+    "empty": {
+      "en": "No images match this view.",
+      "cn": "此视图中没有匹配的图像。"
+    },
+    "favoritesUnconfigured": {
+      "en": "Set a Favorites folder in Image Shelf settings to browse favorites.",
+      "cn": "请在图像库设置中设置收藏夹文件夹。"
+    }
+  }
+}

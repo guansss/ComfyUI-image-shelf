@@ -1,4 +1,5 @@
 import { fetchTagSuggestions, GalleryTab, TagSuggestion } from "../../galleryApi"
+import { useTranslation } from "../../i18n/i18n"
 import {
   Autocomplete,
   AutocompleteContent,
@@ -12,7 +13,6 @@ import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } 
 import { debounce } from "lodash-es"
 import { CircleQuestionMarkIcon, LoaderCircleIcon, SearchIcon } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
 
 interface SearchbarProps {
   apiRoot: string
@@ -24,7 +24,7 @@ interface SearchbarProps {
 }
 
 export function Searchbar({ apiRoot, tab, value, onChange, onSubmit }: SearchbarProps) {
-  const { t } = useTranslation()
+  const t = useTranslation()
   const suggestionsAbortControllerRef = useRef<AbortController | null>(null)
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
   const [tagSuggestions, setTagSuggestions] = useState<TagSuggestion[]>([])
@@ -97,7 +97,7 @@ export function Searchbar({ apiRoot, tab, value, onChange, onSubmit }: Searchbar
           <AutocompleteInput
             showClear
             className="flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
-            placeholder={t("gallery.search")}
+            placeholder={t.gallery.search}
             onKeyUp={handleKeyUp}
           />
           {shouldRenderPopup && (
@@ -117,10 +117,10 @@ export function Searchbar({ apiRoot, tab, value, onChange, onSubmit }: Searchbar
                 {suggestionsLoading ? (
                   <div className="flex items-center gap-2">
                     <LoaderCircleIcon className="size-4 animate-spin" />
-                    {t("gallery.loading")}
+                    {t.gallery.loading}
                   </div>
                 ) : tagSuggestions.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">{t("gallery.noSuggestions")}</div>
+                  <div className="text-sm text-muted-foreground">{t.gallery.noSuggestions}</div>
                 ) : null}
               </AutocompleteStatus>
             </AutocompleteContent>
@@ -140,9 +140,9 @@ export function Searchbar({ apiRoot, tab, value, onChange, onSubmit }: Searchbar
           </PopoverTrigger>
           <PopoverContent className="w-150 max-w-screen">
             <PopoverHeader>
-              <PopoverTitle>{t("gallery.searchHelp")}</PopoverTitle>
+              <PopoverTitle>{t.gallery.searchHelp}</PopoverTitle>
             </PopoverHeader>
-            <p className="text-sm wrap-break-word">{t("gallery.searchSyntax")}</p>
+            <p className="text-sm wrap-break-word">{t.gallery.searchSyntax}</p>
           </PopoverContent>
         </Popover>
       </InputGroup>

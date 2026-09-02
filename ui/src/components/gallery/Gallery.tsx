@@ -20,6 +20,7 @@ import {
   FAVORITES_SETTING,
   STANDALONE_API_ROOT,
 } from "../../global"
+import { useTranslation } from "../../i18n/i18n"
 import { cn } from "../../lib/utils"
 import {
   DropdownMenu,
@@ -61,7 +62,6 @@ import {
   TrashIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
 
 interface GalleryProps {
   openEvent: string
@@ -76,7 +76,7 @@ interface StoredCustomTab {
 const PAGE_SIZE = 36
 
 export function Gallery({ openEvent }: GalleryProps) {
-  const { t } = useTranslation()
+  const t = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [tabs, setTabs] = useState<GalleryTab[]>([])
   const [selectedTabId, setSelectedTabId] = useState("outputs")
@@ -214,14 +214,14 @@ export function Gallery({ openEvent }: GalleryProps) {
 
   const addCustomTab = async () => {
     const name = await app.extensionManager.dialog.prompt({
-      title: t("gallery.addTab"),
-      message: t("gallery.tabName"),
-      defaultValue: t("gallery.newTab"),
+      title: t.gallery.addTab,
+      message: t.gallery.tabName,
+      defaultValue: t.gallery.newTab,
     })
     if (!name?.trim()) return
     const folder = await app.extensionManager.dialog.prompt({
-      title: t("gallery.addTab"),
-      message: t("gallery.folderPath"),
+      title: t.gallery.addTab,
+      message: t.gallery.folderPath,
       defaultValue: "",
     })
     if (!folder?.trim()) return
@@ -233,8 +233,8 @@ export function Gallery({ openEvent }: GalleryProps) {
 
   const renameCustomTab = async (tab: GalleryTab) => {
     const name = await app.extensionManager.dialog.prompt({
-      title: t("gallery.renameTab"),
-      message: t("gallery.tabName"),
+      title: t.gallery.renameTab,
+      message: t.gallery.tabName,
       defaultValue: tab.name,
     })
     if (!name?.trim()) return
@@ -252,8 +252,8 @@ export function Gallery({ openEvent }: GalleryProps) {
     }
     const storedTab = readCustomTabs().find((candidate) => candidate.id === tab.id)
     const folder = await app.extensionManager.dialog.prompt({
-      title: t("gallery.changeFolder"),
-      message: t("gallery.folderPath"),
+      title: t.gallery.changeFolder,
+      message: t.gallery.folderPath,
       defaultValue: storedTab?.folder ?? "",
     })
     if (!folder?.trim()) return
@@ -266,7 +266,7 @@ export function Gallery({ openEvent }: GalleryProps) {
 
   const removeCustomTab = async (tab: GalleryTab) => {
     const confirmed = await app.extensionManager.dialog.confirm({
-      title: t("gallery.removeTab"),
+      title: t.gallery.removeTab,
       message: t("gallery.removeTabMessage", { name: tab.name }),
       type: "default",
     })
@@ -278,8 +278,8 @@ export function Gallery({ openEvent }: GalleryProps) {
   const configureFavoritesFolder = async () => {
     const currentValue = app.extensionManager.setting.get(FAVORITES_SETTING)
     const folder = await app.extensionManager.dialog.prompt({
-      title: t("gallery.changeFolder"),
-      message: t("gallery.folderPath"),
+      title: t.gallery.changeFolder,
+      message: t.gallery.folderPath,
       defaultValue: typeof currentValue === "string" ? currentValue : "",
     })
     if (folder === undefined || folder === null) return
@@ -293,7 +293,7 @@ export function Gallery({ openEvent }: GalleryProps) {
     } catch (error: unknown) {
       app.extensionManager.toast.add({
         severity: "error",
-        summary: t("gallery.reindexFailed"),
+        summary: t.gallery.reindexFailed,
         detail: error instanceof Error ? error.message : String(error),
         life: 5000,
       })
@@ -312,7 +312,7 @@ export function Gallery({ openEvent }: GalleryProps) {
     } catch (error: unknown) {
       app.extensionManager.toast.add({
         severity: "error",
-        summary: t("gallery.revealFailed"),
+        summary: t.gallery.revealFailed,
         detail: error instanceof Error ? error.message : String(error),
         life: 5000,
       })
@@ -325,15 +325,15 @@ export function Gallery({ openEvent }: GalleryProps) {
       const result = await sendToFavorites(selectedImage.id, apiRoot, filename)
       app.extensionManager.toast.add({
         severity: "success",
-        summary: t("gallery.favoriteSent"),
+        summary: t.gallery.favoriteSent,
         detail: result.filename,
         life: 3000,
       })
     } catch (error: unknown) {
       if (error instanceof FavoriteConflictError) {
         const replacement = await app.extensionManager.dialog.prompt({
-          title: t("gallery.favoriteConflict"),
-          message: t("gallery.favoriteConflictMessage"),
+          title: t.gallery.favoriteConflict,
+          message: t.gallery.favoriteConflictMessage,
           defaultValue: error.suggestedFilename,
         })
         if (replacement) await sendSelectedImageToFavorites(replacement)
@@ -341,7 +341,7 @@ export function Gallery({ openEvent }: GalleryProps) {
       }
       app.extensionManager.toast.add({
         severity: "error",
-        summary: t("gallery.favoriteFailed"),
+        summary: t.gallery.favoriteFailed,
         detail: error instanceof Error ? error.message : String(error),
         life: 5000,
       })
@@ -360,7 +360,7 @@ export function Gallery({ openEvent }: GalleryProps) {
           return groups
         }, {}),
       ) as [string, GalleryImage[]][])
-    : [[t("gallery.allImages"), images]]
+    : [[t.gallery.allImages, images]]
 
   useEffect(() => {
     if (!selectedImage) {
@@ -400,7 +400,7 @@ export function Gallery({ openEvent }: GalleryProps) {
         <aside className="w-80 shrink-0 flex flex-col overflow-y-auto border-r">
           <DialogHeader className="flex-row items-center gap-3 border-b p-4">
             <ImageIcon className="size-8" />
-            <DialogTitle className="text-xl">{t("gallery.title")}</DialogTitle>
+            <DialogTitle className="text-xl">{t.gallery.title}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-1 p-4 border-t">
             {tabs.map((tab) => (
@@ -440,21 +440,21 @@ export function Gallery({ openEvent }: GalleryProps) {
                     <DropdownMenuGroup>
                       <DropdownMenuItem onSelect={() => void reindexTab(tab)}>
                         <RefreshCwIcon />
-                        {t("gallery.reindex")}
+                        {t.gallery.reindex}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={!tab.editable}
                         onSelect={() => changeTabFolder(tab)}
                       >
                         <FolderCogIcon />
-                        {t("gallery.changeFolder")}
+                        {t.gallery.changeFolder}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={!tab.editable || tab.id === "favorites"}
                         onSelect={() => void renameCustomTab(tab)}
                       >
                         <Settings2Icon />
-                        {t("gallery.renameTab")}
+                        {t.gallery.renameTab}
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
                     <DropdownMenuSeparator />
@@ -465,7 +465,7 @@ export function Gallery({ openEvent }: GalleryProps) {
                         onSelect={() => void removeCustomTab(tab)}
                       >
                         <TrashIcon />
-                        {t("gallery.removeTab")}
+                        {t.gallery.removeTab}
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
@@ -478,21 +478,21 @@ export function Gallery({ openEvent }: GalleryProps) {
               variant="ghost"
             >
               <PlusIcon data-icon="inline-start" />
-              {t("gallery.addTab")}
+              {t.gallery.addTab}
             </Button>
           </div>
           <div className="flex flex-col gap-4 p-4 border-t">
-            <h3 className="text-sm font-semibold">{t("gallery.sort")}</h3>
+            <h3 className="text-sm font-semibold">{t.gallery.sort}</h3>
             <Select onValueChange={updateSort} value={`${sort}:${direction}`}>
-              <SelectTrigger aria-label={t("gallery.sort")} className="max-w-full sm:w-52">
+              <SelectTrigger aria-label={t.gallery.sort} className="max-w-full sm:w-52">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="created_at:desc">{t("gallery.newest")}</SelectItem>
-                  <SelectItem value="created_at:asc">{t("gallery.oldest")}</SelectItem>
-                  <SelectItem value="filename:asc">{t("gallery.filenameAscending")}</SelectItem>
-                  <SelectItem value="filename:desc">{t("gallery.filenameDescending")}</SelectItem>
+                  <SelectItem value="created_at:desc">{t.gallery.newest}</SelectItem>
+                  <SelectItem value="created_at:asc">{t.gallery.oldest}</SelectItem>
+                  <SelectItem value="filename:asc">{t.gallery.filenameAscending}</SelectItem>
+                  <SelectItem value="filename:desc">{t.gallery.filenameDescending}</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
@@ -503,13 +503,13 @@ export function Gallery({ openEvent }: GalleryProps) {
                 onCheckedChange={(checked) => setGroupByDay(checked === true)}
               />
               <Label className="cursor-pointer" htmlFor="group-by-day">
-                {t("gallery.groupByDay")}
+                {t.gallery.groupByDay}
               </Label>
             </Field>
           </div>
           {dimensions.length > 0 && (
             <div className="flex flex-col gap-4 p-4 border-t">
-              <h3 className="text-sm font-semibold">{t("gallery.dimensions")}</h3>
+              <h3 className="text-sm font-semibold">{t.gallery.dimensions}</h3>
               <div className="flex flex-col gap-2">
                 {dimensions.map((dimension) => {
                   const value = `${dimension.width}x${dimension.height}`
@@ -541,20 +541,20 @@ export function Gallery({ openEvent }: GalleryProps) {
               onSubmit={search}
             />
           </div>
-          {status === "loading" && <p>{t("gallery.loading")}</p>}
+          {status === "loading" && <p>{t.gallery.loading}</p>}
           {status === "error" && (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
-              <p>{t("gallery.error")}</p>
+              <p>{t.gallery.error}</p>
             </div>
           )}
           {status === "idle" && selectedTab && !selectedTab.configured && (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
-              <p>{t("gallery.favoritesUnconfigured")}</p>
+              <p>{t.gallery.favoritesUnconfigured}</p>
             </div>
           )}
           {status === "idle" && selectedTab?.configured && images.length === 0 && (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
-              <p>{t("gallery.empty")}</p>
+              <p>{t.gallery.empty}</p>
             </div>
           )}
           {status === "idle" && selectedTab?.configured && images.length > 0 && (
@@ -584,7 +584,7 @@ export function Gallery({ openEvent }: GalleryProps) {
                             <span className="truncate">{image.filename}</span>
                             {image.parse_error && (
                               <Badge
-                                aria-label={t("gallery.metadataWarning")}
+                                aria-label={t.gallery.metadataWarning}
                                 className="ml-auto shrink-0 px-1.5"
                                 title={image.parse_error}
                                 variant="destructive"
@@ -600,7 +600,7 @@ export function Gallery({ openEvent }: GalleryProps) {
                 ))}
               </div>
               <nav
-                aria-label={t("gallery.pagination")}
+                aria-label={t.gallery.pagination}
                 className="flex items-center justify-end gap-3 border-t px-5 py-3"
               >
                 <Button
@@ -610,7 +610,7 @@ export function Gallery({ openEvent }: GalleryProps) {
                   variant="outline"
                 >
                   <ChevronLeftIcon data-icon="inline-start" />
-                  {t("gallery.previous")}
+                  {t.gallery.previous}
                 </Button>
                 <Input
                   className="w-12 text-center"
@@ -632,7 +632,7 @@ export function Gallery({ openEvent }: GalleryProps) {
                   size="sm"
                   variant="outline"
                 >
-                  {t("gallery.next")}
+                  {t.gallery.next}
                   <ChevronRightIcon data-icon="inline-end" />
                 </Button>
               </nav>
@@ -656,46 +656,46 @@ export function Gallery({ openEvent }: GalleryProps) {
                 <div className="flex flex-wrap gap-2 p-4 border-b">
                   <Button onClick={() => void sendSelectedImageToFavorites()} size="sm">
                     <StarIcon data-icon="inline-start" />
-                    {t("gallery.sendToFavorites")}
+                    {t.gallery.sendToFavorites}
                   </Button>
                   <Button onClick={() => void revealSelectedImage()} size="sm" variant="outline">
                     <FolderOpenIcon data-icon="inline-start" />
-                    {t("gallery.reveal")}
+                    {t.gallery.reveal}
                   </Button>
                 </div>
                 {imageDetails ? (
                   <dl className="mt-4 p-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
-                    <dt className="text-muted-foreground">{t("gallery.dimensions")}</dt>
+                    <dt className="text-muted-foreground">{t.gallery.dimensions}</dt>
                     <dd className="break-words">
                       {imageDetails.width} x {imageDetails.height}
                     </dd>
-                    <dt className="text-muted-foreground">{t("gallery.creationDate")}</dt>
+                    <dt className="text-muted-foreground">{t.gallery.creationDate}</dt>
                     <dd className="break-words">
                       {new Date(imageDetails.created_at * 1000).toLocaleString()}
                     </dd>
-                    <dt className="text-muted-foreground">{t("gallery.fileSize")}</dt>
+                    <dt className="text-muted-foreground">{t.gallery.fileSize}</dt>
                     <dd className="break-words">{Math.ceil(imageDetails.file_size / 1024)} KB</dd>
                     {imageDetails.tags.length > 0 && (
                       <>
-                        <dt className="text-muted-foreground">{t("gallery.tags")}</dt>
+                        <dt className="text-muted-foreground">{t.gallery.tags}</dt>
                         <dd className="break-words">{imageDetails.tags.join(", ")}</dd>
                       </>
                     )}
                     {imageDetails.negative_tags.length > 0 && (
                       <>
-                        <dt className="text-muted-foreground">{t("gallery.negativeTags")}</dt>
+                        <dt className="text-muted-foreground">{t.gallery.negativeTags}</dt>
                         <dd className="break-words">{imageDetails.negative_tags.join(", ")}</dd>
                       </>
                     )}
                     {imageDetails.parse_error && (
                       <>
-                        <dt className="text-muted-foreground">{t("gallery.metadataWarning")}</dt>
+                        <dt className="text-muted-foreground">{t.gallery.metadataWarning}</dt>
                         <dd className="break-words">{imageDetails.parse_error}</dd>
                       </>
                     )}
                   </dl>
                 ) : (
-                  <p className="mt-5 text-sm text-muted-foreground">{t("gallery.loading")}</p>
+                  <p className="mt-5 text-sm text-muted-foreground">{t.gallery.loading}</p>
                 )}
               </aside>
               <main className="grow flex flex-col" onClick={() => setSelectedImage(null)}>
