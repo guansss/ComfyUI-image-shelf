@@ -1,17 +1,16 @@
+import type { Settings } from "@comfyorg/comfyui-frontend-types"
+
 import React from "react"
 import ReactDOM from "react-dom/client"
 
 import { app } from "./comfy"
 import { Gallery } from "./components/gallery/Gallery"
 import { TooltipProvider } from "./components/ui/tooltip"
-import { EXTENSION_ID, rootContainer } from "./global"
+import { API_ROOT, EXTENSION_ID, rootContainer } from "./global"
 import { I18NProvider } from "./i18n/I18NProvider"
 import "./index.css"
 
 const OPEN_EVENT = "image-shelf:open"
-const DEBUG_EVENT = "image-shelf:debug-changed"
-const COMFY_API_ROOT = "/api/image-shelf/v1"
-const STANDALONE_API_ROOT = "http://127.0.0.1:8189/api/image-shelf/v1"
 const FAVORITES_SETTING = "image-shelf.favorites-folder"
 const CUSTOM_TABS_SETTING = "image-shelf.custom-tabs"
 
@@ -28,18 +27,16 @@ function mountUI(): void {
 }
 
 function registerExtension(): void {
-  const synchronizeBackend = (useStandaloneBackend = false) => {
-    const apiRoot =
-      import.meta.env.DEV && useStandaloneBackend ? STANDALONE_API_ROOT : COMFY_API_ROOT
-    if (import.meta.env.DEV && useStandaloneBackend) {
-      void fetch(`${apiRoot}/settings/reload`, { method: "POST" }).catch(() => undefined)
+  const synchronizeBackend = () => {
+    if (__USE_STANDALONE_BACKEND__) {
+      void fetch(`${API_ROOT}/settings/reload`, { method: "POST" }).catch(() => undefined)
       return
     }
     const settings = {
       [FAVORITES_SETTING]: app.extensionManager.setting.get(FAVORITES_SETTING),
       [CUSTOM_TABS_SETTING]: app.extensionManager.setting.get(CUSTOM_TABS_SETTING),
     }
-    void fetch(`${apiRoot}/settings`, {
+    void fetch(`${API_ROOT}/settings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
@@ -50,7 +47,7 @@ function registerExtension(): void {
     name: "ComfyUI.ImageShelf",
     settings: [
       {
-        id: "image-shelf.favorites-folder",
+        id: "image-shelf.favorites-folder" as keyof Settings,
         name: "Favorites folder",
         type: "text",
         defaultValue: "",
@@ -58,33 +55,18 @@ function registerExtension(): void {
         onChange: () => synchronizeBackend(),
       },
       {
-        id: "image-shelf.custom-tabs",
+        id: "image-shelf.custom-tabs" as keyof Settings,
         name: "Custom tabs",
         type: "hidden",
         defaultValue: "[]",
         onChange: () => synchronizeBackend(),
       },
       {
-        id: "image-shelf.last-gallery-state",
+        id: "image-shelf.last-gallery-state" as keyof Settings,
         name: "Last gallery state",
         type: "hidden",
         defaultValue: "{}",
       },
-      ...(import.meta.env.DEV
-        ? [
-            {
-              id: "image-shelf.debug-standalone",
-              name: "Use standalone backend",
-              type: "boolean" as const,
-              defaultValue: false,
-              category: ["Image Shelf", "Development", "Use standalone backend"],
-              onChange: (value: boolean) => {
-                window.dispatchEvent(new CustomEvent<boolean>(DEBUG_EVENT, { detail: value }))
-                synchronizeBackend(value)
-              },
-            },
-          ]
-        : []),
     ],
     commands: [
       {

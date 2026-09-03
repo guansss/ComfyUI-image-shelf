@@ -12,18 +12,15 @@ describe("gallery API client", () => {
       json: async () => ({ items: [], page: 2, page_size: 36, total: 40 }),
     })
 
-    await fetchImages(
-      {
-        tab: "outputs",
-        query: "tag:cat",
-        dimensions: ["512x512"],
-        sort: "filename",
-        direction: "asc",
-        page: 2,
-        pageSize: 36,
-      },
-      "/api/image-shelf/v1",
-    )
+    await fetchImages({
+      tab: "outputs",
+      query: "tag:cat",
+      dimensions: ["512x512"],
+      sort: "filename",
+      direction: "asc",
+      page: 2,
+      pageSize: 36,
+    })
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("tab=outputs"),
@@ -40,7 +37,7 @@ describe("gallery API client", () => {
       json: async () => ({ items: [{ name: "cat", type: "positive" }] }),
     })
 
-    await expect(fetchTagSuggestions("favorites", "ca", "/api/image-shelf/v1")).resolves.toEqual([
+    await expect(fetchTagSuggestions("favorites", "ca")).resolves.toEqual([
       { name: "cat", type: "positive" },
     ])
 

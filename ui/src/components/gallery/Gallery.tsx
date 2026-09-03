@@ -44,12 +44,7 @@ import {
   revealImage,
   sendToFavorites,
 } from "../../galleryApi"
-import {
-  COMFY_API_ROOT,
-  CUSTOM_TABS_SETTING,
-  FAVORITES_SETTING,
-  STANDALONE_API_ROOT,
-} from "../../global"
+import { CUSTOM_TABS_SETTING, FAVORITES_SETTING } from "../../global"
 import { useTranslation } from "../../i18n/i18n"
 import { cn } from "../../lib/utils"
 import {
@@ -93,7 +88,6 @@ export function Gallery({ openEvent }: GalleryProps) {
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null)
   const [imageDetails, setImageDetails] = useState<ImageDetails | null>(null)
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle")
-  const [useStandaloneBackend, setUseStandaloneBackend] = useState(false)
   const [groupByDay, setGroupByDay] = useState(true)
   const searchAbortControllerRef = useRef<AbortController | null>(null)
 
@@ -112,19 +106,9 @@ export function Gallery({ openEvent }: GalleryProps) {
   }, [])
 
   useEffect(() => {
-    const updateDebugMode = (event: Event) => {
-      setUseStandaloneBackend((event as CustomEvent<boolean>).detail)
-    }
-    window.addEventListener("image-shelf:debug-changed", updateDebugMode)
-    return () => window.removeEventListener("image-shelf:debug-changed", updateDebugMode)
-  }, [])
-
-  const apiRoot = useStandaloneBackend ? STANDALONE_API_ROOT : COMFY_API_ROOT
-
-  useEffect(() => {
     if (!isOpen) return
     const controller = new AbortController()
-    void fetchTabs(apiRoot, controller.signal)
+    void fetchTabs(controller.signal)
       .then((nextTabs) => {
         setTabs(nextTabs)
       })
@@ -133,7 +117,7 @@ export function Gallery({ openEvent }: GalleryProps) {
         setStatus("error")
       })
     return () => controller.abort()
-  }, [apiRoot, isOpen])
+  }, [isOpen])
 
   const search = () => {
     if (searchAbortControllerRef.current) {
@@ -153,10 +137,9 @@ export function Gallery({ openEvent }: GalleryProps) {
           page,
           pageSize: PAGE_SIZE,
         },
-        apiRoot,
         controller.signal,
       ),
-      fetchDimensions(selectedTabId, query, apiRoot, controller.signal),
+      fetchDimensions(selectedTabId, query, controller.signal),
     ])
       .then(([imagePage, nextDimensions]: [ImageListResponse, DimensionFacet[]]) => {
         setImages(imagePage.items)
@@ -290,7 +273,7 @@ export function Gallery({ openEvent }: GalleryProps) {
 
   const reindexTab = async (tab: GalleryTab) => {
     try {
-      await reindexTabApi(tab.id, apiRoot)
+      await reindexTabApi(tab.id)
       setTabs((current) => current.map((t) => (t.id === tab.id ? { ...t, indexing: true } : t)))
     } catch (error: unknown) {
       app.extensionManager.toast.add({
@@ -310,7 +293,7 @@ export function Gallery({ openEvent }: GalleryProps) {
   const revealSelectedImage = async () => {
     if (!selectedImage) return
     try {
-      await revealImage(selectedImage.id, apiRoot)
+      await revealImage(selectedImage.id)
     } catch (error: unknown) {
       app.extensionManager.toast.add({
         severity: "error",
@@ -324,7 +307,7 @@ export function Gallery({ openEvent }: GalleryProps) {
   const sendSelectedImageToFavorites = async (filename?: string) => {
     if (!selectedImage) return
     try {
-      const result = await sendToFavorites(selectedImage.id, apiRoot, filename)
+      const result = await sendToFavorites(selectedImage.id, filename)
       app.extensionManager.toast.add({
         severity: "success",
         summary: t.gallery.favoriteSent,
@@ -370,11 +353,11 @@ export function Gallery({ openEvent }: GalleryProps) {
       return
     }
     const controller = new AbortController()
-    void fetchImageDetails(selectedImage.id, apiRoot, controller.signal)
+    void fetchImageDetails(selectedImage.id, controller.signal)
       .then(setImageDetails)
       .catch(() => setImageDetails(null))
     return () => controller.abort()
-  }, [apiRoot, selectedImage])
+  }, [selectedImage])
 
   useEffect(() => {
     if (!selectedImage) return
@@ -536,13 +519,7 @@ export function Gallery({ openEvent }: GalleryProps) {
 
         <main className="flex grow flex-col">
           <div className="flex items-center gap-4 p-4 pr-16">
-            <Searchbar
-              apiRoot={apiRoot}
-              tab={selectedTab}
-              value={query}
-              onChange={setQuery}
-              onSubmit={search}
-            />
+            <Searchbar tab={selectedTab} value={query} onChange={setQuery} onSubmit={search} />
           </div>
           {status === "loading" && <p>{t.gallery.loading}</p>}
           {status === "error" && (

@@ -1,6 +1,6 @@
 export const EXTENSION_ID = "comfyui-image-shelf"
-export const COMFY_API_ROOT = "/api/image-shelf/v1"
-export const STANDALONE_API_ROOT = "http://127.0.0.1:8189/api/image-shelf/v1"
+export const SERVER_URL = new URL(__BACKEND_BASE_URL__, window.location.origin).toString()
+export const API_ROOT = new URL("/api/image-shelf/v1", SERVER_URL).toString()
 export const CUSTOM_TABS_SETTING = "image-shelf.custom-tabs"
 export const FAVORITES_SETTING = "image-shelf.favorites-folder"
 

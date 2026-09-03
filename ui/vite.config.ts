@@ -1,7 +1,7 @@
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import path from "path"
-import { defineConfig } from "vite"
+import { defineConfig, loadEnv } from "vite"
 
 import { generateTranslations } from "./scripts/generate-translations"
 
@@ -28,6 +28,23 @@ const rewriteComfyImports = ({ isDev }: RewriteComfyImportsOptions) => {
   }
 }
 
+const envDir = path.resolve(__dirname, "../")
+const env = loadEnv("", envDir, "")
+
+const USE_STANDALONE_BACKEND = env.USE_STANDALONE_BACKEND === "true"
+let backendBaseUrl = "/"
+
+if (USE_STANDALONE_BACKEND) {
+  const port = env.BACKEND_STANDALONE_PORT
+  if (!port) {
+    throw new Error(
+      "BACKEND_STANDALONE_PORT environment variable is not set. Please set it to the port of the standalone backend server.",
+    )
+  }
+  backendBaseUrl = `http://127.0.0.1:${port}/`
+  console.log(`Using standalone backend at ${backendBaseUrl}`)
+}
+
 export default defineConfig(({ mode }) => ({
   plugins: [
     tailwindcss(),
@@ -35,6 +52,12 @@ export default defineConfig(({ mode }) => ({
     rewriteComfyImports({ isDev: mode === "development" }),
     generateTranslations(),
   ],
+  define: {
+    __DEV__: mode === "development" || process.argv.includes("--watch"),
+    __USE_STANDALONE_BACKEND__: USE_STANDALONE_BACKEND,
+    __BACKEND_BASE_URL__: JSON.stringify(backendBaseUrl),
+  },
+  envDir,
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

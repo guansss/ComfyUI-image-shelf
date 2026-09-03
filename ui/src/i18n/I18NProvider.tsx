@@ -8,7 +8,7 @@ import { Language, RawTranslations, i18n, languageAtom, rawTranslationsAtom } fr
 
 let refresh: () => void = noop
 
-export const I18NProvider = ({ children }: { children: JSX.Element }) => {
+export const I18NProvider = ({ children }: { children: React.ReactNode }) => {
   // We use Suspense but without a fallback because React somehow tries to throttle
   // the loading state and shows the fallback for a longer time than needed,
   // likely 200-500ms, although the loading of translations is almost instant...
@@ -19,7 +19,7 @@ export const I18NProvider = ({ children }: { children: JSX.Element }) => {
   )
 }
 
-const I18NProviderInner = ({ children }: { children: JSX.Element }) => {
+const I18NProviderInner = ({ children }: { children: React.ReactNode }) => {
   const language = useAtomValue(languageAtom)
   const setRawTranslations = useSetAtom(rawTranslationsAtom)
   const { data, mutate } = useSWR(

@@ -1,3 +1,5 @@
+import { API_ROOT } from "./global"
+
 export interface GalleryTab {
   id: string
   name: string
@@ -67,20 +69,30 @@ export interface ImageListResponse {
   total: number
 }
 
-async function request<T>(apiRoot: string, path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${apiRoot}${path}`, { signal })
+async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`${API_ROOT}${path}`, { signal })
   if (!response.ok) throw new Error(await response.text())
   return response.json() as Promise<T>
 }
 
-export async function fetchTabs(apiRoot: string, signal?: AbortSignal): Promise<GalleryTab[]> {
-  const response = await request<{ items: GalleryTab[] }>(apiRoot, "/tabs", signal)
+async function post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`${API_ROOT}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
+  })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json() as Promise<T>
+}
+
+export async function fetchTabs(signal?: AbortSignal): Promise<GalleryTab[]> {
+  const response = await get<{ items: GalleryTab[] }>("/tabs", signal)
   return response.items
 }
 
 export async function fetchImages(
   imageQuery: ImageQuery,
-  apiRoot: string,
   signal?: AbortSignal,
 ): Promise<ImageListResponse> {
   const parameters = new URLSearchParams({
@@ -94,49 +106,38 @@ export async function fetchImages(
   for (const dimension of imageQuery.dimensions) {
     parameters.append("dimension", dimension)
   }
-  return request<ImageListResponse>(apiRoot, `/images?${parameters}`, signal)
+  return get<ImageListResponse>(`/images?${parameters}`, signal)
 }
 
 export async function fetchDimensions(
   tab: string,
   query: string,
-  apiRoot: string,
   signal?: AbortSignal,
 ): Promise<DimensionFacet[]> {
   const parameters = new URLSearchParams({ tab, query })
-  const response = await request<{ items: DimensionFacet[] }>(
-    apiRoot,
-    `/dimensions?${parameters}`,
-    signal,
-  )
+  const response = await get<{ items: DimensionFacet[] }>(`/dimensions?${parameters}`, signal)
   return response.items
 }
 
 export async function fetchTagSuggestions(
   tab: string,
   query: string,
-  apiRoot: string,
   signal?: AbortSignal,
 ): Promise<TagSuggestion[]> {
   const parameters = new URLSearchParams({ tab, q: query })
-  const response = await request<{ items: TagSuggestion[] }>(apiRoot, `/tags?${parameters}`, signal)
+  const response = await get<{ items: TagSuggestion[] }>(`/tags?${parameters}`, signal)
   return response.items
 }
 
-export function fetchImageDetails(
-  imageId: string,
-  apiRoot: string,
-  signal?: AbortSignal,
-): Promise<ImageDetails> {
-  return request<ImageDetails>(apiRoot, `/images/${encodeURIComponent(imageId)}`, signal)
+export function fetchImageDetails(imageId: string, signal?: AbortSignal): Promise<ImageDetails> {
+  return get<ImageDetails>(`/images/${encodeURIComponent(imageId)}`, signal)
 }
 
 export async function sendToFavorites(
   imageId: string,
-  apiRoot: string,
   filename?: string,
 ): Promise<{ filename: string; mode: string }> {
-  const response = await fetch(`${apiRoot}/images/${encodeURIComponent(imageId)}/favorite`, {
+  const response = await fetch(`${API_ROOT}/images/${encodeURIComponent(imageId)}/favorite`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mode: "copy", filename }),
@@ -149,16 +150,14 @@ export async function sendToFavorites(
   return response.json() as Promise<{ filename: string; mode: string }>
 }
 
-export async function reindexTab(tab: string, apiRoot: string): Promise<void> {
-  const response = await fetch(`${apiRoot}/reindex?${new URLSearchParams({ tab })}`, {
-    method: "POST",
-  })
-  if (!response.ok) throw new Error(await response.text())
+export async function reindexTab(tab: string): Promise<void> {
+  return await post(`/reindex?${new URLSearchParams({ tab })}`)
 }
 
-export async function revealImage(imageId: string, apiRoot: string): Promise<void> {
-  const response = await fetch(`${apiRoot}/images/${encodeURIComponent(imageId)}/reveal`, {
-    method: "POST",
-  })
-  if (!response.ok) throw new Error(await response.text())
+export async function revealImage(imageId: string): Promise<void> {
+  return await post(`/images/${encodeURIComponent(imageId)}/reveal`)
+}
+
+export async function pickFolder(): Promise<void> {
+  return await post(`/pick-folder`)
 }

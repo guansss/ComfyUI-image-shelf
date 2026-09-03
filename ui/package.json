@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "watch": "vite build --watch",
+    "watch:standalone": "cross-env USE_STANDALONE_BACKEND=true vite build --watch",
     "init": "oxfmt --init",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",

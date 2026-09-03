@@ -1,1 +1,6 @@
 watchdog
+
+# Already installed by ComfyUI
+aiohttp
+dotenv
+Pillow

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 from .models import GalleryTab
 from .paths import normalize_path
@@ -14,16 +14,25 @@ from .paths import normalize_path
 
 @dataclass(frozen=True)
 class StandaloneConfiguration:
+    port: int
     comfyui_path: Path
     output_folder: Path
     settings_path: Path
 
 
-def load_standalone_configuration(env_path: str | Path = ".env") -> StandaloneConfiguration:
-    load_dotenv(dotenv_path=env_path)
-    comfyui_path = _required_path("COMFYUI_PATH")
-    output_folder = _required_path("COMFYUI_OUTPUT_FOLDER")
+def load_standalone_configuration(
+    env_path: str | Path = ".env",
+) -> StandaloneConfiguration:
+    env = {
+        **dotenv_values(env_path),
+        **dotenv_values(".env.local"),
+    }
+    {os.environ.setdefault(k, v) for k, v in env.items() if v is not None}
+    port = int(_required_var("BACKEND_STANDALONE_PORT"))
+    comfyui_path = normalize_path(_required_var("COMFYUI_PATH"))
+    output_folder = normalize_path(_required_var("COMFYUI_OUTPUT_FOLDER"))
     return StandaloneConfiguration(
+        port=port,
         comfyui_path=comfyui_path,
         output_folder=output_folder,
         settings_path=comfyui_path / "user" / "default" / "comfy.settings.json",
@@ -35,21 +44,28 @@ def load_standalone_tabs(configuration: StandaloneConfiguration) -> list[Gallery
     return tabs_from_settings(configuration.output_folder, settings)
 
 
-def tabs_from_settings(output_folder: str | Path, settings: dict[str, Any]) -> list[GalleryTab]:
+def tabs_from_settings(
+    output_folder: str | Path, settings: dict[str, Any]
+) -> list[GalleryTab]:
     favorites_folder = _as_path(settings.get("image-shelf.favorites-folder"))
     custom_tabs = _parse_custom_tabs(settings.get("image-shelf.custom-tabs"))
     return [
         GalleryTab("outputs", "Outputs", (normalize_path(output_folder),)),
-        GalleryTab("favorites", "Favorites", (favorites_folder,) if favorites_folder else (), editable=True),
+        GalleryTab(
+            "favorites",
+            "Favorites",
+            (favorites_folder,) if favorites_folder else (),
+            editable=True,
+        ),
         *custom_tabs,
     ]
 
 
-def _required_path(name: str) -> Path:
+def _required_var(name: str) -> str:
     value = os.getenv(name)
     if not value:
         raise ValueError(f"{name} is required in .env for standalone mode.")
-    return normalize_path(value)
+    return value
 
 
 def _load_settings(path: Path) -> dict[str, Any]:
@@ -79,7 +95,9 @@ def _parse_custom_tabs(value: Any) -> list[GalleryTab]:
         name = item.get("name")
         folder = _as_path(item.get("folder"))
         if isinstance(tab_id, str) and isinstance(name, str) and folder:
-            tabs.append(GalleryTab(tab_id, name, (folder,), editable=True, removable=True))
+            tabs.append(
+                GalleryTab(tab_id, name, (folder,), editable=True, removable=True)
+            )
     return tabs
 
 

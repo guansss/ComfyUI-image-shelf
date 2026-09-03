@@ -16,7 +16,6 @@ import { InputGroup, InputGroupAddon, InputGroupButton } from "../ui/input-group
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "../ui/popover"
 
 interface SearchbarProps {
-  apiRoot: string
   tab?: GalleryTab
   value: string
   onChange: (value: string) => void
@@ -24,7 +23,7 @@ interface SearchbarProps {
   onSubmit?: () => void
 }
 
-export function Searchbar({ apiRoot, tab, value, onChange, onSubmit }: SearchbarProps) {
+export function Searchbar({ tab, value, onChange, onSubmit }: SearchbarProps) {
   const t = useTranslation()
   const suggestionsAbortControllerRef = useRef<AbortController | null>(null)
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
@@ -43,7 +42,7 @@ export function Searchbar({ apiRoot, tab, value, onChange, onSubmit }: Searchbar
         setSuggestionsLoading(true)
         const controller = new AbortController()
         suggestionsAbortControllerRef.current = controller
-        void fetchTagSuggestions(tab.id, searchValue, apiRoot, controller.signal)
+        void fetchTagSuggestions(tab.id, searchValue, controller.signal)
           .then(setTagSuggestions)
           .catch((error: unknown) => {
             if (!(error instanceof DOMException && error.name === "AbortError")) {
@@ -52,7 +51,7 @@ export function Searchbar({ apiRoot, tab, value, onChange, onSubmit }: Searchbar
           })
           .finally(() => setSuggestionsLoading(false))
       }),
-    [tab, apiRoot],
+    [tab],
   )
 
   useEffect(() => {
