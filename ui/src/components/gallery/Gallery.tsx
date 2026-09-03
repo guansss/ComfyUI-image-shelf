@@ -44,9 +44,10 @@ import {
   revealImage,
   sendToFavorites,
 } from "../../galleryApi"
-import { CUSTOM_TABS_SETTING, FAVORITES_SETTING } from "../../global"
+import { CUSTOM_TABS_SETTING, FAVORITES_SETTING, SERVER_URL } from "../../global"
 import { useTranslation } from "../../i18n/i18n"
 import { cn } from "../../lib/utils"
+import { pickFolder } from "../pick-folder"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -142,6 +143,9 @@ export function Gallery({ openEvent }: GalleryProps) {
       fetchDimensions(selectedTabId, query, controller.signal),
     ])
       .then(([imagePage, nextDimensions]: [ImageListResponse, DimensionFacet[]]) => {
+        imagePage.items.forEach((image) => {
+          image.url = new URL(image.url, SERVER_URL).toString()
+        })
         setImages(imagePage.items)
         setTotal(imagePage.total)
         setDimensions(nextDimensions)
@@ -262,13 +266,13 @@ export function Gallery({ openEvent }: GalleryProps) {
 
   const configureFavoritesFolder = async () => {
     const currentValue = app.extensionManager.setting.get(FAVORITES_SETTING)
-    const folder = await app.extensionManager.dialog.prompt({
+    const result = await pickFolder({
       title: t.gallery.changeFolder,
       message: t.gallery.folderPath,
-      defaultValue: typeof currentValue === "string" ? currentValue : "",
+      initialValue: { folder: typeof currentValue === "string" ? currentValue : "" },
     })
-    if (folder === undefined || folder === null) return
-    await app.extensionManager.setting.set(FAVORITES_SETTING, folder.trim())
+    if (!result?.folder?.trim()) return
+    await app.extensionManager.setting.set(FAVORITES_SETTING, result.folder.trim())
   }
 
   const reindexTab = async (tab: GalleryTab) => {
@@ -527,17 +531,17 @@ export function Gallery({ openEvent }: GalleryProps) {
               <p>{t.gallery.error}</p>
             </div>
           )}
-          {status === "idle" && selectedTab && !selectedTab.configured && (
+          {status === "idle" && selectedTab && !selectedTab.folders.length && (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
               <p>{t.gallery.favoritesUnconfigured}</p>
             </div>
           )}
-          {status === "idle" && selectedTab?.configured && images.length === 0 && (
+          {status === "idle" && !!selectedTab?.folders.length && images.length === 0 && (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
               <p>{t.gallery.empty}</p>
             </div>
           )}
-          {status === "idle" && selectedTab?.configured && images.length > 0 && (
+          {status === "idle" && !!selectedTab?.folders.length && images.length > 0 && (
             <>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {imageGroups.map(([day, group]) => (

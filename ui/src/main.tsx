@@ -4,6 +4,7 @@ import React from "react"
 import ReactDOM from "react-dom/client"
 
 import { app } from "./comfy"
+import { AskProvider } from "./components/ask"
 import { Gallery } from "./components/gallery/Gallery"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { API_ROOT, EXTENSION_ID, rootContainer } from "./global"
@@ -21,6 +22,7 @@ function mountUI(): void {
         <TooltipProvider>
           <Gallery openEvent={OPEN_EVENT} />
         </TooltipProvider>
+        <AskProvider />
       </I18NProvider>
     </React.StrictMode>,
   )
@@ -28,10 +30,6 @@ function mountUI(): void {
 
 function registerExtension(): void {
   const synchronizeBackend = () => {
-    if (__USE_STANDALONE_BACKEND__) {
-      void fetch(`${API_ROOT}/settings/reload`, { method: "POST" }).catch(() => undefined)
-      return
-    }
     const settings = {
       [FAVORITES_SETTING]: app.extensionManager.setting.get(FAVORITES_SETTING),
       [CUSTOM_TABS_SETTING]: app.extensionManager.setting.get(CUSTOM_TABS_SETTING),

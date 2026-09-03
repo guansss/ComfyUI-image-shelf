@@ -1,9 +1,11 @@
+import mitt, { Emitter } from "mitt"
+
 import { API_ROOT } from "./global"
 
 export interface GalleryTab {
   id: string
   name: string
-  configured: boolean
+  folders: string[]
   editable: boolean
   removable: boolean
   indexing: boolean
@@ -68,6 +70,98 @@ export interface ImageListResponse {
   page_size: number
   total: number
 }
+
+export type GalleryMessage = {
+  pickFolder: {
+    path?: string | null
+    error?: string
+  }
+}
+
+interface GalleryMessageEvent {
+  event: string
+  data: unknown
+}
+
+function isGalleryMessageEvent(value: unknown): value is GalleryMessageEvent {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "event" in value &&
+    typeof value.event === "string" &&
+    "data" in value
+  )
+}
+
+export interface GalleryWebSocket extends Emitter<GalleryMessage> {}
+
+export class GalleryWebSocket {
+  private socket: WebSocket | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private reconnectDelay = 1000
+  private isClosing = false
+
+  constructor() {
+    Object.assign(this, mitt<GalleryMessage>())
+  }
+
+  connect(): void {
+    if (this.socket || this.isClosing) return
+    const websocket = new WebSocket(this.websocketUrl())
+    this.socket = websocket
+    websocket.onopen = () => {
+      console.log("Connected to gallery WebSocket.")
+      if (this.socket !== websocket) return
+      this.reconnectDelay = 1000
+    }
+    websocket.onmessage = (event) => {
+      if (this.socket !== websocket) return
+      try {
+        const message: unknown = JSON.parse(event.data)
+        if (isGalleryMessageEvent(message)) {
+          ;(this as unknown as Emitter<Record<string, unknown>>).emit(message.event, message.data)
+        }
+      } catch {
+        // Ignore malformed messages from the backend.
+      }
+    }
+    websocket.onerror = () => websocket.close()
+    websocket.onclose = () => {
+      if (this.socket !== websocket) return
+      this.socket = null
+      if (!this.isClosing) this.scheduleReconnect()
+    }
+  }
+
+  disconnect(): void {
+    this.isClosing = true
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    this.socket?.close()
+    this.socket = null
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer !== null) return
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000)
+      this.connect()
+    }, this.reconnectDelay)
+  }
+
+  private websocketUrl(): string {
+    const url = new URL(API_ROOT)
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
+    url.pathname = `${url.pathname.replace(/\/$/, "")}/websocket`
+    return url.toString()
+  }
+}
+
+export const socket = new GalleryWebSocket()
+socket.connect()
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_ROOT}${path}`, { signal })

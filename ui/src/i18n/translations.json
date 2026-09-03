@@ -13,22 +13,48 @@
       "en": "Failed to load translations."
     }
   },
-  "gallery": {
-    "title": {
-      "en": "Image Shelf",
-      "cn": "图像库"
+  "common": {
+    "confirm": {
+      "en": "Confirm",
+      "cn": "确定"
+    },
+    "cancel": {
+      "en": "Cancel",
+      "cn": "取消"
     },
     "close": {
-      "en": "Close image shelf",
-      "cn": "关闭图像库"
+      "en": "Close",
+      "cn": "关闭"
     },
-    "search": {
+    "delete": {
+      "en": "Delete",
+      "cn": "删除"
+    }
+  },
+  "error": {
+    "error": {
+      "en": "Error",
+      "cn": "错误"
+    },
+    "unknown": {
+      "en": "Unknown error",
+      "cn": "未知错误"
+    }
+  },
+  "filePicker": {
+    "selectFolder": {
+      "en": "Select folder...",
+      "cn": "选择文件夹..."
+    },
+    "pickError": {
+      "en": "Could not pick folder",
+      "cn": "无法选择文件夹"
+    }
+  },
+  "search": {
+    "placeholder": {
       "en": "Search tags and filenames",
       "cn": "搜索标签和文件名"
-    },
-    "filters": {
-      "en": "Filters",
-      "cn": "筛选"
     },
     "searchHelp": {
       "en": "Search syntax",
@@ -37,6 +63,24 @@
     "searchSyntax": {
       "en": "cat and tag:cat find positive tags. tag:-cat finds negative tags. -tag:cat excludes a positive tag. name:foo searches filenames. prompt:foo searches workflow text. Use quotes for spaces.",
       "cn": "cat 和 tag:cat 搜索正向标签。tag:-cat 搜索负向标签。-tag:cat 排除正向标签。name:foo 搜索文件名。prompt:foo 搜索工作流文本。含空格的内容请使用引号。"
+    },
+    "loadingSuggestions": {
+      "en": "Finding tag suggestions...",
+      "cn": "正在寻找标签..."
+    },
+    "noSuggestions": {
+      "en": "No tag suggestions",
+      "cn": "没有符合的标签"
+    }
+  },
+  "gallery": {
+    "title": {
+      "en": "Image Shelf",
+      "cn": "图像库"
+    },
+    "filters": {
+      "en": "Filters",
+      "cn": "筛选"
     },
     "groupByDay": {
       "en": "Group by creation day",

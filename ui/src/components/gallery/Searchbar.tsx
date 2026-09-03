@@ -97,7 +97,7 @@ export function Searchbar({ tab, value, onChange, onSubmit }: SearchbarProps) {
           <AutocompleteInput
             showClear
             className="flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
-            placeholder={t.gallery.search}
+            placeholder={t.search.placeholder}
             onKeyUp={handleKeyUp}
           />
           {shouldRenderPopup && (
@@ -117,10 +117,10 @@ export function Searchbar({ tab, value, onChange, onSubmit }: SearchbarProps) {
                 {suggestionsLoading ? (
                   <div className="flex items-center gap-2">
                     <LoaderCircleIcon className="size-4 animate-spin" />
-                    {t.gallery.loading}
+                    {t.search.loadingSuggestions}
                   </div>
                 ) : tagSuggestions.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">{t.gallery.noSuggestions}</div>
+                  <div className="text-sm text-muted-foreground">{t.search.noSuggestions}</div>
                 ) : null}
               </AutocompleteStatus>
             </AutocompleteContent>
@@ -140,9 +140,9 @@ export function Searchbar({ tab, value, onChange, onSubmit }: SearchbarProps) {
           </PopoverTrigger>
           <PopoverContent className="w-150 max-w-screen">
             <PopoverHeader>
-              <PopoverTitle>{t.gallery.searchHelp}</PopoverTitle>
+              <PopoverTitle>{t.search.searchHelp}</PopoverTitle>
             </PopoverHeader>
-            <p className="text-sm wrap-break-word">{t.gallery.searchSyntax}</p>
+            <p className="text-sm wrap-break-word">{t.search.searchSyntax}</p>
           </PopoverContent>
         </Popover>
       </InputGroup>
