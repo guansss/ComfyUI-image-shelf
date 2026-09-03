@@ -36,7 +36,7 @@ class FolderWatcher:
         for folder in requested_folders - set(self._watches):
             if folder.is_dir():
                 self._watches[folder] = self.observer.schedule(
-                    _IndexEventHandler(folder, self._queue_index), str(folder), recursive=True
+                    _IndexEventHandler(folder, self._queue_index), str(folder), recursive=False
                 )
 
     def stop(self) -> None:

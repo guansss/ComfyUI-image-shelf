@@ -41,7 +41,7 @@ class FolderIndexer:
         indexed = 0
         skipped = 0
         errors = 0
-        for path in folder.rglob("*"):
+        for path in folder.iterdir():
             if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 continue
             normalized_path = normalize_path(path)
