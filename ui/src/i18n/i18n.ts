@@ -284,7 +284,7 @@ function setupTranslations({ language, data }: RawTranslations) {
 
         const interpolated = segments.map((segment, index) => {
           if (index % 2 === 0) {
-            if (segment && segment.includes("\n")) {
+            if (jsx && segment && segment.includes("\n")) {
               return preserveLineBreaks(segment)
             }
             return segment

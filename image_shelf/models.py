@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -80,3 +81,9 @@ class GalleryTab:
     folders: tuple[Path, ...]
     editable: bool = False
     removable: bool = False
+
+    def dict(self) -> dict[str, Any]:
+        return {
+            **self.__dict__,
+            "folders": [str(folder) for folder in self.folders],
+        }

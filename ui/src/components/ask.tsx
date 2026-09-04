@@ -24,28 +24,32 @@ interface AskRequestBase {
   confirmText?: string
   cancelText?: string
   onCancel?: () => void
+
+  /**
+   * onConfirm: Returns false to prevent closing the dialog.
+   */
 }
 
 interface AskRequestConfirm extends AskRequestBase {
   type: "confirm"
-  onConfirm?: () => void
+  onConfirm?: () => boolean | void
 }
 
 interface AskRequestDelete extends AskRequestBase {
   type: "delete"
-  onConfirm?: () => void
+  onConfirm?: () => boolean | void
 }
 
 type AskRequestDefault = AskRequestConfirm | AskRequestDelete
 
-interface AskRequestCustom<T> extends AskRequestBase {
+type AskRequestCustom<T, M> = AskRequestBase & {
   type: "custom"
-  component: React.ComponentType<AskDialogProps<T>>
+  component: React.ComponentType<AskDialogProps<T, M>>
   initialValue?: T
-  onConfirm?: (value: T) => void
-}
+  onConfirm?: (value: T) => boolean | void
+} & ([M] extends [never] ? {} : { meta: M })
 
-type AskRequest = AskRequestDefault | AskRequestCustom<unknown>
+type AskRequest = AskRequestDefault | AskRequestCustom<unknown, unknown>
 
 type AskProcessMeta = {
   id: string
@@ -53,8 +57,8 @@ type AskProcessMeta = {
 }
 type AskProcessBase = AskRequestBase & AskProcessMeta
 type AskProcessDefault = AskProcessBase & AskRequestDefault
-type AskProcessCustom<T> = AskProcessBase & AskRequestCustom<T>
-type AskProcess = AskProcessDefault | AskProcessCustom<unknown>
+type AskProcessCustom<T, M> = AskProcessBase & AskRequestCustom<T, M>
+type AskProcess = AskProcessDefault | AskProcessCustom<unknown, unknown>
 
 type AskEvents = {
   add: AskRequest
@@ -64,25 +68,22 @@ const emitter = mitt<AskEvents>()
 
 type GetAskReturn<T> = T extends AskRequestDefault
   ? boolean
-  : T extends AskRequestCustom<infer U>
+  : T extends AskRequestCustom<infer U, infer M>
     ? U | null
     : never
 
-function askGeneric<T extends AskRequestBase>(
-  req: T extends AskRequestDefault
-    ? T
-    : T extends AskRequestCustom<infer U>
-      ? AskRequestCustom<U>
-      : never,
-): Promise<GetAskReturn<T>> {
+function askGeneric<T extends AskRequestBase>(req: T): Promise<GetAskReturn<T>> {
   return new Promise<unknown>((resolve) => {
     if (isCustomAsk(req)) {
-      const customReq = req as AskRequestCustom<unknown>
+      const customReq = req as unknown as AskRequestCustom<unknown, unknown>
       const resolvableReq: typeof customReq = {
         ...customReq,
         onConfirm: (value) => {
-          customReq.onConfirm?.(value)
+          if (customReq.onConfirm?.(value) === false) {
+            return false
+          }
           resolve(value)
+          return true
         },
         onCancel: () => {
           customReq.onCancel?.()
@@ -95,8 +96,11 @@ function askGeneric<T extends AskRequestBase>(
       const resolvableReq: typeof defaultReq = {
         ...defaultReq,
         onConfirm: () => {
-          defaultReq.onConfirm?.()
+          if (defaultReq.onConfirm?.() === false) {
+            return false
+          }
           resolve(true)
+          return true
         },
         onCancel: () => {
           defaultReq.onCancel?.()
@@ -119,10 +123,11 @@ export function ask(req: OptionalTypeForConfirm<AskRequestDefault>): Promise<boo
   return askGeneric(req as AskRequestDefault)
 }
 
-export type AskCustomParam<T> = Omit<AskRequestCustom<T>, "type">
+export type AskCustomParam<T, M = never> = Omit<AskRequestCustom<T, M>, "type">
 
-export function askCustom<T>(req: AskCustomParam<T>): Promise<T | null> {
-  return askGeneric({ ...req, type: "custom" })
+export function askCustom<T, M = never>(req: AskCustomParam<T, M>): Promise<T | null> {
+  const customReq = { ...req, type: "custom" } as AskRequestCustom<T, M>
+  return askGeneric(customReq)
 }
 
 function isCustomAsk<T extends { type: string }>(req: T): req is Extract<T, { type: "custom" }> {
@@ -151,7 +156,17 @@ export function AskProvider() {
 
   return processes.map((process) => {
     const onUpdate = (newProcess: AskProcess) => {
-      setProcesses((prev) => prev.map((ins) => (ins.id === newProcess.id ? newProcess : ins)))
+      setProcesses((prev) =>
+        prev.map((ins) =>
+          ins.id === newProcess.id
+            ? // combine the existing process with the new process,
+              // because a component that wraps the AskDialog may not
+              // pass all the props to the AskDialog, which would cause
+              // those props to be lost in the updated process
+              ({ ...ins, ...newProcess } as typeof ins)
+            : ins,
+        ),
+      )
     }
     const onDispose = () => {
       setProcesses((prev) => prev.filter((ins) => ins.id !== process.id))
@@ -167,7 +182,8 @@ export function AskProvider() {
   })
 }
 
-export type AskDialogProps<T> = AskProcessCustom<T> & AskDialogExtraProps<AskProcessCustom<T>>
+export type AskDialogProps<T, M = never> = AskProcessCustom<T, M> &
+  AskDialogExtraProps<AskProcessCustom<T, M>>
 
 type AskDialogExtraProps<T> = {
   onUpdate: (process: T) => void
@@ -196,8 +212,8 @@ const AskDialogGeneric = <T extends AskProcessBase>({
   }, [open, onDispose])
 
   const handleConfirm = () => {
-    onUpdate({ ...process, open: false })
-    onConfirm?.()
+    const result = onConfirm?.()
+    if (result !== false) onUpdate({ ...process, open: false })
   }
 
   return (
@@ -249,6 +265,6 @@ const AskDialogGeneric = <T extends AskProcessBase>({
 }
 const AskDialogDefault = memo(AskDialogGeneric) as unknown as typeof AskDialogGeneric
 
-export const AskDialog = AskDialogGeneric as <T>(
-  props: WithDefaultConfirm<AskDialogProps<T>>,
+export const AskDialog = AskDialogGeneric as <T, M = never>(
+  props: WithDefaultConfirm<AskDialogProps<T, M>>,
 ) => React.ReactElement

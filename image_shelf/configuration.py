@@ -117,12 +117,10 @@ def _required_var(name: str, default: str | None = None) -> str:
 
 
 def _parse_custom_tabs(value: Any) -> list[GalleryTab]:
-    if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except json.JSONDecodeError:
-            return []
     if not isinstance(value, list):
+        logger.warning(
+            "Expected a list for custom tabs, but got: %s", type(value).__name__
+        )
         return []
 
     tabs: list[GalleryTab] = []
@@ -132,9 +130,16 @@ def _parse_custom_tabs(value: Any) -> list[GalleryTab]:
         tab_id = item.get("id")
         name = item.get("name")
         folder = _as_path(item.get("folder"))
-        if isinstance(tab_id, str) and isinstance(name, str) and folder:
+        if isinstance(tab_id, str):
+            name = isinstance(name, str) and name or f"???{tab_id}"
             tabs.append(
-                GalleryTab(tab_id, name, (folder,), editable=True, removable=True)
+                GalleryTab(
+                    tab_id,
+                    name,
+                    (folder,) if folder else (),
+                    editable=True,
+                    removable=True,
+                )
             )
     return tabs
 

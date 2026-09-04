@@ -29,6 +29,7 @@ class GalleryApi:
         self.tabs: list[GalleryTab] = []
         self.indexer = FolderIndexer(repository)
         self.indexing_tasks: dict[Path, asyncio.Task[IndexingResult]] = {}
+        self.indexing_errors: dict[Path, Exception] = {}
         self.folder_picker_tasks: set[asyncio.Task[None]] = set()
         self.websocket_clients: set[web.WebSocketResponse] = set()
         self.watcher: FolderWatcher | None = None
@@ -44,9 +45,13 @@ class GalleryApi:
             task = self.indexing_tasks.pop(folder, None)
             if task and not task.done():
                 task.cancel()
+            self.indexing_errors.pop(folder, None)
         self.repository.delete_untracked_paths(current_folders)
         if self.watcher:
             self.watcher.reconfigure(current_folders)
+        await self._broadcast(
+            "tabsUpdated", {"tabs": [tab.dict() for tab in self.tabs]}
+        )
         await self._index_folders(current_folders - previous_folders)
 
     async def _index_folders(self, folders: set[Path]) -> None:
@@ -56,7 +61,21 @@ class GalleryApi:
                 self.indexing_tasks[folder] = self._create_indexing_task(folder)
 
     def _create_indexing_task(self, folder: Path) -> asyncio.Task[IndexingResult]:
-        return asyncio.create_task(self._index_folder_and_broadcast(folder))
+        task = asyncio.create_task(self._index_folder_and_broadcast(folder))
+        task.add_done_callback(lambda t: self._handle_indexing_task_done(folder, t))
+        return task
+
+    def _handle_indexing_task_done(
+        self, folder: Path, task: asyncio.Task[IndexingResult]
+    ) -> None:
+        if task.cancelled():
+            logger.info("Indexing task for %s was cancelled", folder)
+        elif (error := task.exception()) is not None:
+            logger.error("Indexing task for %s failed: %s", folder, error)
+            self.indexing_errors[folder] = error
+        else:
+            self.indexing_errors.pop(folder, None)
+            task.result()
 
     async def _index_folder_and_broadcast(self, folder: Path) -> IndexingResult:
         tab_ids = tuple(tab.id for tab in self.tabs if folder in tab.folders)
@@ -278,6 +297,9 @@ class GalleryApi:
         for client, result in zip(clients, results):
             if isinstance(result, Exception):
                 self.websocket_clients.discard(client)
+                logger.exception(
+                    "Failed to send message to WebSocket client: %s", result
+                )
                 await client.close()
 
     async def send_to_favorites(self, request: web.Request) -> web.Response:
@@ -389,11 +411,9 @@ class GalleryApi:
                         ),
                         "error": next(
                             (
-                                (e := task.exception()) and str(e)
+                                str(self.indexing_errors[folder])
                                 for folder in tab.folders
-                                if (task := self.indexing_tasks.get(folder))
-                                and task.done()
-                                and task.exception()
+                                if folder in self.indexing_errors
                             ),
                             None,
                         ),

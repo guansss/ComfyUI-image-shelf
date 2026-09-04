@@ -52,7 +52,7 @@ function registerExtension(): void {
         id: "image-shelf.custom-tabs" as keyof Settings,
         name: "Custom tabs",
         type: "hidden",
-        defaultValue: "[]",
+        defaultValue: [],
         onChange: (value) => updateBackendSettings({ [CUSTOM_TABS_SETTING]: value }),
       },
       {

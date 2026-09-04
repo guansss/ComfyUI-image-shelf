@@ -73,6 +73,15 @@ export interface ImageListResponse {
 }
 
 export type GalleryMessage = {
+  tabsUpdated: {
+    tabs: {
+      id: string
+      name: string
+      folders: string[]
+      editable: boolean
+      removable: boolean
+    }[]
+  }
   indexStart: {
     tab: string
   }

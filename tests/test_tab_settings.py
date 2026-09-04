@@ -20,15 +20,13 @@ class TabSettingsTests(unittest.IsolatedAsyncioTestCase):
                 output_folder=output,
                 comfy_settings_loader=lambda: {
                     "image-shelf.favorites-folder": str(favorites),
-                    "image-shelf.custom-tabs": json.dumps(
-                        [
-                            {
-                                "id": "custom-1",
-                                "name": "Inspiration",
-                                "folder": str(custom),
-                            }
-                        ]
-                    ),
+                    "image-shelf.custom-tabs": [
+                        {
+                            "id": "custom-1",
+                            "name": "Inspiration",
+                            "folder": str(custom),
+                        }
+                    ],
                 },
             )
             settings.load_comfy_settings()

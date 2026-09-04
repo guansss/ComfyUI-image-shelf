@@ -1,8 +1,8 @@
+import { isEqual } from "lodash-es"
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
-  FolderCogIcon,
   FolderIcon,
   FolderOpenIcon,
   ImageIcon,
@@ -52,7 +52,7 @@ import { CUSTOM_TABS_SETTING, FAVORITES_SETTING, SERVER_URL } from "../../global
 import { i18n, useTranslation } from "../../i18n/i18n"
 import { errorToast, formatError } from "../../lib/error"
 import { cn } from "../../lib/utils"
-import { pickFolder } from "../pick-folder"
+import { ask } from "../ask"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +65,7 @@ import { Field } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Searchbar } from "./Searchbar"
+import { askCreateTab, askEditTab } from "./tab-manager"
 
 interface GalleryProps {
   openEvent: string
@@ -74,6 +75,23 @@ interface StoredCustomTab {
   id: string
   name: string
   folder: string
+}
+
+function toStoredCustomTab(tab: GalleryTab): StoredCustomTab {
+  return {
+    id: tab.id,
+    name: tab.name,
+    folder: tab.folders[0] ?? "",
+  }
+}
+
+function readCustomTabs(): StoredCustomTab[] {
+  const value = app.extensionManager.setting.get(CUSTOM_TABS_SETTING)
+  if (!Array.isArray(value)) {
+    console.warn("[Image Shelf] readCustomTabs: invalid value", value)
+    return []
+  }
+  return value
 }
 
 const PAGE_SIZE = 36
@@ -192,93 +210,55 @@ export function Gallery({ openEvent }: GalleryProps) {
     setPage(1)
   }
 
-  const readCustomTabs = (): StoredCustomTab[] => {
-    const value = app.extensionManager.setting.get(CUSTOM_TABS_SETTING)
-    if (typeof value !== "string") return []
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-
-  const saveCustomTabs = async (nextTabs: StoredCustomTab[]) => {
-    await app.extensionManager.setting.set(CUSTOM_TABS_SETTING, JSON.stringify(nextTabs))
+  const saveCustomTabs = (nextTabs: StoredCustomTab[]) => {
+    app.extensionManager.setting.set(CUSTOM_TABS_SETTING, nextTabs)
   }
 
   const addCustomTab = async () => {
-    const name = await app.extensionManager.dialog.prompt({
-      title: t.gallery.addTab,
-      message: t.gallery.tabName,
-      defaultValue: t.gallery.newTab,
-    })
-    if (!name?.trim()) return
-    const folder = await app.extensionManager.dialog.prompt({
-      title: t.gallery.addTab,
-      message: t.gallery.folderPath,
-      defaultValue: "",
-    })
-    if (!folder?.trim()) return
-    await saveCustomTabs([
-      ...readCustomTabs(),
-      { id: `custom-${crypto.randomUUID()}`, name: name.trim(), folder: folder.trim() },
-    ])
+    const result = await askCreateTab({})
+    if (!result) return
+    saveCustomTabs([...readCustomTabs(), toStoredCustomTab(result.tab)])
   }
 
-  const renameCustomTab = async (tab: GalleryTab) => {
-    const name = await app.extensionManager.dialog.prompt({
-      title: t.gallery.renameTab,
-      message: t.gallery.tabName,
-      defaultValue: tab.name,
-    })
-    if (!name?.trim()) return
-    await saveCustomTabs(
-      readCustomTabs().map((storedTab) =>
-        storedTab.id === tab.id ? { ...storedTab, name: name.trim() } : storedTab,
-      ),
-    )
-  }
-
-  const changeTabFolder = async (tab: GalleryTab) => {
+  const editTab = async (tab: GalleryTab) => {
     if (tab.id === "favorites") {
-      await configureFavoritesFolder()
-      return
+      // read the favorites folder from settings as the source of truth,
+      // in case the tab info is somehow out of sync
+      const favoriteSetting = app.extensionManager.setting.get(FAVORITES_SETTING)
+      const currentFavoritesFolder = typeof favoriteSetting === "string" ? favoriteSetting : ""
+      const result = await askEditTab({}, { ...tab, folders: [currentFavoritesFolder] })
+      const newFolder = result?.tab.folders[0]?.trim()
+      if (!newFolder || newFolder === currentFavoritesFolder) return
+      app.extensionManager.setting.set(FAVORITES_SETTING, newFolder)
+    } else {
+      const result = await askEditTab({}, tab)
+      if (!result) return
+      const storedTabs = readCustomTabs()
+      const storedTab = storedTabs.find((storedTab) => storedTab.id === tab.id)
+      if (!storedTab) {
+        console.warn(
+          "[Image Shelf] editTab: stored tab not found",
+          tab.id,
+          storedTabs.map((t) => t.id),
+        )
+        return
+      }
+      const newTab = { ...storedTab, ...toStoredCustomTab(result.tab) }
+      if (isEqual(storedTab, newTab)) return
+      saveCustomTabs(storedTabs.map((t) => (t.id === storedTab.id ? newTab : t)))
     }
-    const storedTab = readCustomTabs().find((candidate) => candidate.id === tab.id)
-    const folder = await app.extensionManager.dialog.prompt({
-      title: t.gallery.changeFolder,
-      message: t.gallery.folderPath,
-      defaultValue: storedTab?.folder ?? "",
-    })
-    if (!folder?.trim()) return
-    await saveCustomTabs(
-      readCustomTabs().map((candidate) =>
-        candidate.id === tab.id ? { ...candidate, folder: folder.trim() } : candidate,
-      ),
-    )
   }
 
-  const removeCustomTab = async (tab: GalleryTab) => {
-    const confirmed = await app.extensionManager.dialog.confirm({
+  const removeTab = async (tab: GalleryTab) => {
+    const confirmed = await ask({
       title: t.gallery.removeTab,
       message: t.gallery.removeTabMessage({ name: tab.name }),
-      type: "default",
     })
     if (!confirmed) return
-    await saveCustomTabs(readCustomTabs().filter((storedTab) => storedTab.id !== tab.id))
-    setSelectedTabId("outputs")
-  }
-
-  const configureFavoritesFolder = async () => {
-    const currentValue = app.extensionManager.setting.get(FAVORITES_SETTING)
-    const result = await pickFolder({
-      title: t.gallery.changeFolder,
-      message: t.gallery.folderPath,
-      initialValue: { folder: typeof currentValue === "string" ? currentValue : "" },
-    })
-    if (!result?.folder?.trim()) return
-    await app.extensionManager.setting.set(FAVORITES_SETTING, result.folder.trim())
+    saveCustomTabs(readCustomTabs().filter((storedTab) => storedTab.id !== tab.id))
+    if (tab.id === selectedTabId) {
+      setSelectedTabId("outputs")
+    }
   }
 
   const reindexTab = async (tab: GalleryTab) => {
@@ -295,19 +275,25 @@ export function Gallery({ openEvent }: GalleryProps) {
     }
   }
 
-  const reindexSelectedTab = async () => {
-    if (!selectedTab) return
-    await reindexTab(selectedTab)
-  }
-
   useEffect(() => {
     let fetchTabsController: AbortController | null = null
-    const handleIndexStart = ({ tab }: GalleryMessage["indexStart"]) => {
-      setTabs((current) => current.map((t) => (t.id === tab ? { ...t, indexing: true } : t)))
-    }
-    const handleIndexFinish = ({ tab, error }: GalleryMessage["indexFinish"]) => {
-      setTabs((current) =>
-        current.map((t) => (t.id === tab ? { ...t, indexing: false, error: error ?? null } : t)),
+    const handleTabsUpdated = ({ tabs: updatedTabs }: GalleryMessage["tabsUpdated"]) => {
+      setTabs((currentTabs) =>
+        updatedTabs.map((update) => {
+          const existingTab = currentTabs.find((tab) => tab.id === update.id)
+          if (existingTab) {
+            return {
+              ...existingTab,
+              ...update,
+            }
+          }
+          return {
+            ...update,
+            indexing: true,
+            count: 0,
+            error: null,
+          }
+        }),
       )
       fetchTabsController?.abort()
       fetchTabsController = new AbortController()
@@ -323,12 +309,30 @@ export function Gallery({ openEvent }: GalleryProps) {
           })
         })
     }
+    const handleIndexStart = ({ tab }: GalleryMessage["indexStart"]) => {
+      setTabs((current) => current.map((t) => (t.id === tab ? { ...t, indexing: true } : t)))
+    }
+    const handleIndexFinish = ({ tab, result, error }: GalleryMessage["indexFinish"]) => {
+      setTabs((current) =>
+        current.map((t) =>
+          t.id === tab
+            ? {
+                ...t,
+                indexing: false,
+                count: result ? result.indexed + result.skipped : t.count,
+                error: error ?? null,
+              }
+            : t,
+        ),
+      )
+    }
+    socket.on("tabsUpdated", handleTabsUpdated)
     socket.on("indexStart", handleIndexStart)
     socket.on("indexFinish", handleIndexFinish)
     return () => {
+      socket.off("tabsUpdated", handleTabsUpdated)
       socket.off("indexStart", handleIndexStart)
       socket.off("indexFinish", handleIndexFinish)
-      fetchTabsController?.abort()
     }
   }, [])
 
@@ -480,19 +484,9 @@ export function Gallery({ openEvent }: GalleryProps) {
                         <RefreshCwIcon />
                         {t.gallery.reindex}
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={!tab.editable}
-                        onSelect={() => changeTabFolder(tab)}
-                      >
-                        <FolderCogIcon />
-                        {t.gallery.changeFolder}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={!tab.editable || tab.id === "favorites"}
-                        onSelect={() => void renameCustomTab(tab)}
-                      >
+                      <DropdownMenuItem disabled={!tab.editable} onSelect={() => editTab(tab)}>
                         <Settings2Icon />
-                        {t.gallery.renameTab}
+                        {t.gallery.editTab}
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
                     <DropdownMenuSeparator />
@@ -500,7 +494,7 @@ export function Gallery({ openEvent }: GalleryProps) {
                       <DropdownMenuItem
                         variant="destructive"
                         disabled={!tab.removable}
-                        onSelect={() => void removeCustomTab(tab)}
+                        onSelect={() => void removeTab(tab)}
                       >
                         <TrashIcon />
                         {t.gallery.removeTab}

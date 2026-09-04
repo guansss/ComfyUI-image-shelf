@@ -8,23 +8,11 @@ import { askCustom, AskCustomParam, AskDialog, AskDialogProps } from "./ask"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 
-interface PickFolderValue {
-  folder: string
+interface useFolderPickerOptions {
+  onChange: (value: string) => void
 }
 
-export async function pickFolder(req: Omit<AskCustomParam<PickFolderValue>, "component">) {
-  return await askCustom({
-    ...req,
-    component: PickFolderDialog,
-  })
-}
-
-interface PickFolderDialogProps extends AskDialogProps<PickFolderValue> {}
-
-export function PickFolderDialog({ initialValue, onConfirm, ...props }: PickFolderDialogProps) {
-  const t = useTranslation()
-  const [value, setValue] = useState(initialValue?.folder ?? "")
-
+export function usePickFolder({ onChange }: useFolderPickerOptions) {
   useEffect(() => {
     const handlePickFolder = (data: GalleryMessage["pickFolder"]) => {
       if (data.error) {
@@ -33,16 +21,40 @@ export function PickFolderDialog({ initialValue, onConfirm, ...props }: PickFold
           message: formatError(data.error),
         })
       } else if (data.path) {
-        setValue(data.path)
+        onChange(data.path)
       }
     }
     socket.on("pickFolder", handlePickFolder)
     return () => socket.off("pickFolder", handlePickFolder)
-  }, [])
+  }, [onChange])
 
   const requestPickFolder = async () => {
-    await withErrorToast(pickFolderApi(), t.filePicker.pickError).catch(noop)
+    await withErrorToast(pickFolderApi(), i18n.filePicker.pickError).catch(noop)
   }
+  return { requestPickFolder }
+}
+
+interface PickFolderDialogValue {
+  folder: string
+}
+
+export async function pickFolder(req: Omit<AskCustomParam<PickFolderDialogValue>, "component">) {
+  return await askCustom({
+    ...req,
+    component: PickFolderDialog,
+  })
+}
+
+function PickFolderDialog({
+  initialValue,
+  onConfirm,
+  ...props
+}: AskDialogProps<PickFolderDialogValue>) {
+  const t = useTranslation()
+  const [value, setValue] = useState(initialValue?.folder ?? "")
+  const { requestPickFolder } = usePickFolder({
+    onChange: (folder) => setValue(folder),
+  })
 
   return (
     <AskDialog
@@ -50,9 +62,13 @@ export function PickFolderDialog({ initialValue, onConfirm, ...props }: PickFold
       content={
         <div className="flex flex-col items-end gap-2">
           <Button variant="outline" onClick={requestPickFolder}>
-            {t.filePicker.selectFolder}
+            {t.filePicker.pickFolder}
           </Button>
-          <Input value={value} onChange={(e) => setValue(e.target.value)} />
+          <Input
+            placeholder={t.filePicker.folderPlaceholder}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
         </div>
       }
       onConfirm={() => onConfirm?.({ folder: value })}
