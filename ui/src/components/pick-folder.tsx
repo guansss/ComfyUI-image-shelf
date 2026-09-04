@@ -1,7 +1,8 @@
+import { noop } from "lodash-es"
 import { useEffect, useState } from "react"
 
 import { GalleryMessage, pickFolder as pickFolderApi, socket } from "../galleryApi"
-import { useTranslation } from "../i18n/i18n"
+import { i18n, useTranslation } from "../i18n/i18n"
 import { errorToast, formatError, withErrorToast } from "../lib/error"
 import { askCustom, AskCustomParam, AskDialog, AskDialogProps } from "./ask"
 import { Button } from "./ui/button"
@@ -28,7 +29,7 @@ export function PickFolderDialog({ initialValue, onConfirm, ...props }: PickFold
     const handlePickFolder = (data: GalleryMessage["pickFolder"]) => {
       if (data.error) {
         errorToast({
-          title: t.filePicker.pickError,
+          title: i18n.filePicker.pickError,
           message: formatError(data.error),
         })
       } else if (data.path) {
@@ -40,7 +41,7 @@ export function PickFolderDialog({ initialValue, onConfirm, ...props }: PickFold
   }, [])
 
   const requestPickFolder = async () => {
-    await withErrorToast(pickFolderApi(), t.filePicker.pickError).catch()
+    await withErrorToast(pickFolderApi(), t.filePicker.pickError).catch(noop)
   }
 
   return (

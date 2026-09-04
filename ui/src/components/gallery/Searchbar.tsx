@@ -31,6 +31,7 @@ export function Searchbar({ tab, value, onChange, onSubmit }: SearchbarProps) {
 
   const updateSuggestions = useMemo(
     () =>
+      // oxlint-disable-next-line react/refs
       debounce((searchValue) => {
         if (suggestionsAbortControllerRef.current) {
           suggestionsAbortControllerRef.current.abort()

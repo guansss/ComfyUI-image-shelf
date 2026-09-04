@@ -4,6 +4,7 @@ import { noop } from "lodash-es"
 import { Suspense, useEffect } from "react"
 import useSWR from "swr"
 
+import { formatError } from "../lib/error"
 import { Language, RawTranslations, i18n, languageAtom, rawTranslationsAtom } from "./i18n"
 
 let refresh: () => void = noop
@@ -41,7 +42,12 @@ const I18NProviderInner = ({ children }: { children: React.ReactNode }) => {
     },
   )
 
-  refresh = mutate
+  useEffect(() => {
+    refresh = mutate
+    return () => {
+      refresh = noop
+    }
+  }, [mutate])
 
   useEffect(() => {
     // update the atom with new translations
@@ -69,7 +75,7 @@ async function loadTranslations(language: Language) {
     }
     return (await import(`./generated/en`)).default
   } catch (e) {
-    throw new Error(i18n.essentials.translation_load_failed)
+    throw new Error(i18n.essentials.translation_load_failed + `: ${formatError(e)}`)
   }
 }
 

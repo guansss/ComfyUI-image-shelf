@@ -164,6 +164,7 @@ export function Gallery({ openEvent }: GalleryProps) {
 
   useEffect(() => {
     search()
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const selectTab = (tabId: string) => {

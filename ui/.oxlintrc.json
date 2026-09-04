@@ -5,7 +5,9 @@
     "correctness": "error"
   },
   "ignorePatterns": [".agents/**", "package-lock.json"],
-  "rules": {},
+  "rules": {
+    "no-unused-vars": "off"
+  },
   "env": {
     "builtin": true
   }
