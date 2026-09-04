@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
 
+from image_shelf.error import ERROR_INVALID_DIR, CustomError
+
 from .database import ImageRepository
+from .log import debug_logger
 from .metadata import parse_image_workflow
 from .models import IndexedImage
 from .paths import normalize_path
@@ -23,7 +27,10 @@ class IndexingResult:
 
 
 class FolderIndexer:
-    def __init__(self, repository: ImageRepository) -> None:
+    def __init__(
+        self,
+        repository: ImageRepository,
+    ) -> None:
         self.repository = repository
         self._folder_locks: dict[Path, asyncio.Lock] = {}
 
@@ -34,15 +41,24 @@ class FolderIndexer:
             return await asyncio.to_thread(self._index_folder, normalized_folder)
 
     def _index_folder(self, folder: Path) -> IndexingResult:
-        if not folder.is_dir():
-            return IndexingResult(indexed=0, skipped=0, removed=0, errors=1)
+        existing_paths: set[Path] = self.repository.paths_in_folder(folder)
 
+        if not folder.is_dir():
+            for path in existing_paths:
+                self.repository.delete_path(path)
+            raise CustomError(ERROR_INVALID_DIR, f"Folder {folder} is not a directory.")
+
+        start_time = time.perf_counter()
         seen_paths: set[Path] = set()
         indexed = 0
         skipped = 0
         errors = 0
+
         for path in folder.iterdir():
-            if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            if (
+                not path.is_file()
+                or path.suffix.lower() not in SUPPORTED_EXTENSIONS
+            ):
                 continue
             normalized_path = normalize_path(path)
             seen_paths.add(normalized_path)
@@ -59,9 +75,22 @@ class FolderIndexer:
             except (OSError, ValueError):
                 errors += 1
 
-        stale_paths = self.repository.paths_in_folder(folder) - seen_paths
+        stale_paths = existing_paths - seen_paths
         for path in stale_paths:
             self.repository.delete_path(path)
+
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        debug_logger.info(
+            "Indexed folder %s: %d indexed, %d skipped, %d removed, %d errors in %.2f seconds",
+            folder,
+            indexed,
+            skipped,
+            len(stale_paths),
+            errors,
+            elapsed_time,
+        )
+
         return IndexingResult(indexed, skipped, len(stale_paths), errors)
 
     def _read_image(self, path: Path, stat_result: object) -> IndexedImage:

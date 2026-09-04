@@ -39,6 +39,12 @@
     "unknown": {
       "en": "Unknown error",
       "cn": "未知错误"
+    },
+    "code": {
+      "INVALID_DIR": {
+        "en": "Invalid directory",
+        "cn": "无效的目录"
+      }
     }
   },
   "filePicker": {
@@ -89,6 +95,10 @@
     "allImages": {
       "en": "All images",
       "cn": "所有图像"
+    },
+    "loadTabs": {
+      "en": "Load tabs",
+      "cn": "加载标签页"
     },
     "addTab": {
       "en": "Add tab",

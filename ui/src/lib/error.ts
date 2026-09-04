@@ -2,20 +2,27 @@ import { app } from "../comfy"
 import { i18n } from "../i18n/i18n"
 
 export function formatError(e: unknown, fallback = i18n.error.unknown): string {
+  let str = fallback
+
   if (typeof e === "string") {
-    return e || fallback
-  }
-
-  if (e !== null && typeof e === "object") {
+    str = e
+  } else if (e !== null && typeof e === "object") {
     if ((e as Error).message) {
-      return (e as Error).message
+      str = String((e as Error).message)
+    } else {
+      str = String(e)
     }
-
-    const str = String(e)
-    return str === "[object Object]" ? fallback : str
+    if (str === "[object Object]") {
+      str = fallback
+    }
   }
-
-  return fallback
+  const errorCodes = Object.keys(i18n.error.code)
+  for (const code of errorCodes) {
+    if (str.includes(`[${code}]`)) {
+      return i18n.error.code[code as keyof typeof i18n.error.code]
+    }
+  }
+  return str || fallback
 }
 
 interface ErrorToastOptions {

@@ -3,16 +3,16 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import sys
-from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 
 from aiohttp import web
 
-from .configuration import tabs_from_settings
+from .configuration import ShelfSettings
 from .database import ImageRepository
 from .favorites import FileConflictError, transfer_to_favorites
 from .indexer import FolderIndexer, IndexingResult
+from .log import logger
 from .models import GalleryTab
 from .paths import is_within_directory, normalize_path
 from .watcher import FolderWatcher
@@ -22,78 +22,98 @@ class GalleryApi:
     def __init__(
         self,
         repository: ImageRepository,
-        tabs: list[GalleryTab],
-        tab_reloader: Callable[[], list[GalleryTab]] | None = None,
+        settings: ShelfSettings,
     ) -> None:
         self.repository = repository
-        self.tabs = self._normalize_tabs(tabs)
-        self.output_folders = tuple(
-            folder for tab in self.tabs if tab.id == "outputs" for folder in tab.folders
-        )
-        self.tab_reloader = tab_reloader
+        self.settings = settings
+        self.tabs: list[GalleryTab] = []
         self.indexer = FolderIndexer(repository)
         self.indexing_tasks: dict[Path, asyncio.Task[IndexingResult]] = {}
         self.folder_picker_tasks: set[asyncio.Task[None]] = set()
         self.websocket_clients: set[web.WebSocketResponse] = set()
         self.watcher: FolderWatcher | None = None
 
-    def replace_tabs(self, tabs: list[GalleryTab]) -> None:
-        self.tabs = self._normalize_tabs(tabs)
-
-    async def reload_tabs(self) -> None:
-        if self.tab_reloader is None:
-            raise ValueError("This backend does not support settings reload.")
-        previous_folders = set(self._tracked_folders())
-        self.replace_tabs(self.tab_reloader())
-        current_folders = set(self._tracked_folders())
-        for folder in previous_folders - current_folders:
-            task = self.indexing_tasks.pop(folder, None)
-            if task and not task.done():
-                task.cancel()
-        self.repository.delete_untracked_paths(current_folders)
-        if self.watcher:
-            self.watcher.reconfigure(tuple(current_folders))
-        for folder in current_folders:
-            task = self.indexing_tasks.get(folder)
-            if task is None or task.done():
-                self.indexing_tasks[folder] = asyncio.create_task(
-                    self.indexer.index_folder(folder)
-                )
-
-    async def apply_settings(self, settings: dict[str, object]) -> None:
-        await self._replace_and_reindex(
-            tabs_from_settings(self.output_folders[0], settings)
-        )
+    async def apply_settings(self) -> None:
+        await self._replace_and_reindex(self.settings.get_tabs())
 
     async def _replace_and_reindex(self, tabs: list[GalleryTab]) -> None:
-        previous_folders = set(self._tracked_folders())
-        self.replace_tabs(tabs)
-        current_folders = set(self._tracked_folders())
+        previous_folders = self._tracked_folders()
+        self.tabs = self._normalize_tabs(tabs)
+        current_folders = self._tracked_folders()
         for folder in previous_folders - current_folders:
             task = self.indexing_tasks.pop(folder, None)
             if task and not task.done():
                 task.cancel()
         self.repository.delete_untracked_paths(current_folders)
         if self.watcher:
-            self.watcher.reconfigure(tuple(current_folders))
-        for folder in current_folders:
+            self.watcher.reconfigure(current_folders)
+        await self._index_folders(current_folders - previous_folders)
+
+    async def _index_folders(self, folders: set[Path]) -> None:
+        for folder in folders:
             task = self.indexing_tasks.get(folder)
             if task is None or task.done():
-                self.indexing_tasks[folder] = asyncio.create_task(
-                    self.indexer.index_folder(folder)
+                self.indexing_tasks[folder] = self._create_indexing_task(folder)
+
+    def _create_indexing_task(self, folder: Path) -> asyncio.Task[IndexingResult]:
+        return asyncio.create_task(self._index_folder_and_broadcast(folder))
+
+    async def _index_folder_and_broadcast(self, folder: Path) -> IndexingResult:
+        tab_ids = tuple(tab.id for tab in self.tabs if folder in tab.folders)
+        for tab_id in tab_ids:
+            await self._broadcast("indexStart", {"tab": tab_id})
+
+        try:
+            result = await self.indexer.index_folder(folder)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            for tab_id in tab_ids:
+                await self._broadcast(
+                    "indexFinish", {"tab": tab_id, "error": str(error)}
                 )
+            raise
 
-    def start_monitoring(self, loop: asyncio.AbstractEventLoop) -> None:
+        for tab_id in tab_ids:
+            await self._broadcast(
+                "indexFinish", {"tab": tab_id, "result": asdict(result)}
+            )
+        return result
+
+    async def start(self, loop: asyncio.AbstractEventLoop) -> None:
+        logger.info("Starting Image Shelf API")
         if self.watcher is None:
-            self.watcher = FolderWatcher(self.indexer, loop)
-            self.watcher.start(self._tracked_folders())
-        else:
-            self.watcher.reconfigure(self._tracked_folders())
+            self.watcher = FolderWatcher(self._index_folder_and_broadcast, loop)
+            self.watcher.start()
+        self.settings.load_comfy_settings()
+        await self.apply_settings()
 
-    def stop_monitoring(self) -> None:
+    async def shutdown_websockets(self) -> None:
+        clients = tuple(self.websocket_clients)
+        if clients:
+            await asyncio.gather(
+                *(client.close() for client in clients), return_exceptions=True
+            )
+        self.websocket_clients.clear()
+
+    async def shutdown(self) -> None:
         if self.watcher:
             self.watcher.stop()
             self.watcher = None
+
+        for task in self.folder_picker_tasks:
+            task.cancel()
+        if self.folder_picker_tasks:
+            await asyncio.gather(*self.folder_picker_tasks, return_exceptions=True)
+        active_tasks = [
+            task for task in self.indexing_tasks.values() if not task.done()
+        ]
+        for task in active_tasks:
+            task.cancel()
+        if active_tasks:
+            await asyncio.gather(*active_tasks, return_exceptions=True)
+
+        self.repository.close()
 
     @staticmethod
     def _normalize_tabs(tabs: list[GalleryTab]) -> tuple[GalleryTab, ...]:
@@ -110,7 +130,7 @@ class GalleryApi:
             for tab in tabs
         )
 
-    def register(self, app: web.Application) -> None:
+    def register(self, app: web.Application, register_startup: bool = True) -> None:
         app.add_routes(
             [
                 web.get("/api/image-shelf/v1/tabs", self.tabs_status),
@@ -139,6 +159,10 @@ class GalleryApi:
                 web.get("/api/image-shelf/v1/status", self.tabs_status),
             ]
         )
+        if register_startup:
+            app.on_startup.append(lambda app: self.start(asyncio.get_running_loop()))
+        app.on_shutdown.append(lambda app: self.shutdown_websockets())
+        app.on_cleanup.append(lambda app: self.shutdown())
 
     async def list_images(self, request: web.Request) -> web.Response:
         try:
@@ -244,7 +268,7 @@ class GalleryApi:
 
         await self._broadcast("pickFolder", result)
 
-    async def _broadcast(self, event: str, data: dict[str, str | None]) -> None:
+    async def _broadcast(self, event: str, data: dict[str, object]) -> None:
         message = {"event": event, "data": data}
         clients = tuple(self.websocket_clients)
         results = await asyncio.gather(
@@ -324,14 +348,13 @@ class GalleryApi:
         for folder in self._folders_for_tab(tab):
             task = self.indexing_tasks.get(folder)
             if task is None or task.done():
-                self.indexing_tasks[folder] = asyncio.create_task(
-                    self.indexer.index_folder(folder)
-                )
+                self.indexing_tasks[folder] = self._create_indexing_task(folder)
         return web.json_response({"accepted": True}, status=202)
 
     async def reload_settings(self, request: web.Request) -> web.Response:
         try:
-            await self.reload_tabs()
+            self.settings.load_comfy_settings()
+            await self.apply_settings()
         except ValueError as error:
             raise web.HTTPNotImplemented(text=str(error)) from error
         return web.json_response({"accepted": True}, status=202)
@@ -341,7 +364,8 @@ class GalleryApi:
             settings = await request.json()
             if not isinstance(settings, dict):
                 raise TypeError("Image Shelf settings must be an object.")
-            await self.apply_settings(settings)
+            self.settings.update_comfy_settings(settings)
+            await self.apply_settings()
         except (ValueError, TypeError) as error:
             raise web.HTTPBadRequest(text=str(error)) from error
         return web.json_response({"accepted": True}, status=202)
@@ -363,6 +387,16 @@ class GalleryApi:
                                 for folder in tab.folders
                             )
                         ),
+                        "error": next(
+                            (
+                                (e := task.exception()) and str(e)
+                                for folder in tab.folders
+                                if (task := self.indexing_tasks.get(folder))
+                                and task.done()
+                                and task.exception()
+                            ),
+                            None,
+                        ),
                         "count": self.repository.list_images(
                             self._folders_for_tab(tab), page_size=1
                         ).total,
@@ -382,77 +416,23 @@ class GalleryApi:
     def _folders_for_tab(self, tab: GalleryTab) -> tuple[Path, ...]:
         return tab.folders
 
-    def _tracked_folders(self) -> tuple[Path, ...]:
-        return tuple(
-            dict.fromkeys(folder for tab in self.tabs for folder in tab.folders)
-        )
+    def _tracked_folders(self) -> set[Path]:
+        return {folder for tab in self.tabs for folder in tab.folders}
 
 
 def create_gallery_app(
     database_path: str | Path,
-    folders: list[str | Path] | None = None,
-    tabs: list[GalleryTab] | None = None,
+    settings: ShelfSettings,
     allow_development_cors: bool = False,
-    tab_reloader: Callable[[], list[GalleryTab]] | None = None,
 ) -> web.Application:
     repository = ImageRepository(database_path)
-    api = GalleryApi(
-        repository,
-        tabs
-        if tabs is not None
-        else [
-            GalleryTab(
-                "outputs",
-                "Outputs",
-                tuple(normalize_path(folder) for folder in folders or ()),
-            ),
-            GalleryTab("favorites", "Favorites", (), editable=True),
-        ],
-        tab_reloader,
-    )
+    api = GalleryApi(repository, settings)
     app = web.Application(
         middlewares=[_development_cors_middleware] if allow_development_cors else ()
     )
     app["image_shelf_api"] = api
-    app.on_startup.append(_start_initial_index)
-    app.on_shutdown.append(_shutdown_websockets)
-    app.on_cleanup.append(_close_repository)
     api.register(app)
     return app
-
-
-async def _start_initial_index(app: web.Application) -> None:
-    api: GalleryApi = app["image_shelf_api"]
-    for folder in api._tracked_folders():
-        api.indexing_tasks[folder] = asyncio.create_task(
-            api.indexer.index_folder(folder)
-        )
-    api.start_monitoring(asyncio.get_running_loop())
-
-
-async def _close_repository(app: web.Application) -> None:
-    api: GalleryApi = app["image_shelf_api"]
-    api.stop_monitoring()
-    for task in api.folder_picker_tasks:
-        task.cancel()
-    if api.folder_picker_tasks:
-        await asyncio.gather(*api.folder_picker_tasks, return_exceptions=True)
-    active_tasks = [task for task in api.indexing_tasks.values() if not task.done()]
-    for task in active_tasks:
-        task.cancel()
-    if active_tasks:
-        await asyncio.gather(*active_tasks, return_exceptions=True)
-    api.repository.close()
-
-
-async def _shutdown_websockets(app: web.Application) -> None:
-    api: GalleryApi = app["image_shelf_api"]
-    clients = tuple(api.websocket_clients)
-    if clients:
-        await asyncio.gather(
-            *(client.close() for client in clients), return_exceptions=True
-        )
-    api.websocket_clients.clear()
 
 
 @web.middleware

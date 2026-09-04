@@ -10,6 +10,7 @@ export interface GalleryTab {
   removable: boolean
   indexing: boolean
   count: number
+  error: string | null
 }
 
 export interface GalleryImage {
@@ -72,6 +73,19 @@ export interface ImageListResponse {
 }
 
 export type GalleryMessage = {
+  indexStart: {
+    tab: string
+  }
+  indexFinish: {
+    tab: string
+    error?: string
+    result?: {
+      indexed: number
+      skipped: number
+      removed: number
+      errors: number
+    }
+  }
   pickFolder: {
     path?: string | null
     error?: string
@@ -93,6 +107,7 @@ function isGalleryMessageEvent(value: unknown): value is GalleryMessageEvent {
   )
 }
 
+// oxlint-disable-next-line typescript/no-unsafe-declaration-merging
 export interface GalleryWebSocket extends Emitter<GalleryMessage> {}
 
 export class GalleryWebSocket {

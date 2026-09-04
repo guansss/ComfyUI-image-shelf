@@ -29,15 +29,11 @@ function mountUI(): void {
 }
 
 function registerExtension(): void {
-  const synchronizeBackend = () => {
-    const settings = {
-      [FAVORITES_SETTING]: app.extensionManager.setting.get(FAVORITES_SETTING),
-      [CUSTOM_TABS_SETTING]: app.extensionManager.setting.get(CUSTOM_TABS_SETTING),
-    }
+  const updateBackendSettings = (patch: Record<string, unknown>) => {
     void fetch(`${API_ROOT}/settings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
+      body: JSON.stringify(patch),
     }).catch(() => undefined)
   }
 
@@ -50,14 +46,14 @@ function registerExtension(): void {
         type: "text",
         defaultValue: "",
         category: ["Image Shelf", "Storage", "Favorites folder"],
-        onChange: () => synchronizeBackend(),
+        onChange: (value) => updateBackendSettings({ [FAVORITES_SETTING]: value }),
       },
       {
         id: "image-shelf.custom-tabs" as keyof Settings,
         name: "Custom tabs",
         type: "hidden",
         defaultValue: "[]",
-        onChange: () => synchronizeBackend(),
+        onChange: (value) => updateBackendSettings({ [CUSTOM_TABS_SETTING]: value }),
       },
       {
         id: "image-shelf.last-gallery-state" as keyof Settings,

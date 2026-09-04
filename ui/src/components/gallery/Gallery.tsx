@@ -1,10 +1,12 @@
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  CircleAlertIcon,
   FolderCogIcon,
   FolderIcon,
   FolderOpenIcon,
   ImageIcon,
+  LoaderCircleIcon,
   PlusIcon,
   RefreshCwIcon,
   RotateCcwClockIcon,
@@ -37,15 +39,18 @@ import {
   fetchImages,
   fetchTabs,
   GalleryImage,
+  GalleryMessage,
   GalleryTab,
   ImageDetails,
   ImageListResponse,
   reindexTab as reindexTabApi,
   revealImage,
   sendToFavorites,
+  socket,
 } from "../../galleryApi"
 import { CUSTOM_TABS_SETTING, FAVORITES_SETTING, SERVER_URL } from "../../global"
-import { useTranslation } from "../../i18n/i18n"
+import { i18n, useTranslation } from "../../i18n/i18n"
+import { errorToast, formatError } from "../../lib/error"
 import { cn } from "../../lib/utils"
 import { pickFolder } from "../pick-folder"
 import {
@@ -294,6 +299,38 @@ export function Gallery({ openEvent }: GalleryProps) {
     await reindexTab(selectedTab)
   }
 
+  useEffect(() => {
+    let fetchTabsController: AbortController | null = null
+    const handleIndexStart = ({ tab }: GalleryMessage["indexStart"]) => {
+      setTabs((current) => current.map((t) => (t.id === tab ? { ...t, indexing: true } : t)))
+    }
+    const handleIndexFinish = ({ tab, error }: GalleryMessage["indexFinish"]) => {
+      setTabs((current) =>
+        current.map((t) => (t.id === tab ? { ...t, indexing: false, error: error ?? null } : t)),
+      )
+      fetchTabsController?.abort()
+      fetchTabsController = new AbortController()
+      void fetchTabs(fetchTabsController.signal)
+        .then((nextTabs) => {
+          setTabs(nextTabs)
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return
+          errorToast({
+            title: i18n.gallery.loadTabs,
+            message: formatError(error),
+          })
+        })
+    }
+    socket.on("indexStart", handleIndexStart)
+    socket.on("indexFinish", handleIndexFinish)
+    return () => {
+      socket.off("indexStart", handleIndexStart)
+      socket.off("indexFinish", handleIndexFinish)
+      fetchTabsController?.abort()
+    }
+  }, [])
+
   const revealSelectedImage = async () => {
     if (!selectedImage) return
     try {
@@ -413,7 +450,17 @@ export function Gallery({ openEvent }: GalleryProps) {
                   ) : (
                     <FolderIcon data-icon="inline-start" />
                   )}
-                  {tab.name} {tab.indexing ? "..." : `(${tab.count})`}
+                  {tab.name}
+                  {tab.indexing ? (
+                    <LoaderCircleIcon data-icon="inline-end" className="animate-spin" />
+                  ) : (
+                    ` (${tab.count})`
+                  )}
+                  {tab.error && (
+                    <span title={formatError(tab.error)}>
+                      <CircleAlertIcon data-icon="inline-end" className="text-destructive" />
+                    </span>
+                  )}
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -538,7 +585,7 @@ export function Gallery({ openEvent }: GalleryProps) {
           )}
           {status === "idle" && !!selectedTab?.folders.length && images.length === 0 && (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
-              <p>{t.gallery.empty}</p>
+              <p>{selectedTab.error ? formatError(selectedTab.error) : t.gallery.empty}</p>
             </div>
           )}
           {status === "idle" && !!selectedTab?.folders.length && images.length > 0 && (
