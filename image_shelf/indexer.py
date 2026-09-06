@@ -40,7 +40,8 @@ class FolderIndexer:
             return await asyncio.to_thread(self._index_folder, normalized_folder)
 
     def _index_folder(self, folder: Path) -> IndexingResult:
-        existing_paths: set[Path] = self.repository.paths_in_folder(folder)
+        existing_states = self.repository.image_states_in_folder(folder)
+        existing_paths = set(existing_states)
 
         if not folder.is_dir():
             for path in existing_paths:
@@ -52,6 +53,7 @@ class FolderIndexer:
         indexed = 0
         skipped = 0
         errors = 0
+        pending_images: list[IndexedImage] = []
 
         for path in folder.iterdir():
             if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
@@ -60,16 +62,18 @@ class FolderIndexer:
             seen_paths.add(normalized_path)
             try:
                 stat = normalized_path.stat()
-                if self.repository.image_is_current(
-                    normalized_path, stat.st_mtime, stat.st_size
-                ):
+                existing_state = existing_states.get(normalized_path)
+                if existing_state == (stat.st_mtime, stat.st_size):
                     skipped += 1
                     continue
                 image = self._read_image(normalized_path, stat)
-                self.repository.upsert_image(image)
+                pending_images.append(image)
                 indexed += 1
             except (OSError, ValueError):
                 errors += 1
+
+        if pending_images:
+            self.repository.upsert_images(pending_images)
 
         stale_paths = existing_paths - seen_paths
         for path in stale_paths:
@@ -92,7 +96,7 @@ class FolderIndexer:
     def _read_image(self, path: Path, stat_result: object) -> IndexedImage:
         with Image.open(path) as image:
             width, height = image.size
-        parsed_workflow = parse_image_workflow(path)
+            parsed_workflow = parse_image_workflow(path, image)
         return IndexedImage(
             path=path,
             width=width,

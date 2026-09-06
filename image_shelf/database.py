@@ -19,42 +19,71 @@ from .models import (
 from .paths import normalize_path
 from .search import SearchTerm
 
+_IMAGE_COLUMNS = 11
+
 
 class ImageRepository:
     def __init__(self, database_path: str | Path) -> None:
         self.connection = sqlite3.connect(database_path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._lock = RLock()
+        self._image_insert_batch_size = max(
+            1,
+            self._parameter_limit() // _IMAGE_COLUMNS,
+        )
         self.connection.execute("PRAGMA foreign_keys = ON")
         self._migrate()
+
+    def _parameter_limit(self) -> int:
+        try:
+            return self.connection.getlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER)
+        except AttributeError:
+            for (option,) in self.connection.execute("PRAGMA compile_options"):
+                if option.startswith("MAX_VARIABLE_NUMBER="):
+                    return int(option.partition("=")[2])
+            # Fallback to a known limit of legacy SQLite versions (3.32.0 and earlier)
+            return 999
 
     def close(self) -> None:
         with self._lock:
             self.connection.close()
 
     def upsert_image(self, image: IndexedImage) -> int:
-        normalized_path = str(normalize_path(image.path))
+        return self.upsert_images((image,))[0]
+
+    def upsert_images(self, images: Iterable[IndexedImage]) -> tuple[int, ...]:
+        images = tuple(images)
+        if not images:
+            return ()
         with self._lock, self.connection:
-            self.connection.execute(
-                """
-                INSERT INTO images (
-                    public_id, path, filename, extension, width, height, file_size,
-                    created_at, mtime, workflow, parse_error
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(path) DO UPDATE SET
-                    filename = excluded.filename,
-                    extension = excluded.extension,
-                    width = excluded.width,
-                    height = excluded.height,
-                    file_size = excluded.file_size,
-                    created_at = excluded.created_at,
-                    mtime = excluded.mtime,
-                    workflow = excluded.workflow,
-                    parse_error = excluded.parse_error
-                """,
+            unique_images = {normalize_path(image.path): image for image in images}
+            image_ids_by_path: dict[Path, int] = {}
+            unique_image_items = tuple(unique_images.items())
+            for start in range(
+                0, len(unique_image_items), self._image_insert_batch_size
+            ):
+                image_rows = unique_image_items[
+                    start : start + self._image_insert_batch_size
+                ]
+                image_ids_by_path.update(self._upsert_image_rows(image_rows))
+
+            tag_cache: dict[tuple[str, str], int] = {}
+            for path, image in unique_images.items():
+                image_id = image_ids_by_path[path]
+                self._replace_tags(image_id, image.tags, "positive", tag_cache)
+                self._replace_tags(image_id, image.negative_tags, "negative", tag_cache)
+                self._update_search_index(image_id)
+        return tuple(image_ids_by_path[normalize_path(image.path)] for image in images)
+
+    def _upsert_image_rows(
+        self, image_rows: tuple[tuple[Path, IndexedImage], ...]
+    ) -> dict[Path, int]:
+        values: list[object] = []
+        for normalized_path, image in image_rows:
+            values.extend(
                 (
                     uuid4().hex,
-                    normalized_path,
+                    str(normalized_path),
                     image.path.name,
                     image.path.suffix.lower(),
                     image.width,
@@ -64,18 +93,37 @@ class ImageRepository:
                     image.mtime,
                     image.workflow,
                     image.parse_error,
-                ),
+                )
             )
-            row = self.connection.execute(
-                "SELECT id FROM images WHERE path = ?", (normalized_path,)
-            ).fetchone()
-            if row is None:
-                raise RuntimeError("Image upsert did not return an image ID")
-            image_id = int(row["id"])
-            self._replace_tags(image_id, image.tags, "positive")
-            self._replace_tags(image_id, image.negative_tags, "negative")
-            self._update_search_index(image_id)
-        return image_id
+        actual_columns, remainder = divmod(len(values), len(image_rows))
+        if remainder or actual_columns > _IMAGE_COLUMNS:
+            raise RuntimeError(
+                f"Image insert has {actual_columns} bound columns per image; "
+                f"the maximum supported is {_IMAGE_COLUMNS}"
+            )
+        row_placeholders = "(" + ", ".join("?" for _ in range(_IMAGE_COLUMNS)) + ")"
+        query = f"""
+            INSERT INTO images (
+                public_id, path, filename, extension, width, height, file_size,
+                created_at, mtime, workflow, parse_error
+            ) VALUES {", ".join(row_placeholders for _ in image_rows)}
+            ON CONFLICT(path) DO UPDATE SET
+                filename = excluded.filename,
+                extension = excluded.extension,
+                width = excluded.width,
+                height = excluded.height,
+                file_size = excluded.file_size,
+                created_at = excluded.created_at,
+                mtime = excluded.mtime,
+                workflow = excluded.workflow,
+                parse_error = excluded.parse_error
+            RETURNING id, path
+        """
+        rows = self.connection.execute(query, values).fetchall()
+        result = {Path(row["path"]): int(row["id"]) for row in rows}
+        if len(result) != len(image_rows):
+            raise RuntimeError("Image upsert did not return every image ID")
+        return result
 
     def list_images(
         self,
@@ -275,20 +323,35 @@ class ImageRepository:
         )
 
     def paths_in_folder(self, folder: str | Path) -> set[Path]:
+        return set(self.image_states_in_folder(folder))
+
+    def image_states_in_folder(
+        self, folder: str | Path
+    ) -> dict[Path, tuple[float, int]]:
         normalized_folder = str(normalize_path(folder))
         with self._lock:
             rows = self.connection.execute(
-                "SELECT path FROM images WHERE path = ? OR path LIKE ? ESCAPE '\\'",
+                """
+                SELECT path, mtime, file_size
+                FROM images
+                WHERE path = ? OR path LIKE ? ESCAPE '\\'
+                """,
                 (normalized_folder, _directory_like_pattern(normalized_folder)),
             ).fetchall()
         normalized_folder_path = Path(normalized_folder)
         return {
-            path
+            path: (row["mtime"], row["file_size"])
             for row in rows
             if (path := Path(row["path"])).parent == normalized_folder_path
         }
 
-    def _replace_tags(self, image_id: int, tags: Iterable[str], tag_type: str) -> None:
+    def _replace_tags(
+        self,
+        image_id: int,
+        tags: Iterable[str],
+        tag_type: str,
+        tag_cache: dict[tuple[str, str], int] | None = None,
+    ) -> None:
         self.connection.execute(
             """
             DELETE FROM image_tags
@@ -298,22 +361,29 @@ class ImageRepository:
         )
         for tag in tags:
             normalized_name = tag.lower()
-            self.connection.execute(
-                """
-                INSERT INTO tags (name, normalized_name, type) VALUES (?, ?, ?)
-                ON CONFLICT(normalized_name, type) DO NOTHING
-                """,
-                (tag, normalized_name, tag_type),
-            )
-            tag_row = self.connection.execute(
-                "SELECT id FROM tags WHERE normalized_name = ? AND type = ?",
-                (normalized_name, tag_type),
-            ).fetchone()
-            if tag_row is not None:
+            cache_key = (normalized_name, tag_type)
+            tag_id = tag_cache.get(cache_key) if tag_cache is not None else None
+            if tag_id is None:
                 self.connection.execute(
-                    "INSERT OR IGNORE INTO image_tags (image_id, tag_id) VALUES (?, ?)",
-                    (image_id, tag_row["id"]),
+                    """
+                    INSERT INTO tags (name, normalized_name, type) VALUES (?, ?, ?)
+                    ON CONFLICT(normalized_name, type) DO NOTHING
+                    """,
+                    (tag, normalized_name, tag_type),
                 )
+                tag_row = self.connection.execute(
+                    "SELECT id FROM tags WHERE normalized_name = ? AND type = ?",
+                    (normalized_name, tag_type),
+                ).fetchone()
+                if tag_row is None:
+                    continue
+                tag_id = int(tag_row["id"])
+                if tag_cache is not None:
+                    tag_cache[cache_key] = tag_id
+            self.connection.execute(
+                "INSERT OR IGNORE INTO image_tags (image_id, tag_id) VALUES (?, ?)",
+                (image_id, tag_id),
+            )
 
     def _update_search_index(self, image_id: int) -> None:
         image = self.connection.execute(

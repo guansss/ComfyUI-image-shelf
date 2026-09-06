@@ -30,7 +30,9 @@ def parse_tags(text: str) -> tuple[str, ...]:
     return tuple(tags)
 
 
-def parse_image_workflow(path: str | Path) -> ParsedWorkflow:
+def parse_image_workflow(
+    path: str | Path, image: Image.Image | None = None
+) -> ParsedWorkflow:
     """Read supported image workflow metadata and extract prompt tags."""
     image_path = Path(path)
     extension = image_path.suffix.lower()
@@ -43,19 +45,26 @@ def parse_image_workflow(path: str | Path) -> ParsedWorkflow:
         )
 
     try:
-        with Image.open(image_path) as image:
+        if image is None:
+            with Image.open(image_path) as opened_image:
+                workflow = _read_workflow(opened_image, extension)
+        else:
             workflow = _read_workflow(image, extension)
     except Exception as error:
         return ParsedWorkflow(None, (), (), f"Could not read image metadata: {error}")
 
     if workflow is None:
-        return ParsedWorkflow(None, (), (), "Image does not contain ComfyUI workflow metadata.")
+        return ParsedWorkflow(
+            None, (), (), "Image does not contain ComfyUI workflow metadata."
+        )
 
     try:
         workflow_data = json.loads(workflow)
         prompt_text, negative_prompt_text = _find_prompt_texts(workflow_data)
     except (TypeError, ValueError, KeyError) as error:
-        return ParsedWorkflow(workflow, (), (), f"Could not parse workflow metadata: {error}")
+        return ParsedWorkflow(
+            workflow, (), (), f"Could not parse workflow metadata: {error}"
+        )
 
     return ParsedWorkflow(
         workflow=workflow,

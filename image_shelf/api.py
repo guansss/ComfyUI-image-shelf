@@ -219,7 +219,7 @@ class GalleryApi:
                 "page": page.page,
                 "page_size": page.page_size,
                 "total": page.total,
-                "dimensions": page.dimensions,
+                "dimensions": [asdict(facet) for facet in page.dimensions],
             }
         )
 
