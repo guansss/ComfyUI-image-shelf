@@ -281,7 +281,12 @@ class ImageRepository:
                 "SELECT path FROM images WHERE path = ? OR path LIKE ? ESCAPE '\\'",
                 (normalized_folder, _directory_like_pattern(normalized_folder)),
             ).fetchall()
-        return {Path(row["path"]) for row in rows}
+        normalized_folder_path = Path(normalized_folder)
+        return {
+            path
+            for row in rows
+            if (path := Path(row["path"])).parent == normalized_folder_path
+        }
 
     def _replace_tags(self, image_id: int, tags: Iterable[str], tag_type: str) -> None:
         self.connection.execute(

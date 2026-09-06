@@ -31,9 +31,11 @@ class FolderIndexerTests(unittest.TestCase):
 
             page = repository.list_images([images])
             self.assertEqual(result.indexed, 1)
-            self.assertEqual(result.removed, 1)
-            self.assertEqual(page.total, 1)
-            self.assertEqual(page.items[0].filename, "direct.png")
+            self.assertEqual(result.removed, 0)
+            self.assertEqual(page.total, 2)
+            self.assertEqual(
+                {item.filename for item in page.items}, {"direct.png", "nested.png"}
+            )
             repository.close()
 
 
