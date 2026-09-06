@@ -29,6 +29,10 @@
     "delete": {
       "en": "Delete",
       "cn": "删除"
+    },
+    "configure": {
+      "en": "Configure",
+      "cn": "配置"
     }
   },
   "error": {
@@ -39,6 +43,10 @@
     "unknown": {
       "en": "Unknown error",
       "cn": "未知错误"
+    },
+    "network": {
+      "en": "Network error",
+      "cn": "网络错误"
     },
     "required": {
       "en": "{{field}} is required",
@@ -74,13 +82,47 @@
       "en": "Search tags and filenames",
       "cn": "搜索标签和文件名"
     },
+    "example": {
+      "en": "Example: cat tag:-indoors \"sunset beach\" name:2026",
+      "cn": "例如: cat tag:-indoors \"sunset beach\" name:2026"
+    },
     "searchHelp": {
-      "en": "Search syntax",
+      "en": "Search Syntax",
       "cn": "搜索语法"
     },
-    "searchSyntax": {
-      "en": "cat and tag:cat find positive tags. tag:-cat finds negative tags. -tag:cat excludes a positive tag. name:foo searches filenames. prompt:foo searches workflow text. Use quotes for spaces.",
-      "cn": "cat 和 tag:cat 搜索正向标签。tag:-cat 搜索负向标签。-tag:cat 排除正向标签。name:foo 搜索文件名。prompt:foo 搜索工作流文本。含空格的内容请使用引号。"
+    "searchNote": {
+      "en": "Multiple search terms are combined with AND logic. Use quotes for phrases, e.g. \"sunset beach\".",
+      "cn": "多个搜索词将使用“与”的逻辑组合。使用引号表示短语，例如 \"sunset beach\"。"
+    },
+    "syntaxTable":{
+      "cat": {
+        "en": "Find images with positive tag \"cat\"",
+        "cn": "查找带有正面标签 \"cat\" 的图像"
+      },
+      "tag:cat": {
+        "en": "Find images with positive tag \"cat\"",
+        "cn": "查找带有正面标签 \"cat\" 的图像"
+      },
+      "tag:-cat": {
+        "en": "Find images with negative tag \"cat\"",
+        "cn": "查找带有负面标签 \"cat\" 的图像"
+      },
+      "-tag:cat": {
+        "en": "Exclude images with positive tag \"cat\"",
+        "cn": "排除带有正面标签 \"cat\" 的图像"
+      },
+      "-tag:-cat": {
+        "en": "Exclude images with negative tag \"cat\"",
+        "cn": "排除带有负面标签 \"cat\" 的图像"
+      },
+      "name:foo": {
+        "en": "Search filenames for \"foo\"",
+        "cn": "搜索文件名中包含 \"foo\" 的图像"
+      },
+      "prompt:\"(night: 1.1), cityscape\"": {
+        "en": "Search positive/negative prompts for \"(night: 1.1), cityscape\"",
+        "cn": "搜索正面/负面提示词中包含 \"(night: 1.1), cityscape\" 的图像"
+      }
     },
     "loadingSuggestions": {
       "en": "Finding tag suggestions...",
@@ -111,6 +153,10 @@
     "loadTabs": {
       "en": "Load tabs",
       "cn": "加载标签页"
+    },
+    "tabError": {
+      "en": "An error occurred in tab \"{{name}}\"",
+      "cn": "标签页 \"{{name}}\" 出现错误"
     },
     "addTab": {
       "en": "Add tab",
@@ -236,6 +282,10 @@
       "en": "Choose a new filename or cancel.",
       "cn": "请选择新文件名或取消。"
     },
+    "filename": {
+      "en": "Filename",
+      "cn": "文件名"
+    },
     "loading": {
       "en": "Loading images...",
       "cn": "正在加载图像..."
@@ -249,8 +299,8 @@
       "cn": "此视图中没有匹配的图像。"
     },
     "favoritesUnconfigured": {
-      "en": "Set a Favorites folder in Image Shelf settings to browse favorites.",
-      "cn": "请在图像库设置中设置收藏夹文件夹。"
+      "en": "Favorites folder is not configured. Please configure it.",
+      "cn": "收藏夹文件夹未配置。请配置。"
     }
   }
 }

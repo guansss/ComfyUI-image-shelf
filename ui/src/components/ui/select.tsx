@@ -6,7 +6,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-import { portalRoot, Z_POPOVER } from "../../global"
+import { portalRoot, Z_POPOVER } from "../../lib/dom"
 
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   return <SelectPrimitive.Root data-slot="select" {...props} />

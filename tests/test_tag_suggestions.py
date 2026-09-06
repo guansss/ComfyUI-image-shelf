@@ -37,6 +37,10 @@ class TagSuggestionTests(unittest.TestCase):
                 (TagSuggestion("blurry", "negative"),),
             )
             self.assertEqual(repository.suggest_tags([images], "dog"), ())
+            self.assertEqual(
+                repository.suggest_tags(None, "g"),
+                (TagSuggestion("dog", "positive"), TagSuggestion("orange cat", "positive"),),
+            )
             repository.close()
 
 

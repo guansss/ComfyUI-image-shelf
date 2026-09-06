@@ -1,6 +1,8 @@
 import mitt, { Emitter } from "mitt"
 
-import { API_ROOT } from "./global"
+import { API_ROOT } from "../global"
+import { SearchQuery, toBackendSearchTerms } from "../lib/search"
+import { api } from "./network"
 
 export interface GalleryTab {
   id: string
@@ -57,7 +59,7 @@ export class FavoriteConflictError extends Error {
 
 export interface ImageQuery {
   tab: string
-  query: string
+  query: SearchQuery
   dimensions: string[]
   sort: "created_at" | "filename"
   direction: "asc" | "desc"
@@ -70,6 +72,7 @@ export interface ImageListResponse {
   page: number
   page_size: number
   total: number
+  dimensions: DimensionFacet[]
 }
 
 export type GalleryMessage = {
@@ -187,35 +190,14 @@ export class GalleryWebSocket {
 export const socket = new GalleryWebSocket()
 socket.connect()
 
-async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${API_ROOT}${path}`, { signal })
-  if (!response.ok) throw new Error(await response.text())
-  return response.json() as Promise<T>
+export async function fetchTabs(): Promise<{ items: GalleryTab[] }> {
+  return await api<{ items: GalleryTab[] }>("tabs", "GET", undefined, "json")
 }
 
-async function post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${API_ROOT}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    signal,
-  })
-  if (!response.ok) throw new Error(await response.text())
-  return response.json() as Promise<T>
-}
-
-export async function fetchTabs(signal?: AbortSignal): Promise<GalleryTab[]> {
-  const response = await get<{ items: GalleryTab[] }>("/tabs", signal)
-  return response.items
-}
-
-export async function fetchImages(
-  imageQuery: ImageQuery,
-  signal?: AbortSignal,
-): Promise<ImageListResponse> {
+export async function fetchImages(imageQuery: ImageQuery): Promise<ImageListResponse> {
   const parameters = new URLSearchParams({
     tab: imageQuery.tab,
-    query: imageQuery.query,
+    terms: JSON.stringify(toBackendSearchTerms(imageQuery.query.terms)),
     sort: imageQuery.sort,
     direction: imageQuery.direction,
     page: String(imageQuery.page),
@@ -224,58 +206,48 @@ export async function fetchImages(
   for (const dimension of imageQuery.dimensions) {
     parameters.append("dimension", dimension)
   }
-  return get<ImageListResponse>(`/images?${parameters}`, signal)
+  return api<ImageListResponse>(`images?${parameters}`, "GET")
 }
 
-export async function fetchDimensions(
-  tab: string,
-  query: string,
-  signal?: AbortSignal,
-): Promise<DimensionFacet[]> {
-  const parameters = new URLSearchParams({ tab, query })
-  const response = await get<{ items: DimensionFacet[] }>(`/dimensions?${parameters}`, signal)
-  return response.items
+export async function fetchTagSuggestions(query: string): Promise<{ items: TagSuggestion[] }> {
+  const parameters = new URLSearchParams({ q: query })
+  return api<{ items: TagSuggestion[] }>(`tags?${parameters}`, "GET")
 }
 
-export async function fetchTagSuggestions(
-  tab: string,
-  query: string,
-  signal?: AbortSignal,
-): Promise<TagSuggestion[]> {
-  const parameters = new URLSearchParams({ tab, q: query })
-  const response = await get<{ items: TagSuggestion[] }>(`/tags?${parameters}`, signal)
-  return response.items
-}
-
-export function fetchImageDetails(imageId: string, signal?: AbortSignal): Promise<ImageDetails> {
-  return get<ImageDetails>(`/images/${encodeURIComponent(imageId)}`, signal)
+export function fetchImageDetails(imageId: string): Promise<ImageDetails> {
+  return api<ImageDetails>(`images/${encodeURIComponent(imageId)}`, "GET")
 }
 
 export async function sendToFavorites(
   imageId: string,
   filename?: string,
 ): Promise<{ filename: string; mode: string }> {
-  const response = await fetch(`${API_ROOT}/images/${encodeURIComponent(imageId)}/favorite`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode: "copy", filename }),
-  })
-  if (response.status === 409) {
-    const payload = (await response.json()) as { suggested_filename: string }
-    throw new FavoriteConflictError(payload.suggested_filename)
-  }
-  if (!response.ok) throw new Error(await response.text())
-  return response.json() as Promise<{ filename: string; mode: string }>
+  return await api(
+    `images/${encodeURIComponent(imageId)}/favorite`,
+    "POST",
+    { mode: "copy", filename },
+    async (res, defaultHandler) => {
+      if (res.status === 409) {
+        const payload: { suggested_filename: string } = await res.json()
+        throw new FavoriteConflictError(payload.suggested_filename)
+      }
+      return defaultHandler("json")
+    },
+  )
 }
 
 export async function reindexTab(tab: string): Promise<void> {
-  return await post(`/reindex?${new URLSearchParams({ tab })}`)
+  return await api(`reindex?${new URLSearchParams({ tab })}`, "POST", undefined, "ignore")
 }
 
 export async function revealImage(imageId: string): Promise<void> {
-  return await post(`/images/${encodeURIComponent(imageId)}/reveal`)
+  return await api(`images/${encodeURIComponent(imageId)}/reveal`, "POST", undefined, "ignore")
 }
 
 export async function pickFolder(): Promise<void> {
-  return await post(`/pick-folder`)
+  return await api(`pick-folder`, "POST", undefined, "ignore")
+}
+
+export async function updateSettings(patch: Record<string, unknown>): Promise<void> {
+  return await api(`settings`, "POST", patch, "ignore")
 }

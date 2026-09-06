@@ -12,12 +12,12 @@ from .models import (
     DimensionFacet,
     GalleryImage,
     ImageDetails,
-    IndexedImage,
     ImagePage,
+    IndexedImage,
     TagSuggestion,
 )
 from .paths import normalize_path
-from .search import SearchTerm, parse_search_query
+from .search import SearchTerm
 
 
 class ImageRepository:
@@ -80,7 +80,7 @@ class ImageRepository:
     def list_images(
         self,
         folders: Iterable[str | Path],
-        query: str = "",
+        terms: Iterable[SearchTerm] = (),
         dimensions: Iterable[tuple[int, int]] = (),
         sort_by: str = "created_at",
         direction: str = "desc",
@@ -88,14 +88,26 @@ class ImageRepository:
         page_size: int = 100,
     ) -> ImagePage:
         if page < 1 or not 1 <= page_size <= 200:
-            raise ValueError("page must be positive and page_size must be between 1 and 200")
-        if sort_by not in {"created_at", "filename"} or direction not in {"asc", "desc"}:
+            raise ValueError(
+                "page must be positive and page_size must be between 1 and 200"
+            )
+        if sort_by not in {"created_at", "filename"} or direction not in {
+            "asc",
+            "desc",
+        }:
             raise ValueError("Unsupported sort order")
 
-        where, parameters = self._build_image_filter(folders, parse_search_query(query), dimensions)
-        order_column = {"created_at": "images.created_at", "filename": "images.filename"}[sort_by]
+        terms = tuple(terms)
+        where, parameters = self._build_image_filter(folders, terms, dimensions)
+        order_column = {
+            "created_at": "images.created_at",
+            "filename": "images.filename",
+        }[sort_by]
         order_direction = direction.upper()
         where_sql = " AND ".join(where)
+        where_without_dimensions, parameters_without_dimensions = (
+            self._build_image_filter(folders, terms)
+        )
         with self._lock:
             total = int(
                 self.connection.execute(
@@ -112,6 +124,16 @@ class ImageRepository:
                 LIMIT ? OFFSET ?
                 """,
                 (*parameters, page_size, (page - 1) * page_size),
+            ).fetchall()
+            dimension_facets = self.connection.execute(
+                f"""
+                SELECT width, height, COUNT(*) AS count
+                FROM images
+                WHERE {" AND ".join(where_without_dimensions)}
+                GROUP BY width, height
+                ORDER BY count DESC, width DESC, height DESC
+                """,
+                parameters_without_dimensions,
             ).fetchall()
         return ImagePage(
             items=tuple(
@@ -130,33 +152,20 @@ class ImageRepository:
             page=page,
             page_size=page_size,
             total=total,
-        )
-
-    def dimension_facets(
-        self, folders: Iterable[str | Path], query: str = ""
-    ) -> tuple[DimensionFacet, ...]:
-        where, parameters = self._build_image_filter(folders, parse_search_query(query))
-        with self._lock:
-            rows = self.connection.execute(
-                f"""
-                SELECT width, height, COUNT(*) AS count
-                FROM images
-                WHERE {' AND '.join(where)}
-                GROUP BY width, height
-                ORDER BY count DESC, width DESC, height DESC
-                """,
-                parameters,
-            ).fetchall()
-        return tuple(
-            DimensionFacet(row["width"], row["height"], row["count"]) for row in rows
+            dimensions=tuple(
+                DimensionFacet(row["width"], row["height"], row["count"])
+                for row in dimension_facets
+            ),
         )
 
     def suggest_tags(
-        self, folders: Iterable[str | Path], prefix: str, limit: int = 10
+        self, folders: Iterable[str | Path] | None, prefix: str, limit: int = 10
     ) -> tuple[TagSuggestion, ...]:
         if not prefix.strip() or not 1 <= limit <= 50:
             return ()
-        folder_where, folder_parameters = self._folder_filter(folders)
+        folder_where, folder_parameters = (
+            ("1", ()) if folders is None else self._folder_filter(folders)
+        )
         if folder_where == "0":
             return ()
         with self._lock:
@@ -244,9 +253,7 @@ class ImageRepository:
                 self.connection.execute("DELETE FROM images")
             return
 
-        conditions = " OR ".join(
-            "path = ? OR path LIKE ? ESCAPE '\\'" for _ in folders
-        )
+        conditions = " OR ".join("path = ? OR path LIKE ? ESCAPE '\\'" for _ in folders)
         parameters = tuple(
             parameter
             for folder in folders
@@ -263,7 +270,9 @@ class ImageRepository:
                 "SELECT mtime, file_size FROM images WHERE path = ?",
                 (str(normalize_path(path)),),
             ).fetchone()
-        return row is not None and row["mtime"] == mtime and row["file_size"] == file_size
+        return (
+            row is not None and row["mtime"] == mtime and row["file_size"] == file_size
+        )
 
     def paths_in_folder(self, folder: str | Path) -> set[Path]:
         normalized_folder = str(normalize_path(folder))
@@ -368,7 +377,9 @@ class ImageRepository:
             )
             columns = {
                 row["name"]
-                for row in self.connection.execute("PRAGMA table_info(images)").fetchall()
+                for row in self.connection.execute(
+                    "PRAGMA table_info(images)"
+                ).fetchall()
             }
             if "public_id" not in columns:
                 self.connection.execute("ALTER TABLE images ADD COLUMN public_id TEXT")
@@ -398,9 +409,15 @@ class ImageRepository:
         dimension_values = tuple(dimensions)
         if dimension_values:
             where.append(
-                "(" + " OR ".join("(images.width = ? AND images.height = ?)" for _ in dimension_values) + ")"
+                "("
+                + " OR ".join(
+                    "(images.width = ? AND images.height = ?)" for _ in dimension_values
+                )
+                + ")"
             )
-            parameters.extend(value for dimension in dimension_values for value in dimension)
+            parameters.extend(
+                value for dimension in dimension_values for value in dimension
+            )
 
         for term in terms:
             condition, condition_parameters = _term_filter(term)
@@ -408,11 +425,16 @@ class ImageRepository:
             parameters.extend(condition_parameters)
         return where, parameters
 
-    def _folder_filter(self, folders: Iterable[str | Path]) -> tuple[str, tuple[object, ...]]:
+    def _folder_filter(
+        self, folders: Iterable[str | Path]
+    ) -> tuple[str, tuple[object, ...]]:
         normalized_folders = tuple(str(normalize_path(folder)) for folder in folders)
         if not normalized_folders:
             return "0", ()
-        clauses = " OR ".join("images.path = ? OR images.path LIKE ? ESCAPE '\\'" for _ in normalized_folders)
+        clauses = " OR ".join(
+            "images.path = ? OR images.path LIKE ? ESCAPE '\\'"
+            for _ in normalized_folders
+        )
         parameters = tuple(
             parameter
             for folder in normalized_folders

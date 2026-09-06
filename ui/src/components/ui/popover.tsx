@@ -5,7 +5,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-import { portalRoot, Z_POPOVER } from "../../global"
+import { portalRoot, Z_POPOVER } from "../../lib/dom"
 
 function Popover({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />

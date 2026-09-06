@@ -3,7 +3,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
-from image_shelf.api import GalleryApi
+from aiohttp import web
+
+from image_shelf.api import GalleryApi, _development_cors_middleware
 from image_shelf.indexer import IndexingResult
 from image_shelf.models import GalleryTab
 
@@ -82,6 +84,20 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
                     },
                 ],
             )
+
+
+class DevelopmentCorsMiddlewareTests(unittest.IsolatedAsyncioTestCase):
+    async def test_adds_cors_headers_to_http_errors(self) -> None:
+        request = Mock(method="GET", headers={"Origin": "http://localhost:8188"})
+        handler = AsyncMock(side_effect=web.HTTPBadRequest(text="invalid request"))
+
+        response = await _development_cors_middleware(request, handler)
+
+        self.assertEqual(response.status, 400)
+        self.assertEqual(
+            response.headers["Access-Control-Allow-Origin"],
+            "http://localhost:8188",
+        )
 
 
 if __name__ == "__main__":

@@ -5,11 +5,13 @@ import ReactDOM from "react-dom/client"
 
 import { app } from "./comfy"
 import { AskProvider } from "./components/ask"
-import { Gallery } from "./components/gallery/Gallery"
+import { GalleryControl } from "./components/gallery/Gallery"
 import { TooltipProvider } from "./components/ui/tooltip"
-import { API_ROOT, EXTENSION_ID, rootContainer } from "./global"
+import { EXTENSION_ID } from "./global"
 import { I18NProvider } from "./i18n/I18NProvider"
 import "./index.css"
+import { rootContainer } from "./lib/dom"
+import { updateSettings } from "./services/gallery"
 
 const OPEN_EVENT = "image-shelf:open"
 const FAVORITES_SETTING = "image-shelf.favorites-folder"
@@ -20,7 +22,7 @@ function mountUI(): void {
     <React.StrictMode>
       <I18NProvider>
         <TooltipProvider>
-          <Gallery openEvent={OPEN_EVENT} />
+          <GalleryControl openEvent={OPEN_EVENT} />
         </TooltipProvider>
         <AskProvider />
       </I18NProvider>
@@ -29,14 +31,6 @@ function mountUI(): void {
 }
 
 function registerExtension(): void {
-  const updateBackendSettings = (patch: Record<string, unknown>) => {
-    void fetch(`${API_ROOT}/settings`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    }).catch(() => undefined)
-  }
-
   app.registerExtension({
     name: "ComfyUI.ImageShelf",
     settings: [
@@ -46,14 +40,14 @@ function registerExtension(): void {
         type: "text",
         defaultValue: "",
         category: ["Image Shelf", "Storage", "Favorites folder"],
-        onChange: (value) => updateBackendSettings({ [FAVORITES_SETTING]: value }),
+        onChange: (value) => updateSettings({ [FAVORITES_SETTING]: value }),
       },
       {
         id: "image-shelf.custom-tabs" as keyof Settings,
         name: "Custom tabs",
         type: "hidden",
         defaultValue: [],
-        onChange: (value) => updateBackendSettings({ [CUSTOM_TABS_SETTING]: value }),
+        onChange: (value) => updateSettings({ [CUSTOM_TABS_SETTING]: value }),
       },
       {
         id: "image-shelf.last-gallery-state" as keyof Settings,

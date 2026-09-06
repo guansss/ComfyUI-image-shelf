@@ -1,3 +1,5 @@
+/// <reference types="vitest/config" />
+
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import path from "path"
@@ -28,6 +30,8 @@ const rewriteComfyImports = ({ isDev }: RewriteComfyImportsOptions) => {
   }
 }
 
+generateTranslations()
+
 const envDir = path.resolve(__dirname, "../")
 const env = loadEnv("", envDir, "")
 
@@ -46,12 +50,7 @@ if (USE_STANDALONE_BACKEND) {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [
-    tailwindcss(),
-    react(),
-    rewriteComfyImports({ isDev: mode === "development" }),
-    generateTranslations(),
-  ],
+  plugins: [tailwindcss(), react(), rewriteComfyImports({ isDev: mode === "development" })],
   define: {
     __DEV__: mode === "development" || process.argv.includes("--watch"),
     __USE_STANDALONE_BACKEND__: USE_STANDALONE_BACKEND,
@@ -62,6 +61,9 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  test: {
+    setupFiles: ["./test/setup.ts"],
   },
   server: {
     proxy: {

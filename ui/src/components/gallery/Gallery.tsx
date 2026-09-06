@@ -1,21 +1,7 @@
-import { isEqual } from "lodash-es"
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CircleAlertIcon,
-  FolderIcon,
-  FolderOpenIcon,
-  ImageIcon,
-  LoaderCircleIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  RotateCcwClockIcon,
-  Settings2Icon,
-  SettingsIcon,
-  StarIcon,
-  TrashIcon,
-} from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { clamp } from "lodash-es"
+import { AlertCircleIcon, ChevronLeftIcon, ChevronRightIcon, ImageIcon } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useDebounce } from "react-use"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,160 +16,86 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { app } from "../../comfy"
-import {
-  DimensionFacet,
-  FavoriteConflictError,
-  fetchDimensions,
-  fetchImageDetails,
-  fetchImages,
-  fetchTabs,
-  GalleryImage,
-  GalleryMessage,
-  GalleryTab,
-  ImageDetails,
-  ImageListResponse,
-  reindexTab as reindexTabApi,
-  revealImage,
-  sendToFavorites,
-  socket,
-} from "../../galleryApi"
-import { CUSTOM_TABS_SETTING, FAVORITES_SETTING, SERVER_URL } from "../../global"
-import { i18n, useTranslation } from "../../i18n/i18n"
+import { useTranslation } from "../../i18n/i18n"
 import { errorToast, formatError } from "../../lib/error"
-import { cn } from "../../lib/utils"
-import { ask } from "../ask"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu"
+import { emptyQuery, SearchQuery } from "../../lib/search"
+import { toast } from "../../lib/toast"
+import { FavoriteConflictError, GalleryImage, sendToFavorites } from "../../services/gallery"
+import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"
+import { askInput } from "../ask"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "../ui/alert"
 import { Field } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
+import { useImageQuery, useTabList } from "./api"
+import { ImageViewer } from "./ImageViewer"
 import { Searchbar } from "./Searchbar"
-import { askCreateTab, askEditTab } from "./tab-manager"
+import { editTab, TabList } from "./tab"
 
-interface GalleryProps {
+interface GalleryControlProps {
   openEvent: string
 }
 
-interface StoredCustomTab {
-  id: string
-  name: string
-  folder: string
-}
-
-function toStoredCustomTab(tab: GalleryTab): StoredCustomTab {
-  return {
-    id: tab.id,
-    name: tab.name,
-    folder: tab.folders[0] ?? "",
-  }
-}
-
-function readCustomTabs(): StoredCustomTab[] {
-  const value = app.extensionManager.setting.get(CUSTOM_TABS_SETTING)
-  if (!Array.isArray(value)) {
-    console.warn("[Image Shelf] readCustomTabs: invalid value", value)
-    return []
-  }
-  return value
+interface GalleryProps {
+  isOpen?: boolean
+  onOpenChange?: (isOpen: boolean) => void
 }
 
 const PAGE_SIZE = 36
 
-export function Gallery({ openEvent }: GalleryProps) {
+export function GalleryControl({ openEvent }: GalleryControlProps) {
+  const { isOpen, shouldRender, setOpenState } = usePopoverControl()
+
+  useEffect(() => {
+    const open = () => setOpenState(true)
+    window.addEventListener(openEvent, open)
+    return () => window.removeEventListener(openEvent, open)
+  }, [openEvent, setOpenState])
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenState(false)
+    }
+    window.addEventListener("keydown", closeOnEscape)
+    return () => window.removeEventListener("keydown", closeOnEscape)
+  }, [setOpenState])
+
+  return shouldRender ? <Gallery isOpen={isOpen} onOpenChange={setOpenState} /> : null
+}
+
+export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const t = useTranslation()
-  const [isOpen, setIsOpen] = useState(false)
-  const [tabs, setTabs] = useState<GalleryTab[]>([])
   const [selectedTabId, setSelectedTabId] = useState("outputs")
-  const [query, setQuery] = useState("")
-  const [images, setImages] = useState<GalleryImage[]>([])
-  const [dimensions, setDimensions] = useState<DimensionFacet[]>([])
+  const [query, setQuery] = useState<SearchQuery>(emptyQuery())
+  const [debouncedQuery, setDebouncedQuery] = useState<SearchQuery>(query)
+  useDebounce(() => setDebouncedQuery(query), 500, [query])
   const [selectedDimensions, setSelectedDimensions] = useState<string[]>([])
   const [sort, setSort] = useState<"created_at" | "filename">("created_at")
   const [direction, setDirection] = useState<"asc" | "desc">("desc")
   const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(0)
-  const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null)
-  const [imageDetails, setImageDetails] = useState<ImageDetails | null>(null)
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle")
+  const [selectedImage, setSelectedImage] = useState<GalleryImage | undefined>(undefined)
+  const imageViewerTrigger = usePopoverTrigger()
   const [groupByDay, setGroupByDay] = useState(true)
-  const searchAbortControllerRef = useRef<AbortController | null>(null)
 
-  useEffect(() => {
-    const open = () => setIsOpen(true)
-    window.addEventListener(openEvent, open)
-    return () => window.removeEventListener(openEvent, open)
-  }, [openEvent])
+  const { data: tabs, mutate: mutateTabs } = useTabList()
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsOpen(false)
-    }
-    window.addEventListener("keydown", closeOnEscape)
-    return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [])
-
-  useEffect(() => {
-    if (!isOpen) return
-    const controller = new AbortController()
-    void fetchTabs(controller.signal)
-      .then((nextTabs) => {
-        setTabs(nextTabs)
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return
-        setStatus("error")
-      })
-    return () => controller.abort()
-  }, [isOpen])
-
-  const search = () => {
-    if (searchAbortControllerRef.current) {
-      searchAbortControllerRef.current.abort()
-    }
-    setStatus("loading")
-    const controller = new AbortController()
-    searchAbortControllerRef.current = controller
-    void Promise.all([
-      fetchImages(
-        {
-          tab: selectedTabId,
-          query,
-          dimensions: selectedDimensions,
-          sort,
-          direction,
-          page,
-          pageSize: PAGE_SIZE,
-        },
-        controller.signal,
-      ),
-      fetchDimensions(selectedTabId, query, controller.signal),
-    ])
-      .then(([imagePage, nextDimensions]: [ImageListResponse, DimensionFacet[]]) => {
-        imagePage.items.forEach((image) => {
-          image.url = new URL(image.url, SERVER_URL).toString()
-        })
-        setImages(imagePage.items)
-        setTotal(imagePage.total)
-        setDimensions(nextDimensions)
-        setStatus("idle")
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return
-        setStatus("error")
-      })
-  }
-
-  useEffect(() => {
-    search()
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const {
+    data: imageList,
+    error: imageListError,
+    isLoading: imageListIsLoading,
+    isValidating: imageListIsValidating,
+  } = useImageQuery({
+    tab: selectedTabId,
+    query: debouncedQuery,
+    dimensions: selectedDimensions,
+    sort,
+    direction,
+    page,
+    pageSize: PAGE_SIZE,
+  })
+  const images = imageList?.items ?? []
+  const imageListTotal = imageList?.total ?? 0
+  const dimensions = imageList?.dimensions ?? []
 
   const selectTab = (tabId: string) => {
     setSelectedTabId(tabId)
@@ -210,179 +122,45 @@ export function Gallery({ openEvent }: GalleryProps) {
     setPage(1)
   }
 
-  const saveCustomTabs = (nextTabs: StoredCustomTab[]) => {
-    app.extensionManager.setting.set(CUSTOM_TABS_SETTING, nextTabs)
-  }
-
-  const addCustomTab = async () => {
-    const result = await askCreateTab({})
-    if (!result) return
-    saveCustomTabs([...readCustomTabs(), toStoredCustomTab(result.tab)])
-  }
-
-  const editTab = async (tab: GalleryTab) => {
-    if (tab.id === "favorites") {
-      // read the favorites folder from settings as the source of truth,
-      // in case the tab info is somehow out of sync
-      const favoriteSetting = app.extensionManager.setting.get(FAVORITES_SETTING)
-      const currentFavoritesFolder = typeof favoriteSetting === "string" ? favoriteSetting : ""
-      const result = await askEditTab({}, { ...tab, folders: [currentFavoritesFolder] })
-      const newFolder = result?.tab.folders[0]?.trim()
-      if (!newFolder || newFolder === currentFavoritesFolder) return
-      app.extensionManager.setting.set(FAVORITES_SETTING, newFolder)
-    } else {
-      const result = await askEditTab({}, tab)
-      if (!result) return
-      const storedTabs = readCustomTabs()
-      const storedTab = storedTabs.find((storedTab) => storedTab.id === tab.id)
-      if (!storedTab) {
-        console.warn(
-          "[Image Shelf] editTab: stored tab not found",
-          tab.id,
-          storedTabs.map((t) => t.id),
-        )
-        return
-      }
-      const newTab = { ...storedTab, ...toStoredCustomTab(result.tab) }
-      if (isEqual(storedTab, newTab)) return
-      saveCustomTabs(storedTabs.map((t) => (t.id === storedTab.id ? newTab : t)))
-    }
-  }
-
-  const removeTab = async (tab: GalleryTab) => {
-    const confirmed = await ask({
-      title: t.gallery.removeTab,
-      message: t.gallery.removeTabMessage({ name: tab.name }),
-    })
-    if (!confirmed) return
-    saveCustomTabs(readCustomTabs().filter((storedTab) => storedTab.id !== tab.id))
-    if (tab.id === selectedTabId) {
-      setSelectedTabId("outputs")
-    }
-  }
-
-  const reindexTab = async (tab: GalleryTab) => {
+  const sendImageToFavorites = async (image: GalleryImage, filename?: string) => {
     try {
-      await reindexTabApi(tab.id)
-      setTabs((current) => current.map((t) => (t.id === tab.id ? { ...t, indexing: true } : t)))
-    } catch (error: unknown) {
-      app.extensionManager.toast.add({
-        severity: "error",
-        summary: t.gallery.reindexFailed,
-        detail: error instanceof Error ? error.message : String(error),
-        life: 5000,
-      })
-    }
-  }
-
-  useEffect(() => {
-    let fetchTabsController: AbortController | null = null
-    const handleTabsUpdated = ({ tabs: updatedTabs }: GalleryMessage["tabsUpdated"]) => {
-      setTabs((currentTabs) =>
-        updatedTabs.map((update) => {
-          const existingTab = currentTabs.find((tab) => tab.id === update.id)
-          if (existingTab) {
-            return {
-              ...existingTab,
-              ...update,
-            }
-          }
-          return {
-            ...update,
-            indexing: true,
-            count: 0,
-            error: null,
-          }
-        }),
-      )
-      fetchTabsController?.abort()
-      fetchTabsController = new AbortController()
-      void fetchTabs(fetchTabsController.signal)
-        .then((nextTabs) => {
-          setTabs(nextTabs)
-        })
-        .catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === "AbortError") return
-          errorToast({
-            title: i18n.gallery.loadTabs,
-            message: formatError(error),
-          })
-        })
-    }
-    const handleIndexStart = ({ tab }: GalleryMessage["indexStart"]) => {
-      setTabs((current) => current.map((t) => (t.id === tab ? { ...t, indexing: true } : t)))
-    }
-    const handleIndexFinish = ({ tab, result, error }: GalleryMessage["indexFinish"]) => {
-      setTabs((current) =>
-        current.map((t) =>
-          t.id === tab
-            ? {
-                ...t,
-                indexing: false,
-                count: result ? result.indexed + result.skipped : t.count,
-                error: error ?? null,
-              }
-            : t,
-        ),
-      )
-    }
-    socket.on("tabsUpdated", handleTabsUpdated)
-    socket.on("indexStart", handleIndexStart)
-    socket.on("indexFinish", handleIndexFinish)
-    return () => {
-      socket.off("tabsUpdated", handleTabsUpdated)
-      socket.off("indexStart", handleIndexStart)
-      socket.off("indexFinish", handleIndexFinish)
-    }
-  }, [])
-
-  const revealSelectedImage = async () => {
-    if (!selectedImage) return
-    try {
-      await revealImage(selectedImage.id)
-    } catch (error: unknown) {
-      app.extensionManager.toast.add({
-        severity: "error",
-        summary: t.gallery.revealFailed,
-        detail: error instanceof Error ? error.message : String(error),
-        life: 5000,
-      })
-    }
-  }
-
-  const sendSelectedImageToFavorites = async (filename?: string) => {
-    if (!selectedImage) return
-    try {
-      const result = await sendToFavorites(selectedImage.id, filename)
-      app.extensionManager.toast.add({
-        severity: "success",
-        summary: t.gallery.favoriteSent,
-        detail: result.filename,
-        life: 3000,
+      const result = await sendToFavorites(image.id, filename)
+      toast({
+        type: "success",
+        title: t.gallery.favoriteSent,
+        message: result.filename,
       })
     } catch (error: unknown) {
       if (error instanceof FavoriteConflictError) {
-        const replacement = await app.extensionManager.dialog.prompt({
-          title: t.gallery.favoriteConflict,
-          message: t.gallery.favoriteConflictMessage,
-          defaultValue: error.suggestedFilename,
-        })
-        if (replacement) await sendSelectedImageToFavorites(replacement)
+        const replacement = await askInput(
+          {
+            title: t.gallery.favoriteConflict,
+            message: t.gallery.favoriteConflictMessage,
+            initialValue: error.suggestedFilename,
+          },
+          {
+            validate: (value) => {
+              if (!value.trim()) {
+                errorToast({
+                  message: t.error.required({ field: t.gallery.filename }),
+                })
+                return false
+              }
+              return true
+            },
+          },
+        )
+        if (replacement) await sendImageToFavorites(image, replacement)
         return
       }
-      app.extensionManager.toast.add({
-        severity: "error",
-        summary: t.gallery.favoriteFailed,
-        detail: error instanceof Error ? error.message : String(error),
-        life: 5000,
+      errorToast({
+        title: t.gallery.favoriteFailed,
+        message: formatError(error),
       })
     }
   }
 
-  const selectedTab = tabs.find((tab) => tab.id === selectedTabId)
-  const selectedImageIndex = selectedImage
-    ? images.findIndex((image) => image.id === selectedImage.id)
-    : -1
+  const selectedTab = tabs?.find((tab) => tab.id === selectedTabId)
   const imageGroups: [string, GalleryImage[]][] = groupByDay
     ? (Object.entries(
         images.reduce<Record<string, GalleryImage[]>>((groups, image) => {
@@ -393,37 +171,14 @@ export function Gallery({ openEvent }: GalleryProps) {
       ) as [string, GalleryImage[]][])
     : [[t.gallery.allImages, images]]
 
-  useEffect(() => {
-    if (!selectedImage) {
-      setImageDetails(null)
-      return
-    }
-    const controller = new AbortController()
-    void fetchImageDetails(selectedImage.id, controller.signal)
-      .then(setImageDetails)
-      .catch(() => setImageDetails(null))
-    return () => controller.abort()
-  }, [selectedImage])
-
-  useEffect(() => {
-    if (!selectedImage) return
-    const navigate = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedImage(null)
-      if (event.key === "ArrowLeft" && selectedImageIndex > 0) {
-        setSelectedImage(images[selectedImageIndex - 1])
-      }
-      if (event.key === "ArrowRight" && selectedImageIndex < images.length - 1) {
-        setSelectedImage(images[selectedImageIndex + 1])
-      }
-    }
-    window.addEventListener("keydown", navigate)
-    return () => window.removeEventListener("keydown", navigate)
-  }, [images, selectedImage, selectedImageIndex])
-
-  if (!isOpen) return null
+  const handleNavigate = (offset: number) => {
+    const currentIndex = images.findIndex((image) => image.id === selectedImage?.id)
+    const nextIndex = clamp(currentIndex + offset, 0, images.length - 1)
+    setSelectedImage(images[nextIndex])
+  }
 
   return (
-    <Dialog onOpenChange={setIsOpen} open={isOpen}>
+    <Dialog onOpenChange={onOpenChange} open={isOpen}>
       <DialogContent
         aria-describedby={undefined}
         className="flex h-[calc(100vh-12rem)] w-375 gap-0 overflow-hidden rounded-xl bg-card p-0"
@@ -434,85 +189,12 @@ export function Gallery({ openEvent }: GalleryProps) {
             <ImageIcon className="size-8" />
             <DialogTitle className="text-xl">{t.gallery.title}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-1 p-4 border-t">
-            {tabs.map((tab) => (
-              <div
-                key={tab.id}
-                className={cn("flex rounded-md", tab === selectedTab && "bg-(--chart-3)")}
-              >
-                <Button
-                  variant="flat"
-                  className={cn(
-                    "grow justify-start",
-                    tab === selectedTab && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
-                  )}
-                  onClick={() => selectTab(tab.id)}
-                >
-                  {tab.id === "outputs" ? (
-                    <RotateCcwClockIcon data-icon="inline-start" />
-                  ) : tab.id === "favorites" ? (
-                    <StarIcon data-icon="inline-start" />
-                  ) : (
-                    <FolderIcon data-icon="inline-start" />
-                  )}
-                  {tab.name}
-                  {tab.indexing ? (
-                    <LoaderCircleIcon data-icon="inline-end" className="animate-spin" />
-                  ) : (
-                    ` (${tab.count})`
-                  )}
-                  {tab.error && (
-                    <span title={formatError(tab.error)}>
-                      <CircleAlertIcon data-icon="inline-end" className="text-destructive" />
-                    </span>
-                  )}
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="flat"
-                      className={cn(
-                        tab === selectedTab && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
-                      )}
-                    >
-                      <SettingsIcon />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuGroup>
-                      <DropdownMenuItem onSelect={() => void reindexTab(tab)}>
-                        <RefreshCwIcon />
-                        {t.gallery.reindex}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled={!tab.editable} onSelect={() => editTab(tab)}>
-                        <Settings2Icon />
-                        {t.gallery.editTab}
-                      </DropdownMenuItem>
-                    </DropdownMenuGroup>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuGroup>
-                      <DropdownMenuItem
-                        variant="destructive"
-                        disabled={!tab.removable}
-                        onSelect={() => void removeTab(tab)}
-                      >
-                        <TrashIcon />
-                        {t.gallery.removeTab}
-                      </DropdownMenuItem>
-                    </DropdownMenuGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            ))}
-            <Button
-              className="grow justify-start"
-              onClick={() => void addCustomTab()}
-              variant="flat"
-            >
-              <PlusIcon data-icon="inline-start" />
-              {t.gallery.addTab}
-            </Button>
-          </div>
+          <TabList
+            tabs={tabs}
+            selectedTabId={selectedTabId}
+            onTabSelect={selectTab}
+            updateTabs={mutateTabs}
+          />
           <div className="flex flex-col gap-4 p-4 border-t">
             <h3 className="text-sm font-semibold">{t.gallery.sort}</h3>
             <Select onValueChange={updateSort} value={`${sort}:${direction}`}>
@@ -564,30 +246,43 @@ export function Gallery({ openEvent }: GalleryProps) {
         </aside>
 
         <main className="flex grow flex-col">
-          <div className="flex items-center gap-4 p-4 pr-16">
-            <Searchbar tab={selectedTab} value={query} onChange={setQuery} onSubmit={search} />
+          <div className="flex items-center px-4 pt-4 pb-2 pr-16">
+            <Searchbar loading={imageListIsValidating} query={query} onQueryChange={setQuery} />
           </div>
-          {status === "loading" && <p>{t.gallery.loading}</p>}
-          {status === "error" && (
-            <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
-              <p>{t.gallery.error}</p>
+          {imageListError && (
+            <Alert variant="destructive" className="mx-4 w-fit self-start">
+              <AlertCircleIcon />
+              <AlertTitle>{t.gallery.error}</AlertTitle>
+              <AlertDescription>{formatError(imageListError)}</AlertDescription>
+            </Alert>
+          )}
+          {selectedTab && !selectedTab.folders.length && (
+            <Alert variant="destructive" className="mx-4 w-fit self-start">
+              <AlertCircleIcon />
+              <AlertTitle>{t.error.error}</AlertTitle>
+              <AlertDescription>{t.gallery.favoritesUnconfigured}</AlertDescription>
+              <AlertAction>
+                <Button onClick={() => void editTab(selectedTab)}>{t.common.configure}</Button>
+              </AlertAction>
+            </Alert>
+          )}
+          {selectedTab && !!selectedTab.folders.length && selectedTab.error && (
+            <Alert variant="destructive" className="mx-4 w-fit self-start">
+              <AlertCircleIcon />
+              <AlertTitle>{t.gallery.tabError({ name: selectedTab.name })}</AlertTitle>
+              <AlertDescription>{formatError(selectedTab.error)}</AlertDescription>
+            </Alert>
+          )}
+          {imageListIsLoading && (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+              {t.gallery.loading}
             </div>
           )}
-          {status === "idle" && selectedTab && !selectedTab.folders.length && (
-            <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
-              <p>{t.gallery.favoritesUnconfigured}</p>
-            </div>
-          )}
-          {status === "idle" && !!selectedTab?.folders.length && images.length === 0 && (
-            <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
-              <p>{selectedTab.error ? formatError(selectedTab.error) : t.gallery.empty}</p>
-            </div>
-          )}
-          {status === "idle" && !!selectedTab?.folders.length && images.length > 0 && (
+          {images.length > 0 && (
             <>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {imageGroups.map(([day, group]) => (
-                  <section className="border-b px-5 py-4 last:border-b-0" key={day}>
+                  <section className="border-b px-5 py-4 first:pt-2 last:border-b-0" key={day}>
                     {groupByDay && (
                       <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{day}</h2>
                     )}
@@ -596,7 +291,10 @@ export function Gallery({ openEvent }: GalleryProps) {
                         <Button
                           className="group h-auto min-w-0 flex-col items-stretch gap-2 overflow-hidden border bg-card p-2 text-left font-normal shadow-xs hover:bg-accent"
                           key={image.id}
-                          onClick={() => setSelectedImage(image)}
+                          onClick={() => {
+                            setSelectedImage(image)
+                            imageViewerTrigger.toggle(true)
+                          }}
                           type="button"
                           variant="outline"
                         >
@@ -644,16 +342,20 @@ export function Gallery({ openEvent }: GalleryProps) {
                   value={page}
                   onBlur={(e) => {
                     const value = parseInt(e.target.value, 10)
-                    if (!isNaN(value) && value >= 1 && value <= Math.ceil(total / PAGE_SIZE)) {
+                    if (
+                      !isNaN(value) &&
+                      value >= 1 &&
+                      value <= Math.ceil(imageListTotal / PAGE_SIZE)
+                    ) {
                       setPage(value)
                     } else {
                       e.target.value = String(page)
                     }
                   }}
                 />
-                <span>/{Math.ceil(total / PAGE_SIZE)}</span>
+                <span>/{Math.ceil(imageListTotal / PAGE_SIZE)}</span>
                 <Button
-                  disabled={page * PAGE_SIZE >= total}
+                  disabled={page * PAGE_SIZE >= imageListTotal}
                   onClick={() => setPage(page + 1)}
                   size="sm"
                   variant="outline"
@@ -666,75 +368,16 @@ export function Gallery({ openEvent }: GalleryProps) {
           )}
         </main>
 
-        {selectedImage && (
-          <Dialog
-            onOpenChange={(open) => !open && setSelectedImage(null)}
-            open={Boolean(selectedImage)}
-          >
-            <DialogContent
-              aria-describedby={undefined}
-              className="max-w-screen! w-screen h-screen flex gap-0 overflow-hidden p-0 bg-transparent"
-              closeButtonProps={{ size: "icon", className: "size-12 top-4 right-4 p-2" }}
-            >
-              <aside className="w-80 overflow-y-auto border-r bg-card">
-                <DialogHeader className="p-4 border-b">
-                  <DialogTitle>{selectedImage.filename}</DialogTitle>
-                </DialogHeader>
-                <div className="flex flex-wrap gap-2 p-4 border-b">
-                  <Button onClick={() => void sendSelectedImageToFavorites()} size="sm">
-                    <StarIcon data-icon="inline-start" />
-                    {t.gallery.sendToFavorites}
-                  </Button>
-                  <Button onClick={() => void revealSelectedImage()} size="sm" variant="outline">
-                    <FolderOpenIcon data-icon="inline-start" />
-                    {t.gallery.reveal}
-                  </Button>
-                </div>
-                {imageDetails ? (
-                  <dl className="mt-4 p-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
-                    <dt className="text-muted-foreground">{t.gallery.dimensions}</dt>
-                    <dd className="break-words">
-                      {imageDetails.width} x {imageDetails.height}
-                    </dd>
-                    <dt className="text-muted-foreground">{t.gallery.creationDate}</dt>
-                    <dd className="break-words">
-                      {new Date(imageDetails.created_at * 1000).toLocaleString()}
-                    </dd>
-                    <dt className="text-muted-foreground">{t.gallery.fileSize}</dt>
-                    <dd className="break-words">{Math.ceil(imageDetails.file_size / 1024)} KB</dd>
-                    {imageDetails.tags.length > 0 && (
-                      <>
-                        <dt className="text-muted-foreground">{t.gallery.tags}</dt>
-                        <dd className="break-words">{imageDetails.tags.join(", ")}</dd>
-                      </>
-                    )}
-                    {imageDetails.negative_tags.length > 0 && (
-                      <>
-                        <dt className="text-muted-foreground">{t.gallery.negativeTags}</dt>
-                        <dd className="break-words">{imageDetails.negative_tags.join(", ")}</dd>
-                      </>
-                    )}
-                    {imageDetails.parse_error && (
-                      <>
-                        <dt className="text-muted-foreground">{t.gallery.metadataWarning}</dt>
-                        <dd className="break-words">{imageDetails.parse_error}</dd>
-                      </>
-                    )}
-                  </dl>
-                ) : (
-                  <p className="mt-5 text-sm text-muted-foreground">{t.gallery.loading}</p>
-                )}
-              </aside>
-              <main className="grow flex flex-col" onClick={() => setSelectedImage(null)}>
-                <img
-                  alt={selectedImage.filename}
-                  className="size-full object-contain"
-                  src={selectedImage.url}
-                />
-              </main>
-            </DialogContent>
-          </Dialog>
-        )}
+        <PopoverControl trigger={imageViewerTrigger}>
+          {({ isOpen, setOpenState }) => (
+            <ImageViewer
+              isOpen={isOpen}
+              onOpenChange={setOpenState}
+              image={selectedImage}
+              onNavigate={handleNavigate}
+            />
+          )}
+        </PopoverControl>
       </DialogContent>
     </Dialog>
   )

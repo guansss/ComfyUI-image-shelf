@@ -1,9 +1,9 @@
 import { noop } from "lodash-es"
 import { useEffect, useState } from "react"
 
-import { GalleryMessage, pickFolder as pickFolderApi, socket } from "../galleryApi"
 import { i18n, useTranslation } from "../i18n/i18n"
 import { errorToast, formatError, withErrorToast } from "../lib/error"
+import { GalleryMessage, pickFolder as pickFolderApi, socket } from "../services/gallery"
 import { askCustom, AskCustomParam, AskDialog, AskDialogProps } from "./ask"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"

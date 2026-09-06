@@ -13,12 +13,12 @@
     "lint:fix": "oxfmt && oxlint --fix",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "test": "jest",
-    "test:watch": "jest --watch"
+    "test": "cross-env USE_STANDALONE_BACKEND=true vitest run"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@tailwindcss/vite": "^4.3.3",
+    "chokidar": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jotai": "^2.20.3",
@@ -29,6 +29,7 @@
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-use": "^17.6.1",
     "shadcn": "^4.20.1",
     "swr": "^2.5.1",
     "tailwind-merge": "^3.6.0",
@@ -37,22 +38,18 @@
   },
   "devDependencies": {
     "@comfyorg/comfyui-frontend-types": "1.47.12",
-    "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/react": "^16.3.3",
-    "@types/jest": "^30.0.0",
     "@types/lodash-es": "^4.17.12",
+    "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.1",
     "cross-env": "^10.1.0",
     "globals": "^17.12.0",
     "identity-obj-proxy": "^3.0.0",
-    "jest": "^30.5.1",
-    "jest-environment-jsdom": "^30.5.1",
     "oxfmt": "^0.66.0",
-    "ts-jest": "^29.4.12",
     "type-fest": "^5.9.0",
     "typescript": "^6.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
   }
 }

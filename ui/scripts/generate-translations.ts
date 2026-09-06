@@ -1,29 +1,26 @@
+import chokidar from "chokidar"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { inspect } from "node:util"
-import { Plugin } from "vite"
 
 const translationsFile = fileURLToPath(new URL("../src/i18n/translations.json", import.meta.url))
 const outputDir = fileURLToPath(new URL("../src/i18n/generated", import.meta.url))
 
-export function generateTranslations(): Plugin {
+export function generateTranslations(watch: boolean = process.argv.includes("--watch")) {
   splitTranslations()
 
-  return {
-    name: "generate-translations",
-    apply: "serve",
-    configureServer(server) {
-      server.watcher.on("change", (filePath) => {
-        if (filePath === translationsFile) {
-          try {
-            splitTranslations()
-          } catch (e) {
-            console.error("Failed to generate translations:", e)
-          }
+  if (watch) {
+    const watcher = chokidar.watch(translationsFile, { ignoreInitial: true })
+    watcher.on("change", (filePath) => {
+      if (filePath === translationsFile) {
+        try {
+          splitTranslations()
+        } catch (e) {
+          console.error("Failed to generate translations:", e)
         }
-      })
-    },
+      }
+    })
   }
 }
 

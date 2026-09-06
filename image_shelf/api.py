@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import subprocess
 import sys
 from dataclasses import asdict
@@ -15,6 +16,7 @@ from .indexer import FolderIndexer, IndexingResult
 from .log import logger
 from .models import GalleryTab
 from .paths import is_within_directory, normalize_path
+from .search import SearchTerm
 from .watcher import FolderWatcher
 
 
@@ -170,7 +172,6 @@ class GalleryApi:
                     self.image_file,
                     name="image-shelf-image-file",
                 ),
-                web.get("/api/image-shelf/v1/dimensions", self.dimensions),
                 web.get("/api/image-shelf/v1/tags", self.tags),
                 web.post("/api/image-shelf/v1/settings", self.update_settings),
                 web.post("/api/image-shelf/v1/settings/reload", self.reload_settings),
@@ -192,14 +193,14 @@ class GalleryApi:
             )
             page = self.repository.list_images(
                 self._folders_for_tab(tab),
-                query=request.query.get("query", ""),
+                terms=self._terms_from_request(request),
                 dimensions=dimensions,
                 sort_by=request.query.get("sort", "created_at"),
                 direction=request.query.get("direction", "desc"),
                 page=int(request.query.get("page", "1")),
                 page_size=int(request.query.get("page_size", "100")),
             )
-        except ValueError as error:
+        except (TypeError, ValueError) as error:
             raise web.HTTPBadRequest(text=str(error)) from error
 
         return web.json_response(
@@ -218,6 +219,7 @@ class GalleryApi:
                 "page": page.page,
                 "page_size": page.page_size,
                 "total": page.total,
+                "dimensions": page.dimensions,
             }
         )
 
@@ -342,24 +344,15 @@ class GalleryApi:
             {"filename": destination.name, "mode": mode}, status=201
         )
 
-    async def dimensions(self, request: web.Request) -> web.Response:
-        try:
-            tab = self._tab_from_request(request)
-            facets = self.repository.dimension_facets(
-                self._folders_for_tab(tab), request.query.get("query", "")
-            )
-        except ValueError as error:
-            raise web.HTTPBadRequest(text=str(error)) from error
-        return web.json_response({"items": [asdict(facet) for facet in facets]})
-
     async def tags(self, request: web.Request) -> web.Response:
-        tab = self._tab_from_request(request)
+        tab = self._tab_from_request(request) if request.query.get("tab") else None
         return web.json_response(
             {
                 "items": [
                     asdict(suggestion)
                     for suggestion in self.repository.suggest_tags(
-                        self._folders_for_tab(tab), request.query.get("q", "")
+                        self._folders_for_tab(tab) if tab else None,
+                        request.query.get("q", ""),
                     )
                 ]
             }
@@ -433,6 +426,19 @@ class GalleryApi:
                 return tab
         raise web.HTTPNotFound(text="Unknown Image Shelf tab")
 
+    @staticmethod
+    def _terms_from_request(request: web.Request) -> tuple[SearchTerm, ...]:
+        try:
+            terms = json.loads(request.query.get("terms", "[]"))
+        except json.JSONDecodeError as error:
+            raise ValueError(f"Invalid search terms: {error.msg}") from error
+        if not isinstance(terms, list):
+            raise TypeError("Search terms must be an array")
+        try:
+            return tuple(SearchTerm(**term) for term in terms)
+        except (TypeError, KeyError) as error:
+            raise ValueError("Invalid search term") from error
+
     def _folders_for_tab(self, tab: GalleryTab) -> tuple[Path, ...]:
         return tab.folders
 
@@ -466,7 +472,10 @@ async def _development_cors_middleware(
     if request.method == "OPTIONS":
         response: web.StreamResponse = web.Response(status=204)
     else:
-        response = await handler(request)
+        try:
+            response = await handler(request)
+        except web.HTTPException as error:
+            response = error
     if allowed_origin:
         response.headers["Access-Control-Allow-Origin"] = allowed_origin
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"

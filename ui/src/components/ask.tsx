@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog"
+import { Input } from "./ui/input"
 
 interface AskRequestBase {
   type: "confirm" | "delete" | "custom"
@@ -268,3 +269,49 @@ const AskDialogDefault = memo(AskDialogGeneric) as unknown as typeof AskDialogGe
 export const AskDialog = AskDialogGeneric as <T, M = never>(
   props: WithDefaultConfirm<AskDialogProps<T, M>>,
 ) => React.ReactElement
+
+interface AskInputMeta {
+  placeholder?: string
+  validate?: (value: string) => boolean
+}
+
+export async function askInput(
+  req: Omit<AskCustomParam<string>, "component" | "meta">,
+  meta?: AskInputMeta,
+) {
+  return await askCustom({
+    ...req,
+    meta: meta ?? {},
+    component: AskInputDialog,
+  })
+}
+
+export function AskInputDialog({
+  initialValue,
+  onConfirm,
+  ...props
+}: AskDialogProps<string, AskInputMeta>) {
+  const [value, setValue] = useState(initialValue ?? "")
+
+  return (
+    <AskDialog
+      {...props}
+      content={
+        <div className="flex flex-col items-end gap-2">
+          <Input
+            placeholder={props.meta.placeholder}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+        </div>
+      }
+      onConfirm={() => {
+        if (props.meta.validate && !props.meta.validate(value)) {
+          return false
+        }
+        onConfirm?.(value)
+        return true
+      }}
+    />
+  )
+}

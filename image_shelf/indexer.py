@@ -7,9 +7,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from image_shelf.error import ERROR_INVALID_DIR, CustomError
-
 from .database import ImageRepository
+from .error import ERROR_INVALID_DIR, CustomError
 from .log import debug_logger
 from .metadata import parse_image_workflow
 from .models import IndexedImage
@@ -55,10 +54,7 @@ class FolderIndexer:
         errors = 0
 
         for path in folder.iterdir():
-            if (
-                not path.is_file()
-                or path.suffix.lower() not in SUPPORTED_EXTENSIONS
-            ):
+            if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 continue
             normalized_path = normalize_path(path)
             seen_paths.add(normalized_path)

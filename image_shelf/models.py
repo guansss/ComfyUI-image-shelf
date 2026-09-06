@@ -45,6 +45,7 @@ class ImagePage:
     page: int
     page_size: int
     total: int
+    dimensions: tuple[DimensionFacet, ...]
 
 
 @dataclass(frozen=True)
