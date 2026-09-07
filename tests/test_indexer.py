@@ -70,7 +70,7 @@ class FolderIndexerTests(unittest.TestCase):
             self.assertEqual(repository.list_images([root]).total, 81)
             repository.close()
 
-    def test_deleting_images_removes_search_documents(self) -> None:
+    def test_deleting_images_removes_images(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             repository = ImageRepository(root / "index.sqlite")
@@ -94,7 +94,7 @@ class FolderIndexerTests(unittest.TestCase):
             repository.delete_path(images[0].path)
             self.assertEqual(
                 repository.connection.execute(
-                    "SELECT COUNT(*) FROM image_search"
+                    "SELECT COUNT(*) FROM images"
                 ).fetchone()[0],
                 1,
             )
@@ -102,7 +102,7 @@ class FolderIndexerTests(unittest.TestCase):
             repository.delete_untracked_paths((root / "other",))
             self.assertEqual(
                 repository.connection.execute(
-                    "SELECT COUNT(*) FROM image_search"
+                    "SELECT COUNT(*) FROM images"
                 ).fetchone()[0],
                 0,
             )

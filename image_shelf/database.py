@@ -80,7 +80,7 @@ class ImageRepository:
                 image_id = image_ids_by_path[path]
                 self._replace_tags(image_id, image.tags, "positive", tag_cache)
                 self._replace_tags(image_id, image.negative_tags, "negative", tag_cache)
-                self._update_search_index(image_id)
+                self._update_workflow_index(image_id)
         return tuple(image_ids_by_path[normalize_path(image.path)] for image in images)
 
     def _upsert_image_rows(
@@ -334,13 +334,6 @@ class ImageRepository:
     def delete_path(self, path: str | Path) -> None:
         with self._lock, self.connection:
             self.connection.execute(
-                """
-                DELETE FROM image_search
-                WHERE rowid IN (SELECT id FROM images WHERE path = ?)
-                """,
-                (str(normalize_path(path)),),
-            )
-            self.connection.execute(
                 "DELETE FROM images WHERE path = ?", (str(normalize_path(path)),)
             )
             self._prune_workflows()
@@ -349,7 +342,6 @@ class ImageRepository:
         folders = tuple(str(normalize_path(folder)) for folder in tracked_folders)
         if not folders:
             with self._lock, self.connection:
-                self.connection.execute("DELETE FROM image_search")
                 self.connection.execute("DELETE FROM images")
                 self.connection.execute("DELETE FROM workflow_search")
                 self.connection.execute("DELETE FROM workflows")
@@ -362,13 +354,6 @@ class ImageRepository:
             for parameter in (folder, _directory_like_pattern(folder))
         )
         with self._lock, self.connection:
-            self.connection.execute(
-                f"""
-                DELETE FROM image_search
-                WHERE rowid IN (SELECT id FROM images WHERE NOT ({conditions}))
-                """,
-                parameters,
-            )
             self.connection.execute(
                 f"DELETE FROM images WHERE NOT ({conditions})", parameters
             )
@@ -457,24 +442,10 @@ class ImageRepository:
                 (image_id, tag_id),
             )
 
-    def _update_search_index(self, image_id: int) -> None:
+    def _update_workflow_index(self, image_id: int) -> None:
         image = self.connection.execute(
-            "SELECT filename, workflow_id FROM images WHERE id = ?", (image_id,)
+            "SELECT workflow_id FROM images WHERE id = ?", (image_id,)
         ).fetchone()
-        tags = self.connection.execute(
-            """
-            SELECT tags.name FROM tags
-            INNER JOIN image_tags ON image_tags.tag_id = tags.id
-            WHERE image_tags.image_id = ?
-            """,
-            (image_id,),
-        ).fetchall()
-        tag_text = " ".join(tag["name"] for tag in tags)
-        self.connection.execute("DELETE FROM image_search WHERE rowid = ?", (image_id,))
-        self.connection.execute(
-            "INSERT INTO image_search (rowid, filename, tags) VALUES (?, ?, ?)",
-            (image_id, image["filename"], tag_text),
-        )
         if image["workflow_id"] is not None:
             self.connection.execute(
                 "INSERT OR REPLACE INTO workflow_search (rowid, content) "
@@ -528,9 +499,6 @@ class ImageRepository:
                     content TEXT NOT NULL UNIQUE
                 );
 
-                CREATE VIRTUAL TABLE IF NOT EXISTS image_search USING fts5(
-                    filename, tags
-                );
                 """
             )
             columns = {
@@ -570,31 +538,12 @@ class ImageRepository:
                 )
                 self.connection.execute("UPDATE images SET workflow = NULL")
 
-            search_columns = {
-                row["name"]
-                for row in self.connection.execute(
-                    "PRAGMA table_info(image_search)"
-                ).fetchall()
-            }
-            if "workflow" in search_columns:
-                self.connection.execute("DROP TABLE image_search")
-                self.connection.execute(
-                    "CREATE VIRTUAL TABLE image_search USING fts5(filename, tags)"
-                )
-                self.connection.execute(
-                    "CREATE VIRTUAL TABLE IF NOT EXISTS workflow_search USING fts5(content)"
-                )
-                for row in self.connection.execute("SELECT id FROM images"):
-                    self._update_search_index(int(row["id"]))
-            else:
-                self.connection.execute(
-                    "CREATE VIRTUAL TABLE IF NOT EXISTS workflow_search USING fts5(content)"
-                )
             self.connection.execute(
-                """
-                DELETE FROM image_search
-                WHERE rowid NOT IN (SELECT id FROM images)
-                """
+                "CREATE VIRTUAL TABLE IF NOT EXISTS workflow_search USING fts5(content)"
+            )
+            self.connection.execute(
+                "INSERT OR REPLACE INTO workflow_search (rowid, content) "
+                "SELECT id, content FROM workflows"
             )
             self._prune_workflows()
             self.connection.commit()
