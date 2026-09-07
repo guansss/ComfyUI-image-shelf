@@ -19,6 +19,7 @@ from .models import (
 from .paths import normalize_path
 from .search import SearchTerm
 
+_PAGE_SIZE_LIMIT = 1000
 _IMAGE_COLUMNS = 11
 _WORKFLOW_COLUMNS = 1
 
@@ -175,11 +176,11 @@ class ImageRepository:
         sort_by: str = "created_at",
         direction: str = "desc",
         page: int = 1,
-        page_size: int = 100,
+        page_size: int = 10,
     ) -> ImagePage:
-        if page < 1 or not 1 <= page_size <= 200:
+        if page < 1 or not 1 <= page_size <= _PAGE_SIZE_LIMIT:
             raise ValueError(
-                "page must be positive and page_size must be between 1 and 200"
+                f"page must be positive and page_size must be between 1 and {_PAGE_SIZE_LIMIT}"
             )
         if sort_by not in {"created_at", "filename"} or direction not in {
             "asc",

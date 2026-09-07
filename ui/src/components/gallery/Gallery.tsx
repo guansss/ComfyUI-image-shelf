@@ -1,3 +1,4 @@
+import { useAtom } from "jotai"
 import { clamp } from "lodash-es"
 import { AlertCircleIcon, ChevronLeftIcon, ChevronRightIcon, ImageIcon } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/select"
 
 import { useTranslation } from "../../i18n/i18n"
+import { configAtom } from "../../lib/config"
 import { errorToast, formatError } from "../../lib/error"
 import { emptyQuery, SearchQuery } from "../../lib/search"
 import { toast } from "../../lib/toast"
@@ -24,7 +26,7 @@ import { FavoriteConflictError, GalleryImage, sendToFavorites } from "../../serv
 import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"
 import { askInput } from "../ask"
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "../ui/alert"
-import { Field } from "../ui/field"
+import { Field, FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { useImageQuery, useTabList } from "./api"
@@ -40,8 +42,6 @@ interface GalleryProps {
   isOpen?: boolean
   onOpenChange?: (isOpen: boolean) => void
 }
-
-const PAGE_SIZE = 36
 
 export function GalleryControl({ openEvent }: GalleryControlProps) {
   const { isOpen, shouldRender, setOpenState } = usePopoverControl()
@@ -65,6 +65,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const [sort, setSort] = useState<"created_at" | "filename">("created_at")
   const [direction, setDirection] = useState<"asc" | "desc">("desc")
   const [page, setPage] = useState(1)
+  const [config, setConfig] = useAtom(configAtom)
   const [selectedImage, setSelectedImage] = useState<GalleryImage | undefined>(undefined)
   const imageViewerTrigger = usePopoverTrigger()
   const [groupByDay, setGroupByDay] = useState(true)
@@ -82,7 +83,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     sort,
     direction,
     page,
-    pageSize: PAGE_SIZE,
+    pageSize: config.pageSize,
   })
   const images = imageList?.items ?? []
   const imageListTotal = imageList?.total ?? 0
@@ -320,13 +321,33 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               ))}
             </div>
           )}
-          <footer className="flex items-center gap-2 border-t px-4 py-2">
+          <footer className="flex flex-wrap items-center gap-2 border-t px-4 py-2">
             {imageList && (
               <div className="text-muted-foreground text-xs">
                 {t.gallery.searchTime({ elapsed: Math.round(imageList.elapsed * 1000) })}
               </div>
             )}
-            <nav aria-label={t.gallery.pagination} className="ml-auto flex items-center gap-3">
+            <Field orientation="horizontal" className="w-fit ml-auto">
+              <FieldLabel htmlFor="select-rows-per-page">{t.gallery.pageSize}</FieldLabel>
+              <Select
+                value={`${config.pageSize}`}
+                onValueChange={(value) => setConfig({ pageSize: parseInt(value, 10) })}
+              >
+                <SelectTrigger className="w-20" id="select-rows-per-page">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectGroup>
+                    {[18, 36, 60, 100, 150, 200, 300, 1000].map((size) => (
+                      <SelectItem key={size} value={`${size}`}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <nav aria-label={t.gallery.pagination} className="flex items-center gap-3">
               <Button
                 disabled={page === 1}
                 onClick={() => setPage(page - 1)}
@@ -337,25 +358,23 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                 {t.gallery.previous}
               </Button>
               <Input
-                className="w-12 text-center"
+                className="w-16 text-center"
                 type="number"
                 value={page}
-                onBlur={(e) => {
+                onChange={(e) => {
                   const value = parseInt(e.target.value, 10)
                   if (
                     !isNaN(value) &&
                     value >= 1 &&
-                    value <= Math.ceil(imageListTotal / PAGE_SIZE)
+                    value <= Math.ceil(imageListTotal / config.pageSize)
                   ) {
                     setPage(value)
-                  } else {
-                    e.target.value = String(page)
                   }
                 }}
               />
-              <span>/{Math.ceil(imageListTotal / PAGE_SIZE)}</span>
+              <span>/{Math.ceil(imageListTotal / config.pageSize)}</span>
               <Button
-                disabled={page * PAGE_SIZE >= imageListTotal}
+                disabled={page * config.pageSize >= imageListTotal}
                 onClick={() => setPage(page + 1)}
                 size="sm"
                 variant="outline"

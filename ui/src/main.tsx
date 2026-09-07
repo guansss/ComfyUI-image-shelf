@@ -49,12 +49,6 @@ function registerExtension(): void {
         defaultValue: [],
         onChange: (value) => updateSettings({ [CUSTOM_TABS_SETTING]: value }),
       },
-      {
-        id: "image-shelf.last-gallery-state" as keyof Settings,
-        name: "Last gallery state",
-        type: "hidden",
-        defaultValue: "{}",
-      },
     ],
     commands: [
       {

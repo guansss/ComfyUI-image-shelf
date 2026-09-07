@@ -250,6 +250,10 @@
       "en": "Search completed in {{elapsed}} milliseconds",
       "cn": "搜索耗时 {{elapsed}} 毫秒"
     },
+    "pageSize": {
+      "en": "Images per page",
+      "cn": "每页数量"
+    },
     "pagination": {
       "en": "Gallery pagination",
       "cn": "图库分页"
