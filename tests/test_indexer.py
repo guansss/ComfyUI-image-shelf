@@ -9,6 +9,7 @@ from PIL import Image
 from image_shelf.database import ImageRepository
 from image_shelf.indexer import FolderIndexer
 from image_shelf.models import IndexedImage
+from image_shelf.search import SearchTerm
 
 
 class FolderIndexerTests(unittest.TestCase):
@@ -67,6 +68,143 @@ class FolderIndexerTests(unittest.TestCase):
             self.assertEqual(len(first_ids), 81)
             self.assertEqual(first_ids, second_ids)
             self.assertEqual(repository.list_images([root]).total, 81)
+            repository.close()
+
+    def test_deleting_images_removes_search_documents(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            repository = ImageRepository(root / "index.sqlite")
+            images = tuple(
+                IndexedImage(
+                    root / f"image-{index}.png",
+                    1,
+                    1,
+                    1,
+                    1.0,
+                    1.0,
+                    "workflow",
+                    None,
+                    (f"tag-{index}",),
+                    (),
+                )
+                for index in range(2)
+            )
+            repository.upsert_images(images)
+
+            repository.delete_path(images[0].path)
+            self.assertEqual(
+                repository.connection.execute(
+                    "SELECT COUNT(*) FROM image_search"
+                ).fetchone()[0],
+                1,
+            )
+
+            repository.delete_untracked_paths((root / "other",))
+            self.assertEqual(
+                repository.connection.execute(
+                    "SELECT COUNT(*) FROM image_search"
+                ).fetchone()[0],
+                0,
+            )
+            repository.close()
+
+    def test_identical_workflows_are_stored_and_indexed_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            repository = ImageRepository(root / "index.sqlite")
+            workflow = '{"nodes": [{"class_type": "KSampler"}]}'
+            images = tuple(
+                IndexedImage(
+                    root / f"image-{index}.png",
+                    1,
+                    1,
+                    1,
+                    1.0,
+                    1.0,
+                    workflow,
+                    None,
+                    (),
+                    (),
+                )
+                for index in range(2)
+            )
+            repository.upsert_images(images)
+
+            self.assertEqual(
+                repository.connection.execute(
+                    "SELECT COUNT(*) FROM workflows"
+                ).fetchone()[0],
+                1,
+            )
+            self.assertEqual(
+                repository.connection.execute(
+                    "SELECT COUNT(*) FROM workflow_search"
+                ).fetchone()[0],
+                1,
+            )
+            self.assertEqual(
+                repository.list_images(
+                    [root], (SearchTerm("prompt", "KSampler"),)
+                ).total,
+                2,
+            )
+            repository.close()
+
+    def test_workflows_are_upserted_in_batches(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            repository = ImageRepository(root / "index.sqlite")
+            repository._workflow_insert_batch_size = 2
+            images = tuple(
+                IndexedImage(
+                    root / f"image-{index}.png",
+                    1,
+                    1,
+                    1,
+                    1.0,
+                    1.0,
+                    f'{{"workflow": {index}}}',
+                    None,
+                    (),
+                    (),
+                )
+                for index in range(3)
+            )
+
+            repository.upsert_images(images)
+
+            self.assertEqual(
+                repository.connection.execute(
+                    "SELECT COUNT(*) FROM workflows"
+                ).fetchone()[0],
+                3,
+            )
+            self.assertEqual(repository.list_images([root]).total, 3)
+            repository.close()
+
+    def test_workflow_upsert_rejects_more_columns_than_configured(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            repository = ImageRepository(root / "index.sqlite")
+
+            with patch("image_shelf.database._WORKFLOW_COLUMNS", 0):
+                with self.assertRaisesRegex(RuntimeError, "maximum supported is 0"):
+                    repository._upsert_workflows(
+                        (
+                            IndexedImage(
+                                root / "image.png",
+                                1,
+                                1,
+                                1,
+                                1.0,
+                                1.0,
+                                "workflow",
+                                None,
+                                (),
+                                (),
+                            ),
+                        )
+                    )
             repository.close()
 
     def test_indexes_only_files_directly_in_folder(self) -> None:

@@ -20,6 +20,7 @@ from .paths import normalize_path
 from .search import SearchTerm
 
 _IMAGE_COLUMNS = 11
+_WORKFLOW_COLUMNS = 1
 
 
 class ImageRepository:
@@ -30,6 +31,10 @@ class ImageRepository:
         self._image_insert_batch_size = max(
             1,
             self._parameter_limit() // _IMAGE_COLUMNS,
+        )
+        self._workflow_insert_batch_size = max(
+            1,
+            self._parameter_limit() // _WORKFLOW_COLUMNS,
         )
         self.connection.execute("PRAGMA foreign_keys = ON")
         self._migrate()
@@ -57,6 +62,7 @@ class ImageRepository:
             return ()
         with self._lock, self.connection:
             unique_images = {normalize_path(image.path): image for image in images}
+            workflow_ids = self._upsert_workflows(unique_images.values())
             image_ids_by_path: dict[Path, int] = {}
             unique_image_items = tuple(unique_images.items())
             for start in range(
@@ -65,7 +71,9 @@ class ImageRepository:
                 image_rows = unique_image_items[
                     start : start + self._image_insert_batch_size
                 ]
-                image_ids_by_path.update(self._upsert_image_rows(image_rows))
+                image_ids_by_path.update(
+                    self._upsert_image_rows(image_rows, workflow_ids)
+                )
 
             tag_cache: dict[tuple[str, str], int] = {}
             for path, image in unique_images.items():
@@ -76,8 +84,11 @@ class ImageRepository:
         return tuple(image_ids_by_path[normalize_path(image.path)] for image in images)
 
     def _upsert_image_rows(
-        self, image_rows: tuple[tuple[Path, IndexedImage], ...]
+        self,
+        image_rows: tuple[tuple[Path, IndexedImage], ...],
+        workflow_ids: dict[str, int | None] | None = None,
     ) -> dict[Path, int]:
+        workflow_ids = workflow_ids or {None: None}
         values: list[object] = []
         for normalized_path, image in image_rows:
             values.extend(
@@ -91,7 +102,7 @@ class ImageRepository:
                     image.file_size,
                     image.created_at,
                     image.mtime,
-                    image.workflow,
+                    workflow_ids[image.workflow],
                     image.parse_error,
                 )
             )
@@ -105,7 +116,7 @@ class ImageRepository:
         query = f"""
             INSERT INTO images (
                 public_id, path, filename, extension, width, height, file_size,
-                created_at, mtime, workflow, parse_error
+                created_at, mtime, workflow_id, parse_error
             ) VALUES {", ".join(row_placeholders for _ in image_rows)}
             ON CONFLICT(path) DO UPDATE SET
                 filename = excluded.filename,
@@ -115,7 +126,7 @@ class ImageRepository:
                 file_size = excluded.file_size,
                 created_at = excluded.created_at,
                 mtime = excluded.mtime,
-                workflow = excluded.workflow,
+                workflow_id = excluded.workflow_id,
                 parse_error = excluded.parse_error
             RETURNING id, path
         """
@@ -124,6 +135,38 @@ class ImageRepository:
         if len(result) != len(image_rows):
             raise RuntimeError("Image upsert did not return every image ID")
         return result
+
+    def _upsert_workflows(
+        self, images: Iterable[IndexedImage]
+    ) -> dict[str, int | None]:
+        workflows = {image.workflow for image in images if image.workflow}
+        workflow_ids: dict[str, int] = {}
+        workflows = tuple(workflows)
+        for start in range(0, len(workflows), self._workflow_insert_batch_size):
+            workflow_rows = workflows[start : start + self._workflow_insert_batch_size]
+            values: list[object] = list(workflow_rows)
+            actual_columns, remainder = divmod(len(values), len(workflow_rows))
+            if remainder or actual_columns > _WORKFLOW_COLUMNS:
+                raise RuntimeError(
+                    f"Workflow insert has {actual_columns} bound columns per workflow; "
+                    f"the maximum supported is {_WORKFLOW_COLUMNS}"
+                )
+            row_placeholders = (
+                "(" + ", ".join("?" for _ in range(_WORKFLOW_COLUMNS)) + ")"
+            )
+            rows = self.connection.execute(
+                f"""
+                INSERT INTO workflows (content)
+                VALUES {", ".join(row_placeholders for _ in workflow_rows)}
+                ON CONFLICT(content) DO UPDATE SET content = excluded.content
+                RETURNING id, content
+                """,
+                values,
+            ).fetchall()
+            workflow_ids.update({row["content"]: int(row["id"]) for row in rows})
+        if len(workflow_ids) != len(workflows):
+            raise RuntimeError("Workflow upsert did not return every workflow ID")
+        return workflow_ids | {None: None}
 
     def list_images(
         self,
@@ -291,14 +334,25 @@ class ImageRepository:
     def delete_path(self, path: str | Path) -> None:
         with self._lock, self.connection:
             self.connection.execute(
+                """
+                DELETE FROM image_search
+                WHERE rowid IN (SELECT id FROM images WHERE path = ?)
+                """,
+                (str(normalize_path(path)),),
+            )
+            self.connection.execute(
                 "DELETE FROM images WHERE path = ?", (str(normalize_path(path)),)
             )
+            self._prune_workflows()
 
     def delete_untracked_paths(self, tracked_folders: Iterable[str | Path]) -> None:
         folders = tuple(str(normalize_path(folder)) for folder in tracked_folders)
         if not folders:
             with self._lock, self.connection:
+                self.connection.execute("DELETE FROM image_search")
                 self.connection.execute("DELETE FROM images")
+                self.connection.execute("DELETE FROM workflow_search")
+                self.connection.execute("DELETE FROM workflows")
             return
 
         conditions = " OR ".join("path = ? OR path LIKE ? ESCAPE '\\'" for _ in folders)
@@ -309,8 +363,26 @@ class ImageRepository:
         )
         with self._lock, self.connection:
             self.connection.execute(
+                f"""
+                DELETE FROM image_search
+                WHERE rowid IN (SELECT id FROM images WHERE NOT ({conditions}))
+                """,
+                parameters,
+            )
+            self.connection.execute(
                 f"DELETE FROM images WHERE NOT ({conditions})", parameters
             )
+            self._prune_workflows()
+
+    def _prune_workflows(self) -> None:
+        self.connection.execute(
+            "DELETE FROM workflow_search WHERE rowid NOT IN "
+            "(SELECT workflow_id FROM images WHERE workflow_id IS NOT NULL)"
+        )
+        self.connection.execute(
+            "DELETE FROM workflows WHERE id NOT IN "
+            "(SELECT workflow_id FROM images WHERE workflow_id IS NOT NULL)"
+        )
 
     def image_is_current(self, path: str | Path, mtime: float, file_size: int) -> bool:
         with self._lock:
@@ -387,7 +459,7 @@ class ImageRepository:
 
     def _update_search_index(self, image_id: int) -> None:
         image = self.connection.execute(
-            "SELECT filename, workflow FROM images WHERE id = ?", (image_id,)
+            "SELECT filename, workflow_id FROM images WHERE id = ?", (image_id,)
         ).fetchone()
         tags = self.connection.execute(
             """
@@ -400,9 +472,15 @@ class ImageRepository:
         tag_text = " ".join(tag["name"] for tag in tags)
         self.connection.execute("DELETE FROM image_search WHERE rowid = ?", (image_id,))
         self.connection.execute(
-            "INSERT INTO image_search (rowid, filename, tags, workflow) VALUES (?, ?, ?, ?)",
-            (image_id, image["filename"], tag_text, image["workflow"] or ""),
+            "INSERT INTO image_search (rowid, filename, tags) VALUES (?, ?, ?)",
+            (image_id, image["filename"], tag_text),
         )
+        if image["workflow_id"] is not None:
+            self.connection.execute(
+                "INSERT OR REPLACE INTO workflow_search (rowid, content) "
+                "SELECT id, content FROM workflows WHERE id = ?",
+                (image["workflow_id"],),
+            )
 
     def _migrate(self) -> None:
         try:
@@ -419,7 +497,7 @@ class ImageRepository:
                     file_size INTEGER NOT NULL,
                     created_at REAL NOT NULL,
                     mtime REAL NOT NULL,
-                    workflow TEXT,
+                    workflow_id INTEGER REFERENCES workflows(id),
                     parse_error TEXT
                 );
                 CREATE INDEX IF NOT EXISTS images_created_at_idx ON images(created_at DESC);
@@ -445,8 +523,13 @@ class ImageRepository:
                     folder_path TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS workflows (
+                    id INTEGER PRIMARY KEY,
+                    content TEXT NOT NULL UNIQUE
+                );
+
                 CREATE VIRTUAL TABLE IF NOT EXISTS image_search USING fts5(
-                    filename, tags, workflow
+                    filename, tags
                 );
                 """
             )
@@ -464,6 +547,57 @@ class ImageRepository:
                 self.connection.execute(
                     "CREATE UNIQUE INDEX IF NOT EXISTS images_public_id_idx ON images(public_id)"
                 )
+            if "workflow_id" not in columns:
+                self.connection.execute(
+                    "ALTER TABLE images ADD COLUMN workflow_id INTEGER REFERENCES workflows(id)"
+                )
+                self.connection.execute(
+                    """
+                    INSERT INTO workflows (content)
+                    SELECT DISTINCT workflow FROM images
+                    WHERE workflow IS NOT NULL AND workflow <> ''
+                    ON CONFLICT(content) DO NOTHING
+                    """
+                )
+                self.connection.execute(
+                    """
+                    UPDATE images
+                    SET workflow_id = (
+                        SELECT id FROM workflows WHERE content = images.workflow
+                    )
+                    WHERE workflow IS NOT NULL AND workflow <> ''
+                    """
+                )
+                self.connection.execute("UPDATE images SET workflow = NULL")
+
+            search_columns = {
+                row["name"]
+                for row in self.connection.execute(
+                    "PRAGMA table_info(image_search)"
+                ).fetchall()
+            }
+            if "workflow" in search_columns:
+                self.connection.execute("DROP TABLE image_search")
+                self.connection.execute(
+                    "CREATE VIRTUAL TABLE image_search USING fts5(filename, tags)"
+                )
+                self.connection.execute(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS workflow_search USING fts5(content)"
+                )
+                for row in self.connection.execute("SELECT id FROM images"):
+                    self._update_search_index(int(row["id"]))
+            else:
+                self.connection.execute(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS workflow_search USING fts5(content)"
+                )
+            self.connection.execute(
+                """
+                DELETE FROM image_search
+                WHERE rowid NOT IN (SELECT id FROM images)
+                """
+            )
+            self._prune_workflows()
+            self.connection.commit()
         except sqlite3.OperationalError as error:
             if "fts5" in str(error).lower():
                 raise RuntimeError(
@@ -552,7 +686,11 @@ def _term_filter(term: SearchTerm) -> tuple[str, tuple[object, ...]]:
     if term.field == "name":
         return "images.filename LIKE ? ESCAPE '\\'", (f"%{_escape_like(term.value)}%",)
     return (
-        "images.id IN (SELECT rowid FROM image_search WHERE image_search MATCH ?)",
+        (
+            "images.workflow_id IN ("
+            "SELECT rowid FROM workflow_search WHERE workflow_search MATCH ?"
+            ")"
+        ),
         (_fts_phrase(term.value),),
     )
 
