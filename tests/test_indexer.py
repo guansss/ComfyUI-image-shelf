@@ -137,12 +137,6 @@ class FolderIndexerTests(unittest.TestCase):
                 1,
             )
             self.assertEqual(
-                repository.connection.execute(
-                    "SELECT COUNT(*) FROM workflow_search"
-                ).fetchone()[0],
-                1,
-            )
-            self.assertEqual(
                 repository.list_images(
                     [root], (SearchTerm("prompt", "KSampler"),)
                 ).total,

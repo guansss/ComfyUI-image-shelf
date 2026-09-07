@@ -80,7 +80,6 @@ class ImageRepository:
                 image_id = image_ids_by_path[path]
                 self._replace_tags(image_id, image.tags, "positive", tag_cache)
                 self._replace_tags(image_id, image.negative_tags, "negative", tag_cache)
-                self._update_workflow_index(image_id)
         return tuple(image_ids_by_path[normalize_path(image.path)] for image in images)
 
     def _upsert_image_rows(
@@ -343,7 +342,6 @@ class ImageRepository:
         if not folders:
             with self._lock, self.connection:
                 self.connection.execute("DELETE FROM images")
-                self.connection.execute("DELETE FROM workflow_search")
                 self.connection.execute("DELETE FROM workflows")
             return
 
@@ -360,10 +358,6 @@ class ImageRepository:
             self._prune_workflows()
 
     def _prune_workflows(self) -> None:
-        self.connection.execute(
-            "DELETE FROM workflow_search WHERE rowid NOT IN "
-            "(SELECT workflow_id FROM images WHERE workflow_id IS NOT NULL)"
-        )
         self.connection.execute(
             "DELETE FROM workflows WHERE id NOT IN "
             "(SELECT workflow_id FROM images WHERE workflow_id IS NOT NULL)"
@@ -442,117 +436,90 @@ class ImageRepository:
                 (image_id, tag_id),
             )
 
-    def _update_workflow_index(self, image_id: int) -> None:
-        image = self.connection.execute(
-            "SELECT workflow_id FROM images WHERE id = ?", (image_id,)
-        ).fetchone()
-        if image["workflow_id"] is not None:
-            self.connection.execute(
-                "INSERT OR REPLACE INTO workflow_search (rowid, content) "
-                "SELECT id, content FROM workflows WHERE id = ?",
-                (image["workflow_id"],),
-            )
-
     def _migrate(self) -> None:
-        try:
-            self.connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS images (
-                    id INTEGER PRIMARY KEY,
-                    public_id TEXT NOT NULL UNIQUE,
-                    path TEXT NOT NULL UNIQUE,
-                    filename TEXT NOT NULL,
-                    extension TEXT NOT NULL,
-                    width INTEGER NOT NULL,
-                    height INTEGER NOT NULL,
-                    file_size INTEGER NOT NULL,
-                    created_at REAL NOT NULL,
-                    mtime REAL NOT NULL,
-                    workflow_id INTEGER REFERENCES workflows(id),
-                    parse_error TEXT
-                );
-                CREATE INDEX IF NOT EXISTS images_created_at_idx ON images(created_at DESC);
-                CREATE INDEX IF NOT EXISTS images_dimensions_idx ON images(width, height);
+        self.connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS images (
+                id INTEGER PRIMARY KEY,
+                public_id TEXT NOT NULL UNIQUE,
+                path TEXT NOT NULL UNIQUE,
+                filename TEXT NOT NULL,
+                extension TEXT NOT NULL,
+                width INTEGER NOT NULL,
+                height INTEGER NOT NULL,
+                file_size INTEGER NOT NULL,
+                created_at REAL NOT NULL,
+                mtime REAL NOT NULL,
+                workflow_id INTEGER REFERENCES workflows(id),
+                parse_error TEXT
+            );
+            CREATE INDEX IF NOT EXISTS images_created_at_idx ON images(created_at DESC);
+            CREATE INDEX IF NOT EXISTS images_dimensions_idx ON images(width, height);
 
-                CREATE TABLE IF NOT EXISTS tags (
-                    id INTEGER PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    normalized_name TEXT NOT NULL,
-                    type TEXT NOT NULL CHECK(type IN ('positive', 'negative')),
-                    UNIQUE(normalized_name, type)
-                );
-                CREATE TABLE IF NOT EXISTS image_tags (
-                    image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
-                    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-                    PRIMARY KEY(image_id, tag_id)
-                );
-                CREATE INDEX IF NOT EXISTS image_tags_tag_id_idx ON image_tags(tag_id);
+            CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                normalized_name TEXT NOT NULL,
+                type TEXT NOT NULL CHECK(type IN ('positive', 'negative')),
+                UNIQUE(normalized_name, type)
+            );
+            CREATE TABLE IF NOT EXISTS image_tags (
+                image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                PRIMARY KEY(image_id, tag_id)
+            );
+            CREATE INDEX IF NOT EXISTS image_tags_tag_id_idx ON image_tags(tag_id);
 
-                CREATE TABLE IF NOT EXISTS tabs (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    folder_path TEXT NOT NULL
-                );
+            CREATE TABLE IF NOT EXISTS tabs (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                folder_path TEXT NOT NULL
+            );
 
-                CREATE TABLE IF NOT EXISTS workflows (
-                    id INTEGER PRIMARY KEY,
-                    content TEXT NOT NULL UNIQUE
-                );
+            CREATE TABLE IF NOT EXISTS workflows (
+                id INTEGER PRIMARY KEY,
+                content TEXT NOT NULL UNIQUE
+            );
 
-                """
-            )
-            columns = {
-                row["name"]
-                for row in self.connection.execute(
-                    "PRAGMA table_info(images)"
-                ).fetchall()
-            }
-            if "public_id" not in columns:
-                self.connection.execute("ALTER TABLE images ADD COLUMN public_id TEXT")
-                self.connection.execute(
-                    "UPDATE images SET public_id = lower(hex(randomblob(16))) WHERE public_id IS NULL"
-                )
-                self.connection.execute(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS images_public_id_idx ON images(public_id)"
-                )
-            if "workflow_id" not in columns:
-                self.connection.execute(
-                    "ALTER TABLE images ADD COLUMN workflow_id INTEGER REFERENCES workflows(id)"
-                )
-                self.connection.execute(
-                    """
-                    INSERT INTO workflows (content)
-                    SELECT DISTINCT workflow FROM images
-                    WHERE workflow IS NOT NULL AND workflow <> ''
-                    ON CONFLICT(content) DO NOTHING
-                    """
-                )
-                self.connection.execute(
-                    """
-                    UPDATE images
-                    SET workflow_id = (
-                        SELECT id FROM workflows WHERE content = images.workflow
-                    )
-                    WHERE workflow IS NOT NULL AND workflow <> ''
-                    """
-                )
-                self.connection.execute("UPDATE images SET workflow = NULL")
-
+            """
+        )
+        columns = {
+            row["name"]
+            for row in self.connection.execute("PRAGMA table_info(images)").fetchall()
+        }
+        if "public_id" not in columns:
+            self.connection.execute("ALTER TABLE images ADD COLUMN public_id TEXT")
             self.connection.execute(
-                "CREATE VIRTUAL TABLE IF NOT EXISTS workflow_search USING fts5(content)"
+                "UPDATE images SET public_id = lower(hex(randomblob(16))) WHERE public_id IS NULL"
             )
             self.connection.execute(
-                "INSERT OR REPLACE INTO workflow_search (rowid, content) "
-                "SELECT id, content FROM workflows"
+                "CREATE UNIQUE INDEX IF NOT EXISTS images_public_id_idx ON images(public_id)"
             )
-            self._prune_workflows()
-            self.connection.commit()
-        except sqlite3.OperationalError as error:
-            if "fts5" in str(error).lower():
-                raise RuntimeError(
-                    "ComfyUI Image Shelf requires SQLite with FTS5 support."
-                ) from error
-            raise
+        if "workflow_id" not in columns:
+            self.connection.execute(
+                "ALTER TABLE images ADD COLUMN workflow_id INTEGER REFERENCES workflows(id)"
+            )
+            self.connection.execute(
+                """
+                INSERT INTO workflows (content)
+                SELECT DISTINCT workflow FROM images
+                WHERE workflow IS NOT NULL AND workflow <> ''
+                ON CONFLICT(content) DO NOTHING
+                """
+            )
+            self.connection.execute(
+                """
+                UPDATE images
+                SET workflow_id = (
+                    SELECT id FROM workflows WHERE content = images.workflow
+                )
+                WHERE workflow IS NOT NULL AND workflow <> ''
+                """
+            )
+            self.connection.execute("UPDATE images SET workflow = NULL")
+
+        self._prune_workflows()
+        self.connection.commit()
 
     def _build_image_filter(
         self,
@@ -637,12 +604,8 @@ def _term_filter(term: SearchTerm) -> tuple[str, tuple[object, ...]]:
     return (
         (
             "images.workflow_id IN ("
-            "SELECT rowid FROM workflow_search WHERE workflow_search MATCH ?"
+            "SELECT id FROM workflows WHERE content LIKE ? ESCAPE '\\'"
             ")"
         ),
-        (_fts_phrase(term.value),),
+        (f"%{_escape_like(term.value)}%",),
     )
-
-
-def _fts_phrase(value: str) -> str:
-    return f'"{value.replace(chr(34), chr(34) * 2)}"'
