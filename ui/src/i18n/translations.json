@@ -246,6 +246,10 @@
       "en": "Filename: Z to A",
       "cn": "文件名：Z 到 A"
     },
+    "searchTime": {
+      "en": "Search completed in {{elapsed}} milliseconds",
+      "cn": "搜索耗时 {{elapsed}} 毫秒"
+    },
     "pagination": {
       "en": "Gallery pagination",
       "cn": "图库分页"

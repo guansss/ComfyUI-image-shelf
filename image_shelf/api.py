@@ -4,6 +4,7 @@ import asyncio
 import json
 import subprocess
 import sys
+import time
 from dataclasses import asdict
 from pathlib import Path
 
@@ -185,6 +186,7 @@ class GalleryApi:
         app.on_cleanup.append(lambda app: self.shutdown())
 
     async def list_images(self, request: web.Request) -> web.Response:
+        started_at = time.perf_counter()
         try:
             tab = self._tab_from_request(request)
             dimensions = tuple(
@@ -220,6 +222,7 @@ class GalleryApi:
                 "page_size": page.page_size,
                 "total": page.total,
                 "dimensions": [asdict(facet) for facet in page.dimensions],
+                "elapsed": time.perf_counter() - started_at,
             }
         )
 

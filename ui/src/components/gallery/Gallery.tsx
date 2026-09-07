@@ -83,7 +83,6 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     data: imageList,
     error: imageListError,
     isLoading: imageListIsLoading,
-    isValidating: imageListIsValidating,
   } = useImageQuery({
     tab: selectedTabId,
     query: debouncedQuery,
@@ -247,7 +246,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
 
         <main className="flex grow flex-col">
           <div className="flex items-center px-4 pt-4 pb-2 pr-16">
-            <Searchbar loading={imageListIsValidating} query={query} onQueryChange={setQuery} />
+            <Searchbar loading={imageListIsLoading} query={query} onQueryChange={setQuery} />
           </div>
           {imageListError && (
             <Alert variant="destructive" className="mx-4 w-fit self-start">
@@ -273,99 +272,106 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               <AlertDescription>{formatError(selectedTab.error)}</AlertDescription>
             </Alert>
           )}
-          {imageListIsLoading && (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              {t.gallery.loading}
+          {!images.length &&
+            (imageListIsLoading ? (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                {t.gallery.loading}
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                {t.gallery.empty}
+              </div>
+            ))}
+          {images.length > 0 && (
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {imageGroups.map(([day, group]) => (
+                <section className="border-b px-5 py-4 first:pt-2 last:border-b-0" key={day}>
+                  {groupByDay && (
+                    <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{day}</h2>
+                  )}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    {group.map((image) => (
+                      <Button
+                        className="group h-auto min-w-0 flex-col items-stretch gap-2 overflow-hidden border bg-card p-2 text-left font-normal shadow-xs hover:bg-accent"
+                        key={image.id}
+                        onClick={() => {
+                          setSelectedImage(image)
+                          imageViewerTrigger.toggle(true)
+                        }}
+                        type="button"
+                        variant="outline"
+                      >
+                        <img
+                          alt={image.filename}
+                          className="aspect-square w-full rounded-sm object-cover"
+                          loading="lazy"
+                          src={image.url}
+                        />
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate">{image.filename}</span>
+                          {image.parse_error && (
+                            <Badge
+                              aria-label={t.gallery.metadataWarning}
+                              className="ml-auto shrink-0 px-1.5"
+                              title={image.parse_error}
+                              variant="destructive"
+                            >
+                              !
+                            </Badge>
+                          )}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
           )}
-          {images.length > 0 && (
-            <>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {imageGroups.map(([day, group]) => (
-                  <section className="border-b px-5 py-4 first:pt-2 last:border-b-0" key={day}>
-                    {groupByDay && (
-                      <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{day}</h2>
-                    )}
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                      {group.map((image) => (
-                        <Button
-                          className="group h-auto min-w-0 flex-col items-stretch gap-2 overflow-hidden border bg-card p-2 text-left font-normal shadow-xs hover:bg-accent"
-                          key={image.id}
-                          onClick={() => {
-                            setSelectedImage(image)
-                            imageViewerTrigger.toggle(true)
-                          }}
-                          type="button"
-                          variant="outline"
-                        >
-                          <img
-                            alt={image.filename}
-                            className="aspect-square w-full rounded-sm object-cover"
-                            loading="lazy"
-                            src={image.url}
-                          />
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="truncate">{image.filename}</span>
-                            {image.parse_error && (
-                              <Badge
-                                aria-label={t.gallery.metadataWarning}
-                                className="ml-auto shrink-0 px-1.5"
-                                title={image.parse_error}
-                                variant="destructive"
-                              >
-                                !
-                              </Badge>
-                            )}
-                          </span>
-                        </Button>
-                      ))}
-                    </div>
-                  </section>
-                ))}
+          <footer className="flex items-center gap-2 border-t px-4 py-2">
+            {imageList && (
+              <div className="text-muted-foreground text-xs">
+                {t.gallery.searchTime({ elapsed: Math.round(imageList.elapsed * 1000) })}
               </div>
-              <nav
-                aria-label={t.gallery.pagination}
-                className="flex items-center justify-end gap-3 border-t px-5 py-3"
+            )}
+            <nav aria-label={t.gallery.pagination} className="ml-auto flex items-center gap-3">
+              <Button
+                disabled={page === 1}
+                onClick={() => setPage(page - 1)}
+                size="sm"
+                variant="outline"
               >
-                <Button
-                  disabled={page === 1}
-                  onClick={() => setPage(page - 1)}
-                  size="sm"
-                  variant="outline"
-                >
-                  <ChevronLeftIcon data-icon="inline-start" />
-                  {t.gallery.previous}
-                </Button>
-                <Input
-                  className="w-12 text-center"
-                  type="number"
-                  value={page}
-                  onBlur={(e) => {
-                    const value = parseInt(e.target.value, 10)
-                    if (
-                      !isNaN(value) &&
-                      value >= 1 &&
-                      value <= Math.ceil(imageListTotal / PAGE_SIZE)
-                    ) {
-                      setPage(value)
-                    } else {
-                      e.target.value = String(page)
-                    }
-                  }}
-                />
-                <span>/{Math.ceil(imageListTotal / PAGE_SIZE)}</span>
-                <Button
-                  disabled={page * PAGE_SIZE >= imageListTotal}
-                  onClick={() => setPage(page + 1)}
-                  size="sm"
-                  variant="outline"
-                >
-                  {t.gallery.next}
-                  <ChevronRightIcon data-icon="inline-end" />
-                </Button>
-              </nav>
-            </>
-          )}
+                <ChevronLeftIcon data-icon="inline-start" />
+                {t.gallery.previous}
+              </Button>
+              <Input
+                className="w-12 text-center"
+                type="number"
+                value={page}
+                onBlur={(e) => {
+                  const value = parseInt(e.target.value, 10)
+                  if (
+                    !isNaN(value) &&
+                    value >= 1 &&
+                    value <= Math.ceil(imageListTotal / PAGE_SIZE)
+                  ) {
+                    setPage(value)
+                  } else {
+                    e.target.value = String(page)
+                  }
+                }}
+              />
+              <span>/{Math.ceil(imageListTotal / PAGE_SIZE)}</span>
+              <Button
+                disabled={page * PAGE_SIZE >= imageListTotal}
+                onClick={() => setPage(page + 1)}
+                size="sm"
+                variant="outline"
+              >
+                {t.gallery.next}
+                <ChevronRightIcon data-icon="inline-end" />
+              </Button>
+            </nav>
+          </footer>
         </main>
 
         <PopoverControl trigger={imageViewerTrigger}>

@@ -12,13 +12,17 @@ import {
 interface ImageQueryOptions extends ImageQuery {}
 
 export function useImageQuery({ ...req }: ImageQueryOptions) {
-  return useSWR(["images", req], async () => {
-    const imageList = await fetchImages(req)
-    imageList.items.forEach((image) => {
-      image.url = new URL(image.url, SERVER_URL).toString()
-    })
-    return imageList
-  })
+  return useSWR(
+    ["images", req],
+    async () => {
+      const imageList = await fetchImages(req)
+      imageList.items.forEach((image) => {
+        image.url = new URL(image.url, SERVER_URL).toString()
+      })
+      return imageList
+    },
+    { keepPreviousData: true },
+  )
 }
 
 export function useTabList() {

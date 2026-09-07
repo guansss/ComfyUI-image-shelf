@@ -73,6 +73,7 @@ export interface ImageListResponse {
   page_size: number
   total: number
   dimensions: DimensionFacet[]
+  elapsed: number
 }
 
 export type GalleryMessage = {

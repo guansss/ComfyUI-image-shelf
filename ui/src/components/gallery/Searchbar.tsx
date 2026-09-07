@@ -136,7 +136,7 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
           {loading ? <LoaderCircleIcon className="animate-spin" /> : <SearchIcon />}
         </InputGroupAddon>
       </InputGroup>
-      <div className="flex flex-wrap gap-2 min-h-6">
+      <div className="flex flex-wrap gap-1 min-h-6">
         {query.terms.length ? (
           query.terms
             .filter((term) => !("invalid" in term && term.invalid))
