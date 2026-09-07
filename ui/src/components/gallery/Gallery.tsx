@@ -52,14 +52,6 @@ export function GalleryControl({ openEvent }: GalleryControlProps) {
     return () => window.removeEventListener(openEvent, open)
   }, [openEvent, setOpenState])
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpenState(false)
-    }
-    window.addEventListener("keydown", closeOnEscape)
-    return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [setOpenState])
-
   return shouldRender ? <Gallery isOpen={isOpen} onOpenChange={setOpenState} /> : null
 }
 
@@ -182,6 +174,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
         aria-describedby={undefined}
         className="flex h-[calc(100vh-12rem)] w-375 gap-0 overflow-hidden rounded-xl bg-card p-0"
         closeButtonProps={{ size: "icon", className: "top-4 right-4" }}
+        onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <aside className="w-80 shrink-0 flex flex-col overflow-y-auto border-r">
           <DialogHeader className="flex-row items-center gap-3 border-b p-4">
