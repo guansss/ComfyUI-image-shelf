@@ -67,7 +67,7 @@ def parse_image_workflow(
         )
 
     return ParsedWorkflow(
-        workflow=workflow,
+        workflow=_workflow_for_search(workflow_data),
         tags=parse_tags(prompt_text) if prompt_text else (),
         negative_tags=parse_tags(negative_prompt_text) if negative_prompt_text else (),
         parse_error=None,
@@ -113,3 +113,37 @@ def _find_prompt_texts(workflow: Any) -> tuple[str | None, str | None]:
             prompt_text = value
 
     return prompt_text, negative_prompt_text
+
+
+def _workflow_for_search(workflow: dict) -> str:
+    """
+    Convert workflow data into a normalized string representation for consistent comparison.
+    String values and object keys are extracted and concatenated, while non-string primitive
+    values (numbers, booleans, null) are dropped since they are unlikely to be searched by the user.
+
+    Example: `{"nodes": [{"id": 1, "widgets_values": ["prompt", 123]}]}`
+    -> `"nodes id widgets_values prompt"`
+
+    Additionally, having multiple images with workflows that only differ in
+    random seeds is a common case in image generation, so dropping numbers helps
+    to eliminate these irrelevant differences to avoid storing multiple copies
+    of the same workflow.
+    """
+    keywords: list[str] = []
+    _normalize_workflow_value(keywords, workflow)
+    return " ".join(keywords).lower()
+
+
+def _normalize_workflow_value(keywords: list[str], value: Any) -> None:
+    if isinstance(value, dict):
+        for k, v in value.items():
+            keywords.append(k)
+            _normalize_workflow_value(keywords, v)
+    elif isinstance(value, list):
+        for item in value:
+            _normalize_workflow_value(keywords, item)
+    elif isinstance(value, str):
+        keywords.append(value)
+    else:
+        # drop non-string primitive values (numbers, booleans, null)
+        pass
