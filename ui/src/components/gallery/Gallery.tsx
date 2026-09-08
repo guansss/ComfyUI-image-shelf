@@ -20,7 +20,7 @@ import {
 import { useTranslation } from "../../i18n/i18n"
 import { configAtom } from "../../lib/config"
 import { errorToast, formatError } from "../../lib/error"
-import { emptyQuery, SearchQuery } from "../../lib/search"
+import { emptyQuery, SearchQuery, SearchTerm } from "../../lib/search"
 import { toast } from "../../lib/toast"
 import { FavoriteConflictError, GalleryImage, sendToFavorites } from "../../services/gallery"
 import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"
@@ -162,6 +162,13 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
         }, {}),
       ) as [string, GalleryImage[]][])
     : [[t.gallery.allImages, images]]
+  const selectedImageIndexInCurrentPage = selectedImage
+    ? images.findIndex((image) => image.id === selectedImage.id)
+    : -1
+  const selectedImageIndexInAllPages =
+    selectedImageIndexInCurrentPage !== -1
+      ? (page - 1) * config.pageSize + selectedImageIndexInCurrentPage
+      : -1
 
   const handleNavigate = (offset: number) => {
     const currentIndex = images.findIndex((image) => image.id === selectedImage?.id)
@@ -391,8 +398,24 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
             <ImageViewer
               isOpen={isOpen}
               onOpenChange={setOpenState}
+              index={selectedImageIndexInAllPages}
+              total={imageListTotal}
               image={selectedImage}
               onNavigate={handleNavigate}
+              onTagClick={(tag, type) => {
+                const term: SearchTerm = {
+                  type: type === "positive" ? "tag" : "negativeTag",
+                  value: tag,
+                  prefix: "",
+                  quoted: tag.includes(" "),
+                  exclude: false,
+                }
+                setQuery({
+                  ...query,
+                  terms: [...query.terms, term],
+                  activeTerm: term,
+                })
+              }}
             />
           )}
         </PopoverControl>

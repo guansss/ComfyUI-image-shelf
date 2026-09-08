@@ -3,10 +3,12 @@ import { atomWithStorage } from "jotai/utils"
 
 interface Config {
   pageSize: number
+  promptDisplayMode: "tags" | "raw" | "both"
 }
 
 const defaultConfig: Config = {
   pageSize: 36,
+  promptDisplayMode: "both",
 }
 
 const localConfigAtom = atomWithStorage<Partial<Config>>("image-shelf.config", {}, undefined, {

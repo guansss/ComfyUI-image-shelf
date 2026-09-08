@@ -1,5 +1,7 @@
 import type {
   LGraphNode as _LGraphNode,
+  ChangeTracker,
+  ComfyApp,
   ComfyButton,
   ComfyNodeDef,
   ExecutableLGraphNode,
@@ -15,8 +17,25 @@ declare global {
       button: {
         ComfyButton: typeof ComfyButton
       }
+      parser: {
+        getWorkflowDataFromFile(
+          file: File,
+        ): Promise<ComfyMetadata | Record<string, string | object> | undefined>
+      }
     }
   }
+}
+
+export type ComfyWorkflowJSON = ChangeTracker["initialState"]
+export type ComfyApiWorkflow = Parameters<ComfyApp["loadApiJson"]>[0]
+
+/**
+ * Metadata extracted from ComfyUI output files
+ */
+export interface ComfyMetadata {
+  workflow?: ComfyWorkflowJSON
+  prompt?: ComfyApiWorkflow
+  [key: string]: string | ComfyWorkflowJSON | ComfyApiWorkflow | undefined
 }
 
 type Rect = { [key: string]: unknown }

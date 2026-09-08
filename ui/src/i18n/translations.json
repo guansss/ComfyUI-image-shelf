@@ -33,6 +33,14 @@
     "configure": {
       "en": "Configure",
       "cn": "配置"
+    },
+    "view": {
+      "en": "View",
+      "cn": "查看"
+    },
+    "copy": {
+      "en": "Copy",
+      "cn": "复制"
     }
   },
   "error": {
@@ -94,7 +102,7 @@
       "en": "Multiple search terms are combined with AND logic. Use quotes for phrases, e.g. \"sunset beach\".",
       "cn": "多个搜索词将使用“与”的逻辑组合。使用引号表示短语，例如 \"sunset beach\"。"
     },
-    "syntaxTable":{
+    "syntaxTable": {
       "cat": {
         "en": "Find images with positive tag \"cat\"",
         "cn": "查找带有正面标签 \"cat\" 的图像"
@@ -201,6 +209,14 @@
     "revealFailed": {
       "en": "Could not reveal image",
       "cn": "无法显示图像"
+    },
+    "noInfo": {
+      "en": "No info",
+      "cn": "无信息"
+    },
+    "workflow": {
+      "en": "Workflow",
+      "cn": "工作流"
     },
     "metadataWarning": {
       "en": "Metadata warning",
@@ -309,6 +325,26 @@
     "favoritesUnconfigured": {
       "en": "Favorites folder is not configured. Please configure it.",
       "cn": "收藏夹文件夹未配置。请配置。"
+    }
+  },
+  "viewer": {
+    "promptModeSelect": {
+      "en": "Prompt display mode",
+      "cn": "提示词显示模式"
+    },
+    "promptMode": {
+      "tags": {
+        "en": "Tags",
+        "cn": "标签"
+      },
+      "raw": {
+        "en": "Prompt text",
+        "cn": "提示词"
+      },
+      "both": {
+        "en": "Prompt text + Tags",
+        "cn": "提示词+标签"
+      }
     }
   }
 }
