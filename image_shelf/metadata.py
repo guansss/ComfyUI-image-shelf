@@ -58,7 +58,8 @@ def get_image_workflow(image: Image.Image | None = None) -> ParsedWorkflow:
 
 def _read_image_info(image: Image.Image) -> str | None:
     if image.format == "PNG":
-        data = image.info.get("workflow")
+        # Comfy: "workflow", A1111: "parameters"
+        data = image.info.get("workflow") or image.info.get("parameters")
     else:
         exif = image.getexif()
         data = exif.get(ExifTags.Base.UserComment)
