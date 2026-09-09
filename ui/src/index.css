@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-#image-shelf-root {
+#imsh {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -37,7 +37,7 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-#image-shelf-root.dark {
+#imsh.dark {
   --background: rgb(10, 10, 10);
   --foreground: oklch(0.985 0 0);
   --card: rgb(30, 30, 30);
@@ -96,10 +96,10 @@
 }
 
 @layer base {
-  #image-shelf-root * {
+  #imsh * {
     @apply border-border outline-ring/50;
   }
-  #image-shelf-root {
+  #imsh {
     @apply bg-background text-foreground;
   }
 }

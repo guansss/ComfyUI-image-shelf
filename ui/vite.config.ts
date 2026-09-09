@@ -3,7 +3,7 @@
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import path from "path"
-import { defineConfig, loadEnv } from "vite"
+import { defineConfig, loadEnv, PluginOption } from "vite"
 
 import { generateTranslations } from "./scripts/generate-translations.ts"
 
@@ -30,6 +30,47 @@ const rewriteComfyImports = ({ isDev }: RewriteComfyImportsOptions) => {
   }
 }
 
+function scopeCssVariables(options: { selector: string }): PluginOption {
+  return {
+    name: "scope-css-variables",
+    config() {
+      return {
+        css: {
+          postcss: {
+            plugins: [
+              {
+                postcssPlugin: "scope-css-variables",
+                Rule(rule) {
+                  if (
+                    !rule.selector ||
+                    (rule.parent?.type === "atrule" && rule.parent.name === "keyframes")
+                  )
+                    return
+                  rule.selector = rule.selector
+                    .replaceAll("\\,", "\x00\x01")
+                    .split(",")
+                    .map((selector) => {
+                      selector = selector.trim()
+                      if (!selector.includes(options.selector)) {
+                        if (selector === ":root" || selector === ":host") {
+                          return options.selector
+                        }
+                        return `${options.selector} ${selector}`
+                      }
+                      return selector
+                    })
+                    .join(",")
+                    .replaceAll("\x00\x01", "\\,")
+                },
+              },
+            ],
+          },
+        },
+      }
+    },
+  }
+}
+
 generateTranslations()
 
 const envDir = path.resolve(import.meta.dirname, "../")
@@ -50,7 +91,12 @@ if (USE_STANDALONE_BACKEND) {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [tailwindcss(), react(), rewriteComfyImports({ isDev: mode === "development" })],
+  plugins: [
+    tailwindcss(),
+    scopeCssVariables({ selector: "#imsh" }),
+    react(),
+    rewriteComfyImports({ isDev: mode === "development" }),
+  ],
   define: {
     __DEV__: mode === "development" || process.argv.includes("--watch"),
     __USE_STANDALONE_BACKEND__: USE_STANDALONE_BACKEND,
