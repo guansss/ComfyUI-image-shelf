@@ -61,6 +61,15 @@ function DialogContent({
           className,
         )}
         {...props}
+        // https://github.com/radix-ui/primitives/issues/1159
+        onWheel={(e) => {
+          e.stopPropagation()
+          props.onWheel?.(e)
+        }}
+        onTouchMove={(e) => {
+          e.stopPropagation()
+          props.onTouchMove?.(e)
+        }}
       >
         {children}
         {showCloseButton && (
