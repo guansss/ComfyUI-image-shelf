@@ -21,18 +21,19 @@ function mountUI() {
   ReactDOM.createRoot(rootContainer).render(
     <React.StrictMode>
       <I18NProvider>
+        <TooltipProvider>
+          <GalleryControl openEvent={OPEN_EVENT} />
+        </TooltipProvider>
+        <AskProvider />
+        <Toaster />
         <div
-          className="min-h-[150vh] bg-cover bg-center"
+          className="relative min-h-[150vh] bg-cover bg-center"
           style={{ backgroundImage: `url("${bgUrl}")` }}
         >
-          <Button onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
+          <div className="absolute inset-0 bg-black/50 pointer-events-none" />
+          <Button className="absolute" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
             Open Image Shelf
           </Button>
-          <TooltipProvider>
-            <GalleryControl openEvent={OPEN_EVENT} />
-          </TooltipProvider>
-          <AskProvider />
-          <Toaster />
         </div>
       </I18NProvider>
     </React.StrictMode>,

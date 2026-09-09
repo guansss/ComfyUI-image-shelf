@@ -20,6 +20,7 @@ import { formatError } from "../../lib/error"
 import { replaceTags } from "../../lib/metadata"
 import { GalleryImage } from "../../services/gallery"
 import { joinJSX } from "../../utils/react"
+import { ScrollArea } from "../ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -77,127 +78,133 @@ export function ImageViewer({
         className="max-w-screen! w-screen h-screen flex gap-0 overflow-hidden p-0 bg-transparent"
         closeButtonProps={{ size: "icon", className: "size-12 top-4 right-4 p-2" }}
       >
-        <aside className="w-80 min-w-40 shrink overflow-y-auto border-r bg-card">
-          <DialogHeader className="p-4 border-b">
-            <DialogTitle>{image?.filename}</DialogTitle>
-            {index !== undefined && total !== undefined && (
-              <p className="text-sm text-muted-foreground">
-                ({index + 1}/{total})
-              </p>
-            )}
-          </DialogHeader>
-          <div className="flex flex-wrap gap-2 p-4 border-b">
-            <Button onClick={() => image && sendImageToFavorites(image).catch(noop)} size="sm">
-              <StarIcon data-icon="inline-start" />
-              {t.gallery.sendToFavorites}
-            </Button>
-            <Button
-              onClick={() => image && revealSelectedImage(image.id).catch(noop)}
-              size="sm"
-              variant="outline"
-            >
-              <FolderOpenIcon data-icon="inline-start" />
-              {t.gallery.reveal}
-            </Button>
-          </div>
-          {imageDetails ? (
-            <div className="flex flex-col gap-2 py-2 border-t text-sm">
-              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4">
-                <dt className="text-muted-foreground">{t.gallery.dimensions}</dt>
-                <dd className="wrap-break-word">
-                  {imageDetails.width} x {imageDetails.height}
-                </dd>
-                <dt className="text-muted-foreground">{t.gallery.creationDate}</dt>
-                <dd className="wrap-break-word">
-                  {new Date(imageDetails.created_at * 1000).toLocaleString()}
-                </dd>
-                <dt className="text-muted-foreground">{t.gallery.fileSize}</dt>
-                <dd className="wrap-break-word">{Math.ceil(imageDetails.file_size / 1024)} KB</dd>
-              </dl>
-              <dl className="flex flex-col gap-2 px-4">
-                <dt className="text-muted-foreground flex items-center justify-between border-t pt-2">
-                  {t.gallery.tags}
-                  <Select
-                    onValueChange={(value) =>
-                      setConfig({ promptDisplayMode: value as "tags" | "raw" | "both" })
-                    }
-                    value={config.promptDisplayMode}
-                  >
-                    <SelectTrigger title={t.viewer.promptModeSelect} className="basis-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="tags">{t.viewer.promptMode.tags}</SelectItem>
-                        <SelectItem value="raw">{t.viewer.promptMode.raw}</SelectItem>
-                        <SelectItem value="both">{t.viewer.promptMode.both}</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </dt>
-                <dd className="wrap-break-word whitespace-pre-wrap">
-                  <PromptText
-                    prompt={metadata?.prompt}
-                    tags={imageDetails.tags}
-                    onTagClick={(tag) => {
-                      onTagClick?.(tag, "positive")
-                      onOpenChange(false)
-                    }}
-                  />
-                </dd>
-                <dt className="text-muted-foreground border-t pt-2">{t.gallery.negativeTags}</dt>
-                <dd className="wrap-break-word whitespace-pre-wrap">
-                  <PromptText
-                    prompt={metadata?.negativePrompt}
-                    tags={imageDetails.negative_tags}
-                    onTagClick={(tag) => {
-                      onTagClick?.(tag, "negative")
-                      onOpenChange(false)
-                    }}
-                  />
-                </dd>
-                {imageDetails.parse_error && (
-                  <>
-                    <dt className="text-muted-foreground border-t pt-2">
-                      {t.gallery.metadataWarning}
-                    </dt>
-                    <dd className="wrap-break-word text-destructive">{imageDetails.parse_error}</dd>
-                  </>
-                )}
-                <dt className="text-muted-foreground border-t pt-2">{t.gallery.generationInfo}</dt>
-                <dd className="wrap-break-word">
-                  {metadataError ? (
-                    <span className="text-destructive">{formatError(metadataError)}</span>
-                  ) : metadata?.infotext ? (
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline">{t.common.view}</Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:min-w-sm">
-                        <DialogHeader>
-                          <DialogTitle>{t.gallery.generationInfo}</DialogTitle>
-                        </DialogHeader>
-                        <textarea
-                          className="h-[80vh] overflow-y-auto font-mono"
-                          readOnly
-                          value={metadata.infotext}
-                        />
-                        <DialogFooter>
-                          <Button onClick={() => void copyToClipboard(metadata.infotext)}>
-                            {t.common.copy}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  ) : (
-                    t.gallery.noInfo
-                  )}
-                </dd>
-              </dl>
+        <aside className="md:w-80 w-40 shrink-0 border-r bg-card">
+          <ScrollArea className="h-full">
+            <DialogHeader className="p-4 border-b wrap-break-word">
+              <DialogTitle>{image?.filename}</DialogTitle>
+              {index !== undefined && total !== undefined && (
+                <p className="text-sm text-muted-foreground">
+                  ({index + 1}/{total})
+                </p>
+              )}
+            </DialogHeader>
+            <div className="flex flex-wrap gap-2 p-4 border-b">
+              <Button onClick={() => image && sendImageToFavorites(image).catch(noop)} size="sm">
+                <StarIcon data-icon="inline-start" />
+                {t.gallery.sendToFavorites}
+              </Button>
+              <Button
+                onClick={() => image && revealSelectedImage(image.id).catch(noop)}
+                size="sm"
+                variant="outline"
+              >
+                <FolderOpenIcon data-icon="inline-start" />
+                {t.gallery.reveal}
+              </Button>
             </div>
-          ) : (
-            <p className="mt-5 text-sm text-muted-foreground">{t.gallery.loading}</p>
-          )}
+            {imageDetails ? (
+              <div className="flex flex-col gap-2 py-2 border-t text-sm">
+                <dl className="grid grid-cols-1 md:grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4">
+                  <dt className="text-muted-foreground">{t.gallery.dimensions}</dt>
+                  <dd className="wrap-break-word">
+                    {imageDetails.width} x {imageDetails.height}
+                  </dd>
+                  <dt className="text-muted-foreground">{t.gallery.creationDate}</dt>
+                  <dd className="wrap-break-word">
+                    {new Date(imageDetails.created_at * 1000).toLocaleString()}
+                  </dd>
+                  <dt className="text-muted-foreground">{t.gallery.fileSize}</dt>
+                  <dd className="wrap-break-word">{Math.ceil(imageDetails.file_size / 1024)} KB</dd>
+                </dl>
+                <dl className="flex flex-col gap-2 px-4">
+                  <dt className="text-muted-foreground flex items-center justify-between border-t pt-2">
+                    {t.gallery.tags}
+                    <Select
+                      onValueChange={(value) =>
+                        setConfig({ promptDisplayMode: value as "tags" | "raw" | "both" })
+                      }
+                      value={config.promptDisplayMode}
+                    >
+                      <SelectTrigger title={t.viewer.promptModeSelect} className="basis-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="tags">{t.viewer.promptMode.tags}</SelectItem>
+                          <SelectItem value="raw">{t.viewer.promptMode.raw}</SelectItem>
+                          <SelectItem value="both">{t.viewer.promptMode.both}</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </dt>
+                  <dd className="wrap-break-word whitespace-pre-wrap">
+                    <PromptText
+                      prompt={metadata?.prompt}
+                      tags={imageDetails.tags}
+                      onTagClick={(tag) => {
+                        onTagClick?.(tag, "positive")
+                        onOpenChange(false)
+                      }}
+                    />
+                  </dd>
+                  <dt className="text-muted-foreground border-t pt-2">{t.gallery.negativeTags}</dt>
+                  <dd className="wrap-break-word whitespace-pre-wrap">
+                    <PromptText
+                      prompt={metadata?.negativePrompt}
+                      tags={imageDetails.negative_tags}
+                      onTagClick={(tag) => {
+                        onTagClick?.(tag, "negative")
+                        onOpenChange(false)
+                      }}
+                    />
+                  </dd>
+                  {imageDetails.parse_error && (
+                    <>
+                      <dt className="text-muted-foreground border-t pt-2">
+                        {t.gallery.metadataWarning}
+                      </dt>
+                      <dd className="wrap-break-word text-destructive">
+                        {imageDetails.parse_error}
+                      </dd>
+                    </>
+                  )}
+                  <dt className="text-muted-foreground border-t pt-2">
+                    {t.gallery.generationInfo}
+                  </dt>
+                  <dd className="wrap-break-word">
+                    {metadataError ? (
+                      <span className="text-destructive">{formatError(metadataError)}</span>
+                    ) : metadata?.infotext ? (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline">{t.common.view}</Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:min-w-sm">
+                          <DialogHeader>
+                            <DialogTitle>{t.gallery.generationInfo}</DialogTitle>
+                          </DialogHeader>
+                          <textarea
+                            className="h-[80vh] overflow-y-auto font-mono"
+                            readOnly
+                            value={metadata.infotext}
+                          />
+                          <DialogFooter>
+                            <Button onClick={() => void copyToClipboard(metadata.infotext)}>
+                              {t.common.copy}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    ) : (
+                      t.gallery.noInfo
+                    )}
+                  </dd>
+                </dl>
+              </div>
+            ) : (
+              <p className="mt-5 text-sm text-muted-foreground">{t.gallery.loading}</p>
+            )}
+          </ScrollArea>
         </aside>
         <main className="grow flex flex-col" onClick={() => onOpenChange(false)}>
           <img alt={image?.filename} className="size-full object-contain" src={image?.url} />

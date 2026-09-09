@@ -29,6 +29,7 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from "../ui/alert"
 import { Field, FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
+import { ScrollArea } from "../ui/scroll-area"
 import { useImageQuery, useTabList } from "./api"
 import { ImageViewer } from "./ImageViewer"
 import { Searchbar } from "./Searchbar"
@@ -184,68 +185,70 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
         closeButtonProps={{ size: "icon", className: "top-4 right-4" }}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <aside className="w-80 shrink-0 flex flex-col overflow-y-auto border-r">
-          <DialogHeader className="flex-row items-center gap-3 border-b p-4">
-            <ImageIcon className="size-8" />
-            <DialogTitle className="text-xl">{t.gallery.title}</DialogTitle>
-          </DialogHeader>
-          <TabList
-            tabs={tabs}
-            selectedTabId={selectedTabId}
-            onTabSelect={selectTab}
-            updateTabs={mutateTabs}
-          />
-          <div className="flex flex-col gap-4 p-4 border-t">
-            <h3 className="text-sm font-semibold">{t.gallery.sort}</h3>
-            <Select onValueChange={updateSort} value={`${sort}:${direction}`}>
-              <SelectTrigger aria-label={t.gallery.sort} className="max-w-full sm:w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="created_at:desc">{t.gallery.newest}</SelectItem>
-                  <SelectItem value="created_at:asc">{t.gallery.oldest}</SelectItem>
-                  <SelectItem value="filename:asc">{t.gallery.filenameAscending}</SelectItem>
-                  <SelectItem value="filename:desc">{t.gallery.filenameDescending}</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Field orientation="horizontal">
-              <Checkbox
-                checked={groupByDay}
-                id="group-by-day"
-                onCheckedChange={(checked) => setGroupByDay(checked === true)}
-              />
-              <Label className="cursor-pointer" htmlFor="group-by-day">
-                {t.gallery.groupByDay}
-              </Label>
-            </Field>
-          </div>
-          {dimensions.length > 0 && (
+        <aside className="md:w-80 w-40 shrink-0 flex flex-col border-r">
+          <ScrollArea className="h-full">
+            <DialogHeader className="flex-row items-center gap-3 border-b p-4">
+              <ImageIcon className="size-8" />
+              <DialogTitle className="text-xl">{t.gallery.title}</DialogTitle>
+            </DialogHeader>
+            <TabList
+              tabs={tabs}
+              selectedTabId={selectedTabId}
+              onTabSelect={selectTab}
+              updateTabs={mutateTabs}
+            />
             <div className="flex flex-col gap-4 p-4 border-t">
-              <h3 className="text-sm font-semibold">{t.gallery.dimensions}</h3>
-              <div className="flex flex-col gap-2">
-                {dimensions.map((dimension) => {
-                  const value = `${dimension.width}x${dimension.height}`
-                  return (
-                    <Field orientation="horizontal" key={value}>
-                      <Checkbox
-                        checked={selectedDimensions.includes(value)}
-                        id={`dimension-${value}`}
-                        onCheckedChange={() => toggleDimension(value)}
-                      />
-                      <Label className="cursor-pointer" htmlFor={`dimension-${value}`}>
-                        {value} ({dimension.count})
-                      </Label>
-                    </Field>
-                  )
-                })}
-              </div>
+              <h3 className="text-sm font-semibold">{t.gallery.sort}</h3>
+              <Select onValueChange={updateSort} value={`${sort}:${direction}`}>
+                <SelectTrigger aria-label={t.gallery.sort} className="max-w-full sm:w-52">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="created_at:desc">{t.gallery.newest}</SelectItem>
+                    <SelectItem value="created_at:asc">{t.gallery.oldest}</SelectItem>
+                    <SelectItem value="filename:asc">{t.gallery.filenameAscending}</SelectItem>
+                    <SelectItem value="filename:desc">{t.gallery.filenameDescending}</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Field orientation="horizontal">
+                <Checkbox
+                  checked={groupByDay}
+                  id="group-by-day"
+                  onCheckedChange={(checked) => setGroupByDay(checked === true)}
+                />
+                <Label className="cursor-pointer" htmlFor="group-by-day">
+                  {t.gallery.groupByDay}
+                </Label>
+              </Field>
             </div>
-          )}
+            {dimensions.length > 0 && (
+              <div className="flex flex-col gap-4 p-4 border-t">
+                <h3 className="text-sm font-semibold">{t.gallery.dimensions}</h3>
+                <div className="flex flex-col gap-2">
+                  {dimensions.map((dimension) => {
+                    const value = `${dimension.width}x${dimension.height}`
+                    return (
+                      <Field orientation="horizontal" key={value}>
+                        <Checkbox
+                          checked={selectedDimensions.includes(value)}
+                          id={`dimension-${value}`}
+                          onCheckedChange={() => toggleDimension(value)}
+                        />
+                        <Label className="cursor-pointer" htmlFor={`dimension-${value}`}>
+                          {value} ({dimension.count})
+                        </Label>
+                      </Field>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </ScrollArea>
         </aside>
 
-        <main className="flex grow flex-col">
+        <main className="grow flex flex-col">
           <div className="flex items-center px-4 pt-4 pb-2 pr-16">
             <Searchbar loading={imageListIsLoading} query={query} onQueryChange={setQuery} />
           </div>
@@ -284,7 +287,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               </div>
             ))}
           {images.length > 0 && (
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <ScrollArea className="min-h-0 flex-1">
               {imageGroups.map(([day, group]) => (
                 <section className="border-b px-5 py-4 first:pt-2 last:border-b-0" key={day}>
                   {groupByDay && (
@@ -326,7 +329,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                   </div>
                 </section>
               ))}
-            </div>
+            </ScrollArea>
           )}
           <footer className="flex flex-wrap items-center gap-2 border-t px-4 py-2">
             {imageList && (

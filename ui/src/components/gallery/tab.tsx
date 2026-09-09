@@ -123,11 +123,11 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
   }, [updateTabs])
 
   return (
-    <div className="flex flex-col gap-1 p-4 border-t">
+    <nav className="flex flex-col gap-1 p-4 border-t">
       {tabs?.map((tab) => (
         <div
           key={tab.id}
-          className={cn("flex rounded-md", tab === selectedTab && "bg-(--chart-3)")}
+          className={cn("flex flex-wrap rounded-md", tab === selectedTab && "bg-(--chart-3)")}
         >
           <Button
             variant="flat"
@@ -197,7 +197,7 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
         <PlusIcon data-icon="inline-start" />
         {t.gallery.addTab}
       </Button>
-    </div>
+    </nav>
   )
 }
 
