@@ -214,9 +214,9 @@
       "en": "No info",
       "cn": "无信息"
     },
-    "workflow": {
-      "en": "Workflow",
-      "cn": "工作流"
+    "generationInfo": {
+      "en": "Generation info",
+      "cn": "生成信息"
     },
     "metadataWarning": {
       "en": "Metadata warning",

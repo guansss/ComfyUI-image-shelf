@@ -312,7 +312,6 @@ class ImageRepository:
                 INNER JOIN image_tags ON image_tags.tag_id = tags.id
                 INNER JOIN images ON images.id = image_tags.image_id
                 WHERE images.public_id = ?
-                ORDER BY tags.name ASC
                 """,
                 (public_id,),
             ).fetchall()

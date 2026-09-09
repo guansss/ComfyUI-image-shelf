@@ -78,12 +78,6 @@ export function useImageMetadata({ filename, url }: { filename?: string; url?: s
 
     const file = new File([blob], filename || "image", { type: blob.type })
     const metadata = await getMetadataFromFile(file)
-    if (metadata) {
-      return {
-        ...metadata,
-        workflowText: JSON.stringify(metadata.workflow, null, 2),
-      }
-    }
-    return undefined
+    return metadata
   })
 }

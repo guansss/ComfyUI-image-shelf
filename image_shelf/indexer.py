@@ -10,7 +10,7 @@ from PIL import Image
 from .database import ImageRepository
 from .error import ERROR_INVALID_DIR, CustomError
 from .log import debug_logger
-from .metadata import parse_image_workflow
+from .metadata import get_image_workflow
 from .models import IndexedImage
 from .paths import normalize_path
 
@@ -96,7 +96,7 @@ class FolderIndexer:
     def _read_image(self, path: Path, stat_result: object) -> IndexedImage:
         with Image.open(path) as image:
             width, height = image.size
-            parsed_workflow = parse_image_workflow(path, image)
+            parsed_workflow = get_image_workflow(image)
         return IndexedImage(
             path=path,
             width=width,

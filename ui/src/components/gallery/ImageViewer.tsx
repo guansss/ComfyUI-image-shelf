@@ -1,6 +1,6 @@
 import { useAtom, useAtomValue } from "jotai"
 import { FolderOpenIcon, StarIcon } from "lucide-react"
-import { useEffect, useMemo, useRef } from "react"
+import { ReactNode, useEffect, useMemo, useRef } from "react"
 import { noop } from "swr/_internal"
 
 import { Button } from "@/components/ui/button"
@@ -17,7 +17,9 @@ import { useTranslation } from "../../i18n/i18n"
 import { configAtom } from "../../lib/config"
 import { copyToClipboard } from "../../lib/dom"
 import { formatError } from "../../lib/error"
+import { replaceTags } from "../../lib/metadata"
 import { GalleryImage } from "../../services/gallery"
+import { joinJSX } from "../../utils/react"
 import {
   Select,
   SelectContent,
@@ -135,7 +137,7 @@ export function ImageViewer({
                 </dt>
                 <dd className="wrap-break-word whitespace-pre-wrap">
                   <PromptText
-                    prompt={metadata?.positivePrompt}
+                    prompt={metadata?.prompt}
                     tags={imageDetails.tags}
                     onTagClick={(tag) => {
                       onTagClick?.(tag, "positive")
@@ -156,30 +158,32 @@ export function ImageViewer({
                 </dd>
                 {imageDetails.parse_error && (
                   <>
-                    <dt className="text-muted-foreground border-t pt-2">{t.gallery.metadataWarning}</dt>
+                    <dt className="text-muted-foreground border-t pt-2">
+                      {t.gallery.metadataWarning}
+                    </dt>
                     <dd className="wrap-break-word text-destructive">{imageDetails.parse_error}</dd>
                   </>
                 )}
-                <dt className="text-muted-foreground border-t pt-2">{t.gallery.workflow}</dt>
+                <dt className="text-muted-foreground border-t pt-2">{t.gallery.generationInfo}</dt>
                 <dd className="wrap-break-word">
                   {metadataError ? (
                     <span className="text-destructive">{formatError(metadataError)}</span>
-                  ) : metadata?.workflowText ? (
+                  ) : metadata?.infotext ? (
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button variant="outline">{t.common.view}</Button>
                       </DialogTrigger>
                       <DialogContent className="sm:min-w-sm">
                         <DialogHeader>
-                          <DialogTitle>{t.gallery.workflow}</DialogTitle>
+                          <DialogTitle>{t.gallery.generationInfo}</DialogTitle>
                         </DialogHeader>
                         <textarea
                           className="h-[80vh] overflow-y-auto font-mono"
                           readOnly
-                          value={metadata.workflowText}
+                          value={metadata.infotext}
                         />
                         <DialogFooter>
-                          <Button onClick={() => void copyToClipboard(metadata.workflowText)}>
+                          <Button onClick={() => void copyToClipboard(metadata.infotext)}>
                             {t.common.copy}
                           </Button>
                         </DialogFooter>
@@ -221,53 +225,75 @@ function PromptText({
   }, [onTagClick])
 
   const content = useMemo(() => {
-    if (!prompt && !tags.length) {
-      return t.gallery.noInfo
-    }
-    if (config.promptDisplayMode === "raw" || !tags.length) {
+    if (config.promptDisplayMode === "raw") {
       return prompt
     }
-    if (config.promptDisplayMode === "tags" || !prompt) {
-      return tags.join(", ")
+    if (config.promptDisplayMode === "tags") {
+      return joinJSX(
+        [...tags]
+          .sort((a, b) => a.localeCompare(b))
+          .map((tag) => (
+            <TagLink key={tag} tag={tag} onClick={(tag) => onClickRef.current?.(tag)}>
+              {tag}
+            </TagLink>
+          )),
+        "\n",
+      )
     }
-
-    const sortedTags = [...tags].sort((a, b) => b.length - a.length) // Sort tags by length to avoid partial matches
+    if (!prompt) {
+      return undefined
+    }
 
     return (
       <div className="text-muted-foreground">
-        {prompt.split(",").flatMap((value, index) => {
-          for (const tag of sortedTags) {
-            if (value.includes(tag)) {
-              const [head, tail] = value.split(tag)
-              return [
-                index === 0 ? head : "," + head,
-                <a
-                  key={tag}
-                  role="button"
-                  className="text-foreground cursor-pointer hover:underline"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    onClickRef.current?.(tag)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault()
-                      onClickRef.current?.(tag)
-                    }
-                  }}
-                  tabIndex={0}
-                >
-                  {tag}
-                </a>,
-                tail,
-              ]
-            }
-          }
-          return index === 0 ? value : "," + value
-        })}
+        {replaceTags(prompt, tags, (tag, matchedText, occurrence) => (
+          <TagLink
+            key={`${tag}-${occurrence}`}
+            tag={tag}
+            onClick={(tag) => onClickRef.current?.(tag)}
+          >
+            {matchedText}
+          </TagLink>
+        ))}
       </div>
     )
-  }, [t, prompt, tags, config])
+  }, [prompt, tags, config])
 
-  return content
+  return content || t.gallery.noInfo
+}
+
+function TagLink({
+  tag,
+  children,
+  onClick,
+}: {
+  tag: string
+  children: ReactNode
+  onClick?: (tag: string) => void
+}) {
+  const onClickRef = useRef(onClick)
+
+  useEffect(() => {
+    onClickRef.current = onClick
+  }, [onClick])
+
+  return (
+    <a
+      role="button"
+      className="text-foreground cursor-pointer hover:underline"
+      onClick={(e) => {
+        e.preventDefault()
+        onClickRef.current?.(tag)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onClickRef.current?.(tag)
+        }
+      }}
+      tabIndex={0}
+    >
+      {children}
+    </a>
+  )
 }

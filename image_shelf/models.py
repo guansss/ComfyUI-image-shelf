@@ -24,7 +24,7 @@ class ParsedWorkflow:
     workflow: str | None
     tags: tuple[str, ...]
     negative_tags: tuple[str, ...]
-    parse_error: str | None
+    parse_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,7 @@ class GalleryImage:
     height: int
     file_size: int
     created_at: float
-    parse_error: str | None
+    parse_error: str | None = None
 
 
 @dataclass(frozen=True)
