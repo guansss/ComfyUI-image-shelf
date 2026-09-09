@@ -1,10 +1,10 @@
 import { SetOptional } from "type-fest"
 
-import { i18n } from "../i18n/i18n"
+import { i18n, i18nFallback } from "../i18n/i18n"
 import { toast, ToastOptions } from "./toast"
 
-export function formatError(e: unknown, fallback = i18n.error.unknown): string {
-  let str = fallback
+export function formatError(e: unknown, fallback?: string): string {
+  let str = ""
 
   if (typeof e === "string") {
     str = e
@@ -15,16 +15,18 @@ export function formatError(e: unknown, fallback = i18n.error.unknown): string {
       str = String(e)
     }
     if (str === "[object Object]") {
-      str = fallback
+      str = ""
     }
   }
-  const errorCodes = Object.keys(i18n.error.code)
-  for (const code of errorCodes) {
-    if (str.includes(`[${code}]`)) {
-      return i18n.error.code[code as keyof typeof i18n.error.code]
+  if (i18n.isLoaded) {
+    const errorCodes = Object.keys(i18n.error.code)
+    for (const code of errorCodes) {
+      if (str.includes(`[${code}]`)) {
+        return i18n.error.code[code as keyof typeof i18n.error.code]
+      }
     }
   }
-  return str || fallback
+  return str || fallback || i18nFallback("Unknown error", () => i18n.error.unknown)
 }
 
 interface ErrorToastOptions extends SetOptional<Omit<ToastOptions, "type">, "title"> {}
@@ -32,7 +34,7 @@ interface ErrorToastOptions extends SetOptional<Omit<ToastOptions, "type">, "tit
 export function errorToast(options: ErrorToastOptions) {
   toast({
     type: "error",
-    title: options.title ?? i18n.error.error,
+    title: options.title ?? i18nFallback("Error", () => i18n.error.error),
     duration: 5000,
     ...options,
   })

@@ -69,6 +69,10 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       "/api/image-shelf": "http://127.0.0.1:8188",
     },
+    fs: {
+      // Allow serving files from one level up to the project root
+      allow: [import.meta.dirname, "../tests/assets"],
+    },
   },
   build: {
     emptyOutDir: true,

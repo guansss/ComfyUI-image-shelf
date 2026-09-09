@@ -174,6 +174,7 @@ class GalleryApi:
                     name="image-shelf-image-file",
                 ),
                 web.get("/api/image-shelf/v1/tags", self.tags),
+                web.get("/api/image-shelf/v1/settings", self.get_settings),
                 web.post("/api/image-shelf/v1/settings", self.update_settings),
                 web.post("/api/image-shelf/v1/settings/reload", self.reload_settings),
                 web.post("/api/image-shelf/v1/reindex", self.reindex),
@@ -377,6 +378,9 @@ class GalleryApi:
         except ValueError as error:
             raise web.HTTPNotImplemented(text=str(error)) from error
         return web.json_response({"accepted": True}, status=202)
+
+    async def get_settings(self, request: web.Request) -> web.Response:
+        return web.json_response(self.settings.comfy_settings)
 
     async def update_settings(self, request: web.Request) -> web.Response:
         try:

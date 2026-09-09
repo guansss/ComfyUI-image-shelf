@@ -1,4 +1,4 @@
-import { app } from "../comfy"
+import { getDriver } from "../driver/driver"
 import { CUSTOM_TABS_SETTING } from "../global"
 import { GalleryTab } from "../services/gallery"
 
@@ -14,7 +14,7 @@ export function saveCustomTabs(
   if (typeof tabs === "function") {
     tabs = tabs(readCustomTabs())
   }
-  app.extensionManager.setting.set(CUSTOM_TABS_SETTING, tabs)
+  getDriver().setSetting(CUSTOM_TABS_SETTING, tabs)
 }
 
 export function toStoredCustomTab(tab: GalleryTab): StoredCustomTab {
@@ -26,7 +26,7 @@ export function toStoredCustomTab(tab: GalleryTab): StoredCustomTab {
 }
 
 export function readCustomTabs(): StoredCustomTab[] {
-  const value = app.extensionManager.setting.get(CUSTOM_TABS_SETTING)
+  const value = getDriver().getSetting(CUSTOM_TABS_SETTING)
   if (!Array.isArray(value)) {
     console.warn("[Image Shelf] readCustomTabs: invalid value", value)
     return []

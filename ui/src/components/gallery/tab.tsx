@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
-import { app } from "../../comfy"
+import { getDriver } from "../../driver/driver"
 import { FAVORITES_SETTING } from "../../global"
 import { i18n, useTranslation } from "../../i18n/i18n"
 import { errorToast, formatError } from "../../lib/error"
@@ -211,12 +211,12 @@ export async function editTab(tab: GalleryTab) {
   if (tab.id === "favorites") {
     // read the favorites folder from settings as the source of truth,
     // in case the tab info is somehow out of sync
-    const favoriteSetting = app.extensionManager.setting.get(FAVORITES_SETTING)
+    const favoriteSetting = getDriver().getSetting(FAVORITES_SETTING)
     const currentFavoritesFolder = typeof favoriteSetting === "string" ? favoriteSetting : ""
     const result = await askEditTab({}, { ...tab, folders: [currentFavoritesFolder] })
     const newFolder = result?.tab.folders[0]?.trim()
     if (!newFolder || newFolder === currentFavoritesFolder) return
-    app.extensionManager.setting.set(FAVORITES_SETTING, newFolder)
+    getDriver().setSetting(FAVORITES_SETTING, newFolder)
   } else {
     const result = await askEditTab({}, tab)
     if (!result) return

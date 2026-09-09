@@ -116,22 +116,31 @@ const languageStorageKey = "maa-copilot-lang"
 let currentLanguage: Language
 let currentTranslations: I18NTranslations | undefined
 
-export const i18n = new Proxy({} as I18NTranslations & { currentLanguage: Language }, {
-  get(target, prop) {
-    if (prop === "currentLanguage") {
-      return currentLanguage
-    }
-    if (!currentTranslations) {
-      if (prop === "essentials") {
-        return allEssentials[currentLanguage]
-      }
-      // if this error occurs during dev, it's probably because the code containing i18n.* is executed
-      // before the translations are loaded, in which case you should change it to i18nDefer.*
-      throw new Error(allEssentials[currentLanguage].translations_not_loaded)
-    }
-    return currentTranslations[prop as keyof I18NTranslations] || prop
+export const i18n = new Proxy(
+  {} as I18NTranslations & {
+    currentLanguage: Language
+    isLoaded: boolean
   },
-})
+  {
+    get(target, prop) {
+      if (prop === "currentLanguage") {
+        return currentLanguage
+      }
+      if (prop === "isLoaded") {
+        return !!currentTranslations
+      }
+      if (!currentTranslations) {
+        if (prop === "essentials") {
+          return allEssentials[currentLanguage]
+        }
+        // if this error occurs during dev, it's probably because the code containing i18n.* is executed
+        // before the translations are loaded, in which case you should change it to i18nDefer.*
+        throw new TranslationNotLoadedError()
+      }
+      return currentTranslations[prop as keyof I18NTranslations] || prop
+    },
+  },
+)
 
 type Deferred<T> = T extends string
   ? () => string
@@ -140,6 +149,15 @@ type Deferred<T> = T extends string
     : { [K in keyof T]: Deferred<T[K]> }
 
 export const i18nDefer = createDeferredProxy("") as unknown as Deferred<I18NTranslations>
+
+export const i18nFallback = (fallback: string, loader: () => string) => {
+  try {
+    return loader()
+  } catch (e) {
+    if (e && e instanceof TranslationNotLoadedError) return fallback
+    throw e
+  }
+}
 
 function createDeferredProxy(path: string) {
   const toString = (() => path) as {
@@ -333,4 +351,11 @@ function setupTranslations({ language, data }: RawTranslations) {
 
 export function useTranslation() {
   return useAtomValue(translationsAtom)
+}
+
+class TranslationNotLoadedError extends Error {
+  constructor() {
+    super(allEssentials[currentLanguage].translations_not_loaded)
+    this.name = "TranslationNotLoadedError"
+  }
 }

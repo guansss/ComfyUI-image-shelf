@@ -252,6 +252,13 @@ export async function pickFolder(): Promise<void> {
   return await api(`pick-folder`, "POST", undefined, "ignore")
 }
 
+/**
+ * This api should only be used in standalone mode.
+ */
+export async function fetchSettings(): Promise<Record<string, unknown>> {
+  return await api<Record<string, unknown>>(`settings`, "GET")
+}
+
 export async function updateSettings(patch: Record<string, unknown>): Promise<void> {
   return await api(`settings`, "POST", patch, "ignore")
 }
