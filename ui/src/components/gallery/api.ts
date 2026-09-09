@@ -38,7 +38,7 @@ export function useTagSuggestions({ query }: { query?: string }) {
   return useSWR(
     query ? ["tagSuggestions", query] : null,
     async ([, query]) => {
-      const tagSuggestions = await fetchTagSuggestions(query)
+      const tagSuggestions = await fetchTagSuggestions(query, 100)
       return tagSuggestions.items
     },
     { keepPreviousData: true },

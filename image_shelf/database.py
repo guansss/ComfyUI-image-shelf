@@ -252,13 +252,16 @@ class ImageRepository:
     def suggest_tags(
         self, folders: Iterable[str | Path] | None, prefix: str, limit: int = 10
     ) -> tuple[TagSuggestion, ...]:
-        if not prefix.strip() or not 1 <= limit <= 50:
+        if not prefix.strip() or limit <= 0:
             return ()
+        limit = min(limit, 1000)
         folder_where, folder_parameters = (
             ("1", ()) if folders is None else self._folder_filter(folders)
         )
         if folder_where == "0":
             return ()
+        normalized_prefix = prefix.strip().lower()
+        like_pattern = f"%{_escape_like(normalized_prefix)}%"
         with self._lock:
             rows = self.connection.execute(
                 f"""
@@ -266,14 +269,13 @@ class ImageRepository:
                 FROM tags
                 INNER JOIN image_tags ON image_tags.tag_id = tags.id
                 INNER JOIN images ON images.id = image_tags.image_id
-                WHERE ({folder_where})
+                WHERE ({folder_where}) AND tags.normalized_name LIKE ? ESCAPE '\\'
                 GROUP BY tags.id
                 ORDER BY count DESC, tags.name ASC
                 LIMIT 1000
                 """,
-                folder_parameters,
+                (*folder_parameters, like_pattern),
             ).fetchall()
-        normalized_prefix = prefix.strip().lower()
         ranked_rows = sorted(
             (
                 (_tag_match_score(normalized_prefix, row["normalized_name"]), row)
@@ -283,8 +285,7 @@ class ImageRepository:
         )
         return tuple(
             TagSuggestion(row["name"], row["type"])
-            for score, row in ranked_rows
-            if score > 0
+            for _, row in ranked_rows
         )[:limit]
 
     def path_for_public_id(self, public_id: str) -> Path | None:

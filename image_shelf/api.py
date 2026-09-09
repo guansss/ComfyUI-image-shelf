@@ -356,6 +356,7 @@ class GalleryApi:
                     for suggestion in self.repository.suggest_tags(
                         self._folders_for_tab(tab) if tab else None,
                         request.query.get("q", ""),
+                        limit=int(request.query.get("limit", "10")),
                     )
                 ]
             }
