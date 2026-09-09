@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react"
 import path from "path"
 import { defineConfig, loadEnv } from "vite"
 
-import { generateTranslations } from "./scripts/generate-translations"
+import { generateTranslations } from "./scripts/generate-translations.ts"
 
 interface RewriteComfyImportsOptions {
   isDev: boolean
@@ -32,7 +32,7 @@ const rewriteComfyImports = ({ isDev }: RewriteComfyImportsOptions) => {
 
 generateTranslations()
 
-const envDir = path.resolve(__dirname, "../")
+const envDir = path.resolve(import.meta.dirname, "../")
 const env = loadEnv("", envDir, "")
 
 const USE_STANDALONE_BACKEND = env.USE_STANDALONE_BACKEND === "true"
@@ -59,7 +59,7 @@ export default defineConfig(({ mode }) => ({
   envDir,
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   test: {
@@ -76,7 +76,7 @@ export default defineConfig(({ mode }) => ({
       // Don't bundle ComfyUI scripts - they will be loaded from the ComfyUI server
       external: ["/scripts/app.js", "/scripts/api.js"],
       input: {
-        main: path.resolve(__dirname, "src/main.tsx"),
+        main: path.resolve(import.meta.dirname, "src/main.tsx"),
       },
       output: {
         dir: "../dist",

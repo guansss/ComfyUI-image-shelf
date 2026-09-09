@@ -19,6 +19,7 @@ export function emptyQuery(): SearchQuery {
   return { terms: [] }
 }
 
+// See tests for syntax examples.
 export function parseSearchValue(value: string, cursorIndex: number): SearchQuery {
   const terms: SearchTerm[] = []
   let index = 0
@@ -38,9 +39,11 @@ export function parseSearchValue(value: string, cursorIndex: number): SearchQuer
     const prefixMatch = firstToken.match(/^-?(?:tag:|name:|prompt:)/)
     const quoteIndex = firstToken.indexOf('"')
 
-    if (prefixMatch && quoteIndex !== -1 && !firstToken.slice(quoteIndex + 1).includes('"')) {
+    if ((prefixMatch || firstToken.startsWith('"')) && quoteIndex !== -1 && !firstToken.slice(quoteIndex + 1).includes('"')) {
       const closingQuote = value.indexOf('"', endIndex)
-      if (closingQuote !== -1) {
+      const closingQuoteEndsTerm =
+        closingQuote === value.length - 1 || (closingQuote !== -1 && /\s/.test(value[closingQuote + 1]))
+      if (closingQuote !== -1 && (prefixMatch || closingQuoteEndsTerm)) {
         endIndex = closingQuote + 1
         while (endIndex < value.length && !/\s/.test(value[endIndex])) endIndex++
       }

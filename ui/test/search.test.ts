@@ -15,8 +15,17 @@ describe("parseSearchValue", () => {
       value: string,
       expectedOutput: string,
       activeTerm: Partial<SearchTerm> | undefined,
+      allowInvalid = false,
     ) {
       const parsed = parse(value)
+      if (!allowInvalid) {
+        const invalidTerms = parsed.terms.filter((term) => term.type === "invalid")
+        if (invalidTerms.length > 0) {
+          throw new Error(
+            `Found invalid terms in parsed result for value "${value}": ${invalidTerms.map((t) => t.value)}`,
+          )
+        }
+      }
       expect(queryToString(parsed)).toBe(expectedOutput)
       try {
         if (activeTerm === undefined) {
@@ -37,6 +46,7 @@ describe("parseSearchValue", () => {
     check("| ", "", undefined)
     check(" |", "", undefined)
     check("cat", "cat", undefined)
+    check('"orange cat"', '"orange cat"', undefined)
     check("|cat", "cat", { value: "cat" })
     check("cat|", "cat", { value: "cat" })
     check("cat|  ", "cat", { value: "cat" })
@@ -75,63 +85,13 @@ describe("parseSearchValue", () => {
     check('tag:"cat"|', 'tag:"cat"', { value: "cat" })
 
     // invalid terms
-    check("tag:| cat", "tag: cat", { value: "tag:", type: "invalid", quoted: false })
-    check('cat "dog|', 'cat "dog', { value: '"dog', type: "invalid", quoted: false })
-    check('"cat "dog|', '"cat "dog', { value: '"dog', type: "invalid", quoted: false })
-    check('"cat| dog', '"cat dog', { value: '"cat', type: "invalid", quoted: false })
-    check('"cat dog|', '"cat dog', { value: "dog" })
-    check('tag:"cat|', 'tag:"cat', { value: 'tag:"cat', type: "invalid", quoted: false })
-    check('"tag:cat|', '"tag:cat', { value: '"tag:cat', type: "invalid", quoted: false })
-    check("foo:cat|", "foo:cat", { value: "foo:cat", type: "invalid", quoted: false })
+    check("tag:| cat", "tag: cat", { value: "tag:", type: "invalid", quoted: false }, true)
+    check('cat "dog|', 'cat "dog', { value: '"dog', type: "invalid", quoted: false }, true)
+    check('"cat "dog|', '"cat "dog', { value: '"dog', type: "invalid", quoted: false }, true)
+    check('"cat| dog', '"cat dog', { value: '"cat', type: "invalid", quoted: false }, true)
+    check('"cat dog|', '"cat dog', { value: "dog" }, true)
+    check('tag:"cat|', 'tag:"cat', { value: 'tag:"cat', type: "invalid", quoted: false }, true)
+    check('"tag:cat|', '"tag:cat', { value: '"tag:cat', type: "invalid", quoted: false }, true)
+    check("foo:cat|", "foo:cat", { value: "foo:cat", type: "invalid", quoted: false }, true)
   })
-
-  // it.skip("spliceTermInQuery", () => {
-  //   function check(value: string, expected: string, replacer: Record<string, string>) {
-  //     const parsed = parse(value)
-  //     const newTerms = parsed.terms.map((term) => {
-  //       for (const [key, replacement] of Object.entries(replacer)) {
-  //         if (term.value.includes(key)) {
-  //           return parseTerm(replacement)
-  //         }
-  //       }
-  //       return term
-  //     })
-  //     const replaced = { ...parsed, terms: newTerms }
-
-  //     try {
-  //       expect(queryToString(replaced)).toBe(expected)
-  //     } catch (error) {
-  //       throw new Error(
-  //         `Splice mismatch for value "${value}" with new terms [${newTerms.join(", ")}]: ${error}`,
-  //       )
-  //     }
-  //   }
-
-  //   check("tag:cat", "tag:cat dog", { "": "dog" })
-  //   check("tag:cat", "dog tag:cat", 0, 0, ["dog"])
-  //   check("tag:cat dog", "tag:cat ", 1, 1, [])
-  //   check("tag:cat dog", "tag:cat tag:dog", 1, 1, ["tag:dog"])
-  //   check("tag:cat dog", "tag:cat tag:-dog", 1, 1, ["tag:-dog"])
-  //   check("tag:cat dog", "tag:-cat -tag:dog", 0, 2, ["tag:-cat", "-tag:dog"])
-  //   check("tag:cat dog", "tag:cat fish dog", 1, 0, ["fish"])
-
-  //   check("", "cat", 0, 0, ["cat"])
-  //   check("", "cat", 1, 0, ["cat"])
-  //   check("  ", "cat  ", 0, 0, ["cat"])
-  //   check("  cat   ", "    ", 0, 1, [])
-  //   check("   cat", "dog   cat", 1, 0, ["dog"])
-  //   check("cat  ", "cat  dog", 1, 0, ["dog"])
-  //   check("cat   dog", "cat   ", 1, 0, [])
-  //   check("cat   dog", "   dog", 1, 0, [])
-  //   check("   cat   dog   ", "   cat fish  dog   ", 1, 0, ["fish"])
-  //   check("   cat   fish   dog   ", "   cat   bird   dog   ", 1, 1, ["bird"])
-
-  //   check(
-  //     '  tag:cat   name:"sunset |beach"  prompt:workflow ',
-  //     '  tag:cat   name:"room"  prompt:workflow ',
-  //     1,
-  //     1,
-  //     ['name:"room"'],
-  //   )
-  // })
 })
