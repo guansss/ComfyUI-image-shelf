@@ -1,6 +1,6 @@
 import { isBoolean } from "lodash-es"
 import { AlertCircleIcon, CircleQuestionMarkIcon, LoaderCircleIcon, SearchIcon } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useDebounce } from "react-use"
 
 import { useTranslation } from "../../i18n/i18n"
@@ -37,15 +37,31 @@ const TERM_COLORS = {
   negativeTag: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
   filename: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300",
   prompt: "bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
-  invalid: "",
+  invalid: "bg-muted text-muted-foreground",
 } satisfies Record<SearchTerm["type"], string>
 
 export function Searchbar({ loading, query, onQueryChange, onSubmit }: SearchbarProps) {
   const t = useTranslation()
-  const [text, setText] = useState(queryToString(query))
+  const [text, setText] = useState(() => queryToString(query))
   const [cursorIndex, setCursorIndex] = useState(text.length)
+  const lastCommittedQuery = useRef(query)
 
-  useDebounce(() => onQueryChange(parseSearchValue(text, cursorIndex)), 100, [text, cursorIndex])
+  useEffect(() => {
+    if (query !== lastCommittedQuery.current) {
+      setText(queryToString(query))
+      lastCommittedQuery.current = query
+    }
+  }, [query])
+
+  useDebounce(
+    () => {
+      const newQuery = parseSearchValue(text, cursorIndex)
+      lastCommittedQuery.current = newQuery
+      onQueryChange(newQuery)
+    },
+    100,
+    [text, cursorIndex],
+  )
 
   const { data: tagSuggestions, error: tagSuggestionsError } = useTagSuggestions({
     query: query.activeTerm?.value,
