@@ -11,7 +11,8 @@ from .image_shelf.api import GalleryApi
 from .image_shelf.configuration import ShelfSettings
 from .image_shelf.database import ImageRepository
 from .image_shelf.log import logger
-from .image_shelf.nodes import SaveAsJPEG, SendToFavorites
+from .image_shelf.nodes.save_as_jpeg import SaveAsJPEG
+from .image_shelf.nodes.send_to_favorites import SendToFavorites
 
 NODE_CLASS_MAPPINGS = {
     "ImageShelfSaveAsJPEG": SaveAsJPEG,

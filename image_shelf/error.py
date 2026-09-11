@@ -1,4 +1,5 @@
 ERROR_INVALID_DIR = "INVALID_DIR"
+ERROR_NOT_RECOGNIZED = "NOT_RECOGNIZED"
 
 
 class CustomError(Exception):
@@ -8,3 +9,8 @@ class CustomError(Exception):
 
     def __str__(self) -> str:
         return f"[{self.error_code}] {super().__str__()}"
+
+
+class NotRecognizedError(CustomError):
+    def __init__(self, message: str):
+        super().__init__(ERROR_NOT_RECOGNIZED, message)

@@ -56,3 +56,15 @@ export const withErrorToast = <T>(
     return Promise.reject(error)
   })
 }
+
+export function suppress<T>(fn: () => T): T | undefined {
+  try {
+    return fn()
+  } catch (e) {
+    return undefined
+  }
+}
+
+export class NotRecognizedError extends Error {
+  name = "NotRecognizedError"
+}

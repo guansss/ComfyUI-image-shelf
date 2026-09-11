@@ -7,6 +7,8 @@ from typing import Any
 import folder_paths
 from PIL import Image
 
+from ..utils.jpeg import ExtensionVersion, save_jpeg_with_workflow
+
 
 class SaveAsJPEG:
     """Save ComfyUI IMAGE tensors as JPEG files while preserving workflow metadata."""
@@ -41,15 +43,20 @@ class SaveAsJPEG:
         save_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
             "image_shelf", str(destination), width, height
         )
-        exif = Image.Exif()
         workflow = (extra_pnginfo or {}).get("workflow")
-        if workflow is not None:
-            exif[37510] = json.dumps(workflow, separators=(",", ":")).encode("utf-8")
+        workflow_str = json.dumps(workflow, separators=(",", ":"))
 
         saved_images: list[dict[str, str]] = []
-        for image in images:
+        for tensor in images:
             image_path = Path(save_folder) / f"{filename}_{counter:05}.jpg"
-            _tensor_to_pillow(image).save(image_path, "JPEG", quality=quality, exif=exif)
+            image = _tensor_to_pillow(tensor)
+            save_jpeg_with_workflow(
+                image=image,
+                output_path=str(image_path),
+                workflow=workflow_str,
+                extension_version=ExtensionVersion(0, 1, 0),
+                quality=quality,
+            )
             saved_images.append(
                 {"filename": image_path.name, "subfolder": subfolder, "type": "output"}
             )
@@ -71,28 +78,7 @@ def _image_dimensions(image: Any) -> tuple[int, int]:
 
 
 def _tensor_to_pillow(image: Any) -> Image.Image:
-    pixels = image.detach().cpu().clamp(0, 1).mul(255).round().to(dtype=image.dtype).numpy()
+    pixels = (
+        image.detach().cpu().clamp(0, 1).mul(255).round().to(dtype=image.dtype).numpy()
+    )
     return Image.fromarray(pixels.astype("uint8"), mode="RGB")
-
-
-class SendToFavorites:
-    """Pass images through while the frontend sends the upstream saved files to Favorites."""
-
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("images",)
-    FUNCTION = "pass_through"
-    CATEGORY = "Image Shelf"
-
-    @classmethod
-    def INPUT_TYPES(cls) -> dict[str, dict[str, object]]:
-        return {
-            "required": {
-                "images": ("IMAGE",),
-                "mode": (["copy", "move"], {"default": "copy"}),
-            }
-        }
-
-    def pass_through(self, images: Any, mode: str) -> tuple[Any]:
-        if mode not in {"copy", "move"}:
-            raise ValueError("Favorites transfer mode must be copy or move.")
-        return (images,)

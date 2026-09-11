@@ -10,8 +10,8 @@ ASSETS = Path(__file__).parent / "assets"
 
 class MetadataParsingTests(unittest.TestCase):
     def test_parses_a1111_metadata_from_jpeg_fixture(self) -> None:
-        with Image.open(ASSETS / "a1111.jpg") as image:
-            result = get_image_workflow(image)
+        with open(ASSETS / "a1111.jpg", "rb") as image:
+            result = get_image_workflow(image.read())
 
         self.assertIsNone(result.parse_error)
         self.assertEqual(
@@ -28,8 +28,8 @@ class MetadataParsingTests(unittest.TestCase):
         self.assertIn("Steps: 25", result.workflow or "")
 
     def test_parses_a1111_metadata_from_png_fixture(self) -> None:
-        with Image.open(ASSETS / "a1111.png") as image:
-            result = get_image_workflow(image)
+        with open(ASSETS / "a1111.png", "rb") as image:
+            result = get_image_workflow(image.read())
 
         self.assertIsNone(result.parse_error)
         self.assertEqual(

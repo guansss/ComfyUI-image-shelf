@@ -1,5 +1,8 @@
 import exifr from "exifr"
 
+import { NotRecognizedError, suppress } from "./error"
+import { getJpegMetadata, ParsedJpegMetadata } from "./jpeg"
+
 interface ImageMetadata {
   workflow?: Record<string, unknown>
   infotext: string
@@ -8,7 +11,7 @@ interface ImageMetadata {
 }
 
 export async function getMetadataFromFile(file: File): Promise<ImageMetadata | undefined> {
-  const data = await window.comfyAPI.parser.getWorkflowDataFromFile(file)
+  const data = await window.comfyAPI?.parser.getWorkflowDataFromFile(file)
 
   if (data) {
     let workflow: unknown
@@ -17,7 +20,13 @@ export async function getMetadataFromFile(file: File): Promise<ImageMetadata | u
       workflow = data.workflow
     }
     if (typeof workflow === "string") {
-      workflow = JSON.parse(workflow)
+      try {
+        workflow = JSON.parse(workflow)
+      } catch {
+        return {
+          infotext: workflow as string,
+        }
+      }
     }
     if (typeof workflow === "object" && workflow !== null) {
       return {
@@ -27,17 +36,56 @@ export async function getMetadataFromFile(file: File): Promise<ImageMetadata | u
       }
     }
   } else {
-    const data = await exifr.parse(file, {
-      pick: ["UserComment"],
+    const exif = await exifr.parse(file, {
+      pick: ["Software", "UserComment"],
     })
-    const userComment = data?.userComment
+    const software = exif?.Software
+    const userComment = exif?.userComment
+    const bytes = new Uint8Array(await file.arrayBuffer())
+
+    if (typeof software === "string" && (!userComment || userComment instanceof Uint8Array)) {
+      let jpegMetadata: ParsedJpegMetadata | undefined
+
+      try {
+        jpegMetadata = await getJpegMetadata(
+          bytes,
+          software,
+          userComment as Uint8Array<ArrayBuffer>,
+        )
+      } catch (e) {
+        if (!(e instanceof NotRecognizedError)) {
+          throw e
+        }
+      }
+
+      if (jpegMetadata) {
+        const workflow = suppress(
+          () => JSON.parse(jpegMetadata.metadata) as Record<string, unknown>,
+        )
+        if (!workflow) {
+          return {
+            infotext: jpegMetadata.metadata,
+          }
+        }
+        return {
+          workflow: workflow,
+          infotext: JSON.stringify(workflow, null, 2),
+          ...getComfyPrompts(workflow),
+        }
+      }
+    }
+
     if (userComment && userComment instanceof Uint8Array) {
       const text = decodeUserComment(userComment)
-      const prompts = getA1111Prompts(text)
-      if (prompts) {
+      try {
+        const prompts = getA1111Prompts(text)
         return {
           infotext: text,
           ...prompts,
+        }
+      } catch (e) {
+        if (!(e instanceof NotRecognizedError)) {
+          throw e
         }
       }
     }
@@ -80,11 +128,11 @@ const PARAMETERS_RE = /^Steps:\s*\d+,/m
 export function getA1111Prompts(infotext: string): {
   prompt?: string
   negativePrompt?: string
-} | null {
+} {
   const match = PARAMETERS_RE.exec(infotext)
 
   if (!match) {
-    return null
+    throw new NotRecognizedError("No A1111 parameters line found")
   }
 
   // Everything before the parameters line.

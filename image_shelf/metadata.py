@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import io
 import json
+import logging
 import re
 from typing import Any
 
 from PIL import ExifTags, Image
 
+from image_shelf.error import NotRecognizedError
+
 from .models import ParsedWorkflow
+from .utils.jpeg import read_jpeg_workflow
 
 _PARENTHESIZED_TAG = re.compile(r"\(([^()]*)\)")
 _WEIGHT_SUFFIX = re.compile(r"\s*:\s*[-+]?\d+(?:\.\d+)?\s*$")
@@ -44,10 +49,14 @@ def unescape_important(text):
     return text
 
 
-def get_image_workflow(image: Image.Image | None = None) -> ParsedWorkflow:
+def get_image_workflow(image_bytes: bytes, image: Image.Image | None = None) -> ParsedWorkflow:
     """Read supported image workflow metadata and extract prompt tags."""
     try:
-        info = _read_image_info(image)
+        if not image:
+            with Image.open(io.BytesIO(image_bytes)) as opened_image:
+                info = _read_image_info(opened_image, image_bytes)
+        else:
+            info = _read_image_info(image, image_bytes)
         if not info:
             raise ValueError("No metadata found in image.")
 
@@ -56,11 +65,16 @@ def get_image_workflow(image: Image.Image | None = None) -> ParsedWorkflow:
         return ParsedWorkflow(None, (), (), f"Could not read image metadata: {error}")
 
 
-def _read_image_info(image: Image.Image) -> str | None:
+def _read_image_info(image: Image.Image, image_bytes: bytes) -> str | None:
     if image.format == "PNG":
         # Comfy: "workflow", A1111: "parameters"
         data = image.info.get("workflow") or image.info.get("parameters")
     else:
+        try:
+            info, _ = read_jpeg_workflow(image, image_bytes)
+            return info
+        except NotRecognizedError:
+            pass
         exif = image.getexif()
         data = exif.get(ExifTags.Base.UserComment)
         if data is None:
@@ -171,11 +185,11 @@ _PARAMETERS_RE = re.compile(
 )
 
 
-def _parse_a1111_info(infotext: str) -> ParsedWorkflow | None:
+def _parse_a1111_info(infotext: str) -> ParsedWorkflow:
     # First make sure this actually looks like A1111 infotext.
     match = _PARAMETERS_RE.search(infotext)
     if not match:
-        return None
+        raise NotRecognizedError("A1111 infotext not recognized")
 
     parameters_start = match.start()
 
@@ -198,7 +212,11 @@ def _parse_a1111_info(infotext: str) -> ParsedWorkflow | None:
         prompt = prompt_section.strip()
 
     if not prompt:
-        return None
+        return ParsedWorkflow(
+            workflow=infotext,
+            tags=(),
+            negative_tags=(),
+        )
 
     return ParsedWorkflow(
         workflow=infotext,

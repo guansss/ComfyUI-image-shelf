@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -94,9 +95,11 @@ class FolderIndexer:
         return IndexingResult(indexed, skipped, len(stale_paths), errors)
 
     def _read_image(self, path: Path, stat_result: object) -> IndexedImage:
-        with Image.open(path) as image:
-            width, height = image.size
-            parsed_workflow = get_image_workflow(image)
+        with open(path, "rb") as f:
+            file = f.read()
+            with Image.open(io.BytesIO(file)) as image:
+                width, height = image.size
+                parsed_workflow = get_image_workflow(file, image)
         return IndexedImage(
             path=path,
             width=width,
