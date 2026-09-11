@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from PIL import ExifTags, Image
 
-from image_shelf.error import NotRecognizedError
+from ..error import NotRecognizedError
 
 # ============================================================================
 # Configuration
@@ -21,6 +21,12 @@ STORAGE_APP15 = "app15"
 
 ENCODING_UNICODE = "utf-16be"
 ENCODING_GZIP = "gzip_utf-8"
+
+# See "UserComment" section in the spec: https://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
+USERCOMMENT_PREFIX_ASCII = b"ASCII\0\0\0"
+USERCOMMENT_PREFIX_UNICODE = b"UNICODE\0"
+USERCOMMENT_PREFIX_JIS = b"JIS\0\0\0\0\0"
+USERCOMMENT_PREFIX_UNDEFINED = b"\0\0\0\0\0\0\0\0"
 
 JPEG_SOI = b"\xff\xd8"
 JPEG_APP15_MARKER = b"\xff\xef"
@@ -166,31 +172,72 @@ def parse_software_header(
 # ============================================================================
 
 
-def encode_workflow(
+def encode_usercomment(
+    value: str,
+    encoding: str,
+) -> bytes:
+    if encoding == ENCODING_GZIP:
+        prefix = USERCOMMENT_PREFIX_UNDEFINED
+    elif encoding == ENCODING_UNICODE:
+        prefix = USERCOMMENT_PREFIX_UNICODE
+    else:
+        raise ValueError(f"Unsupported encoding: {encoding}")
+
+    return prefix + encode_value(value, encoding)
+
+
+def decode_usercomment(
+    usercomment: bytes,
+    encoding: str | None = None,
+) -> str:
+    prefix = usercomment[:8]
+    payload = usercomment[8:]
+
+    if prefix == USERCOMMENT_PREFIX_UNICODE:
+        if encoding and encoding != ENCODING_UNICODE:
+            raise ValueError(
+                f"Encoding mismatch: expected {ENCODING_UNICODE}, got {encoding}"
+            )
+        return payload.decode("utf-16be", errors="replace")
+    elif prefix == USERCOMMENT_PREFIX_ASCII:
+        return payload.decode("ascii", errors="replace")
+    elif prefix == USERCOMMENT_PREFIX_JIS:
+        return payload.decode("shift_jis", errors="replace")
+    elif prefix == USERCOMMENT_PREFIX_UNDEFINED:
+        if not encoding:
+            raise ValueError(
+                "Encoding must be specified for undefined usercomment prefix"
+            )
+        return decode_value(payload, encoding)
+
+    raise ValueError(f"Unknown usercomment prefix: {prefix}")
+
+
+def encode_value(
     workflow: str,
     encoding: str,
 ) -> bytes:
     if encoding == ENCODING_GZIP:
-        return compress_workflow(workflow)
+        return compress_value(workflow)
     elif encoding == ENCODING_UNICODE:
         return workflow.encode("utf-16be")
     else:
         raise ValueError(f"Unsupported encoding: {encoding}")
 
 
-def decode_workflow(
+def decode_value(
     data: bytes,
     encoding: str,
 ) -> str:
     if encoding == ENCODING_GZIP:
-        return decompress_workflow(data)
+        return decompress_value(data)
     elif encoding == ENCODING_UNICODE:
         return data.decode("utf-16be")
     else:
         raise ValueError(f"Unsupported encoding: {encoding}")
 
 
-def compress_workflow(
+def compress_value(
     workflow: str,
 ) -> bytes:
     return gzip.compress(
@@ -199,7 +246,7 @@ def compress_workflow(
     )
 
 
-def decompress_workflow(
+def decompress_value(
     data: bytes,
 ) -> str:
     return gzip.decompress(data).decode("utf-8")
@@ -514,14 +561,14 @@ def save_jpeg_with_workflow(
     # ------------------------------------------------------------------
 
     def try_comment_storage(encoding: str) -> MetadataHeader | None:
-        metadata = encode_workflow(workflow, encoding)
+        usercomment = encode_usercomment(workflow, encoding)
 
         header = MetadataHeader(
             format_version=FORMAT_VERSION,
             extension_version=extension_version,
             storage=STORAGE_USERCOMMENT,
             encoding=encoding,
-            size=len(metadata),
+            size=len(usercomment),
             chunks=1,
         )
 
@@ -530,7 +577,7 @@ def save_jpeg_with_workflow(
         exif[ExifTags.Base.Software] = inline_header.encode("ascii") + b"\0"
 
         exif_ifd = exif.get_ifd(ExifTags.Base.ExifOffset)
-        exif_ifd[ExifTags.Base.UserComment] = metadata
+        exif_ifd[ExifTags.Base.UserComment] = usercomment
 
         exif_bytes = exif.tobytes()
 
@@ -559,7 +606,7 @@ def save_jpeg_with_workflow(
     # APP15 storage
     # ------------------------------------------------------------------
 
-    metadata = encode_workflow(workflow, ENCODING_GZIP)
+    metadata = encode_value(workflow, ENCODING_GZIP)
     chunks = split_payload(metadata, MAX_APP15_PAYLOAD)
 
     header = MetadataHeader(
@@ -623,15 +670,6 @@ def read_jpeg_workflow(
 
     header = parse_software_header(software)
 
-    if header.format_version != FORMAT_VERSION:
-        raise ValueError(
-            f"Unsupported metadata format version: {header.format_version}"
-        )
-
-    # ------------------------------------------------------------------
-    # UserComment
-    # ------------------------------------------------------------------
-
     if header.storage == STORAGE_USERCOMMENT:
         data = get_usercomment(exif)
 
@@ -645,9 +683,7 @@ def read_jpeg_workflow(
                 f"UserComment size mismatch: expected {header.size}, got {len(data)}"
             )
 
-    # ------------------------------------------------------------------
-    # APP15
-    # ------------------------------------------------------------------
+        workflow = decode_usercomment(data, header.encoding)
 
     elif header.storage == STORAGE_APP15:
         data = extract_app15_segments(
@@ -655,14 +691,9 @@ def read_jpeg_workflow(
             header.chunks,
             header.size,
         )
+        workflow = decode_value(data, header.encoding)
 
     else:
         raise ValueError(f"Unsupported storage: {header.storage}")
-
-    # ------------------------------------------------------------------
-    # Decode
-    # ------------------------------------------------------------------
-
-    workflow = decode_workflow(data, header.encoding)
 
     return workflow, header

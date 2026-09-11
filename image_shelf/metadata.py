@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import io
 import json
-import logging
 import re
 from typing import Any
 
-from PIL import ExifTags, Image
+from PIL import Image
 
-from image_shelf.error import NotRecognizedError
-
+from .error import NotRecognizedError
 from .models import ParsedWorkflow
-from .utils.jpeg import read_jpeg_workflow
+from .utils.jpeg import decode_usercomment, get_usercomment, read_jpeg_workflow
 
 _PARENTHESIZED_TAG = re.compile(r"\(([^()]*)\)")
 _WEIGHT_SUFFIX = re.compile(r"\s*:\s*[-+]?\d+(?:\.\d+)?\s*$")
@@ -49,7 +47,9 @@ def unescape_important(text):
     return text
 
 
-def get_image_workflow(image_bytes: bytes, image: Image.Image | None = None) -> ParsedWorkflow:
+def get_image_workflow(
+    image_bytes: bytes, image: Image.Image | None = None
+) -> ParsedWorkflow:
     """Read supported image workflow metadata and extract prompt tags."""
     try:
         if not image:
@@ -76,22 +76,9 @@ def _read_image_info(image: Image.Image, image_bytes: bytes) -> str | None:
         except NotRecognizedError:
             pass
         exif = image.getexif()
-        data = exif.get(ExifTags.Base.UserComment)
-        if data is None:
-            exif_ifd = exif.get_ifd(ExifTags.Base.ExifOffset)
-            data = exif_ifd.get(ExifTags.Base.UserComment) if exif_ifd else None
-
-    if isinstance(data, bytes):
-        if data.startswith(b"UNICODE\0"):
-            # A1111 uses Piexif to encode the UserComment with "unicode" encoding, which is actually UTF-16BE
-            # https://github.com/hMatoba/Piexif/blob/3422fbe7a12c3ebcc90532d8e1f4e3be32ece80c/piexif/helper.py#L15
-            data = data[8:].decode("utf-16_be", errors="replace")
-        elif data.startswith(b"ASCII\0\0\0"):
-            data = data[8:].decode("ascii", errors="replace")
-        elif data.startswith(b"JIS\0\0\0\0\0"):
-            data = data[8:].decode("shift_jis", errors="replace")
-        else:
-            data = data.decode("utf-8", errors="replace")
+        usercomment = get_usercomment(exif)
+        if usercomment:
+            data = decode_usercomment(usercomment)
 
     return data if isinstance(data, str) else None
 

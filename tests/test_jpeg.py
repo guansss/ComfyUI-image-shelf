@@ -18,8 +18,10 @@ from image_shelf.utils.jpeg import (
     ExtensionVersion,
     MetadataHeader,
     build_software_header,
-    decode_workflow,
-    encode_workflow,
+    decode_usercomment,
+    decode_value,
+    encode_usercomment,
+    encode_value,
     extract_app15_segments,
     get_exif,
     get_software,
@@ -64,15 +66,15 @@ class WorkflowCodecTests(unittest.TestCase):
 
         for encoding in (ENCODING_UNICODE, ENCODING_GZIP):
             with self.subTest(encoding=encoding):
-                encoded = encode_workflow(workflow, encoding)
-                self.assertEqual(decode_workflow(encoded, encoding), workflow)
+                encoded = encode_value(workflow, encoding)
+                self.assertEqual(decode_value(encoded, encoding), workflow)
 
     def test_codecs_reject_unknown_encoding(self) -> None:
         with self.assertRaisesRegex(ValueError, "Unsupported encoding"):
-            encode_workflow("workflow", "unknown")
+            encode_value("workflow", "unknown")
 
         with self.assertRaisesRegex(ValueError, "Unsupported encoding"):
-            decode_workflow(b"workflow", "unknown")
+            decode_value(b"workflow", "unknown")
 
 
 class JpegSegmentTests(unittest.TestCase):
@@ -122,6 +124,13 @@ class JpegExifTests(unittest.TestCase):
 
         self.assertEqual(get_software(exif), "ComfyUI-Image-Shelf")
         self.assertEqual(get_usercomment(exif), b"workflow")
+
+    def test_exif_usercomment_round_trip(self) -> None:
+        usercomment = encode_usercomment("workflow", ENCODING_UNICODE)
+        self.assertEqual(decode_usercomment(usercomment), "workflow")
+
+        usercomment = encode_usercomment("workflow", ENCODING_GZIP)
+        self.assertEqual(decode_usercomment(usercomment, ENCODING_GZIP), "workflow")
 
 
 class JpegWorkflowTests(unittest.TestCase):
