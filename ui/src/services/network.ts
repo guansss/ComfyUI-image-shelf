@@ -83,7 +83,7 @@ export async function api<T>(
 
 export class NetworkError extends Error {
   constructor(message: string) {
-    super(`${i18n.error.network}: ${message}`)
+    super(`NetworkError: ${message}`)
     this.name = "NetworkError"
   }
 }
