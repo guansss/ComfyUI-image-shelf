@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import gzip
 import io
+from contextlib import contextmanager
 from dataclasses import dataclass
 
-from PIL import ExifTags, Image
+from PIL import ExifTags, Image, TiffTags
 
 from ..error import NotRecognizedError
 
@@ -512,7 +513,7 @@ def get_usercomment(
     value = exif.get(ExifTags.Base.UserComment)
 
     if value is None:
-        exif_ifd = exif.get_ifd(ExifTags.Base.ExifOffset)
+        exif_ifd = exif.get_ifd(ExifTags.IFD.Exif)
         value = exif_ifd.get(ExifTags.Base.UserComment) if exif_ifd else None
 
     if value is None:
@@ -526,7 +527,48 @@ def get_usercomment(
 # ============================================================================
 
 
+@contextmanager
+def fix_pillow_exif_tag():
+    """
+    Fixes the Pillow library's handling of the UserComment tag when generating Exif.
+
+    The UserComment is defined to have an UNDEFINED type in the Exif specification,
+    but Pillow incorrectly set it to a BYTE type if its value is a bytes object.
+    """
+    tag_group = TiffTags.TAGS_V2_GROUPS[ExifTags.IFD.Exif]
+    original_tag = tag_group.get(ExifTags.Base.UserComment)
+    override_tag = TiffTags.TagInfo(
+        ExifTags.Base.UserComment, "UserComment", TiffTags.UNDEFINED, 1
+    )
+    tag_group[ExifTags.Base.UserComment] = override_tag
+    try:
+        yield
+    finally:
+        if original_tag:
+            tag_group[ExifTags.Base.UserComment] = original_tag
+        else:
+            tag_group.pop(ExifTags.Base.UserComment, None)
+
+
 def save_jpeg_with_workflow(
+    image: Image.Image,
+    output_path: str,
+    workflow: str,
+    extension_version: ExtensionVersion,
+    *,
+    quality: int = 95,
+) -> MetadataHeader:
+    with fix_pillow_exif_tag():
+        return _save_jpeg_with_workflow(
+            image,
+            output_path,
+            workflow,
+            extension_version,
+            quality=quality,
+        )
+
+
+def _save_jpeg_with_workflow(
     image: Image.Image,
     output_path: str,
     workflow: str,
@@ -549,7 +591,7 @@ def save_jpeg_with_workflow(
     # First determine whether the compressed workflow can fit into
     # UserComment.
     #
-    # We use the actual piexif output to determine this rather than
+    # We use the actual exif output to determine this rather than
     # guessing from the UserComment field alone.
     #
     # Build EXIF with a provisional Software field first.
@@ -576,7 +618,7 @@ def save_jpeg_with_workflow(
 
         exif[ExifTags.Base.Software] = inline_header.encode("ascii") + b"\0"
 
-        exif_ifd = exif.get_ifd(ExifTags.Base.ExifOffset)
+        exif_ifd = exif.get_ifd(ExifTags.IFD.Exif)
         exif_ifd[ExifTags.Base.UserComment] = usercomment
 
         exif_bytes = exif.tobytes()
