@@ -34,14 +34,16 @@ class FolderIndexer:
         self.repository = repository
         self._folder_locks: dict[Path, asyncio.Lock] = {}
 
-    async def index_folder(self, folder: str | Path) -> IndexingResult:
+    async def index_folder(
+        self, folder: str | Path, force: bool = False
+    ) -> IndexingResult:
         normalized_folder = normalize_path(folder)
         lock = self._folder_locks.setdefault(normalized_folder, asyncio.Lock())
         async with lock:
-            return await asyncio.to_thread(self._index_folder, normalized_folder)
+            return await asyncio.to_thread(self._index_folder, normalized_folder, force)
 
-    def _index_folder(self, folder: Path) -> IndexingResult:
-        existing_states = self.repository.image_states_in_folder(folder)
+    def _index_folder(self, folder: Path, force: bool = False) -> IndexingResult:
+        existing_states = self.repository.image_states_in_folder(folder) if not force else {}
         existing_paths = set(existing_states)
 
         if not folder.is_dir():

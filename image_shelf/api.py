@@ -63,8 +63,10 @@ class GalleryApi:
             if task is None or task.done():
                 self.indexing_tasks[folder] = self._create_indexing_task(folder)
 
-    def _create_indexing_task(self, folder: Path) -> asyncio.Task[IndexingResult]:
-        task = asyncio.create_task(self._index_folder_and_broadcast(folder))
+    def _create_indexing_task(
+        self, folder: Path, force: bool = False
+    ) -> asyncio.Task[IndexingResult]:
+        task = asyncio.create_task(self._index_folder_and_broadcast(folder, force))
         task.add_done_callback(lambda t: self._handle_indexing_task_done(folder, t))
         return task
 
@@ -80,13 +82,15 @@ class GalleryApi:
             self.indexing_errors.pop(folder, None)
             task.result()
 
-    async def _index_folder_and_broadcast(self, folder: Path) -> IndexingResult:
+    async def _index_folder_and_broadcast(
+        self, folder: Path, force: bool = False
+    ) -> IndexingResult:
         tab_ids = tuple(tab.id for tab in self.tabs if folder in tab.folders)
         for tab_id in tab_ids:
             await self._broadcast("indexStart", {"tab": tab_id})
 
         try:
-            result = await self.indexer.index_folder(folder)
+            result = await self.indexer.index_folder(folder, force=force)
         except asyncio.CancelledError:
             raise
         except Exception as error:
@@ -365,10 +369,11 @@ class GalleryApi:
 
     async def reindex(self, request: web.Request) -> web.Response:
         tab = self._tab_from_request(request)
+        force = request.query.get("force", "false").lower() == "true"
         for folder in self._folders_for_tab(tab):
             task = self.indexing_tasks.get(folder)
             if task is None or task.done():
-                self.indexing_tasks[folder] = self._create_indexing_task(folder)
+                self.indexing_tasks[folder] = self._create_indexing_task(folder, force)
         return web.json_response({"accepted": True}, status=202)
 
     async def reload_settings(self, request: web.Request) -> web.Response:

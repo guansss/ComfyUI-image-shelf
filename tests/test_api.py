@@ -11,6 +11,19 @@ from image_shelf.models import GalleryTab
 
 
 class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reindex_passes_force_option_to_indexing_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            folder = Path(temporary_directory)
+            api = GalleryApi(None, None)
+            api.tabs = (GalleryTab("tab-1", "First", (folder,)),)
+            api._create_indexing_task = Mock()
+            request = Mock(query={"tab": "tab-1", "force": "true"})
+
+            response = await api.reindex(request)
+
+            self.assertEqual(response.status, 202)
+            api._create_indexing_task.assert_called_once_with(folder, True)
+
     async def test_broadcasts_index_events_for_each_tab_sharing_a_folder(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             folder = Path(temporary_directory)

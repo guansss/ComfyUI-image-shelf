@@ -228,6 +228,22 @@ class FolderIndexerTests(unittest.TestCase):
             )
             repository.close()
 
+    def test_force_reindexes_unchanged_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            image_path = root / "image.png"
+            Image.new("RGB", (1, 1)).save(image_path)
+
+            repository = ImageRepository(root / "index.sqlite")
+            indexer = FolderIndexer(repository)
+            asyncio.run(indexer.index_folder(root))
+
+            result = asyncio.run(indexer.index_folder(root, force=True))
+
+            self.assertEqual(result.indexed, 1)
+            self.assertEqual(result.skipped, 0)
+            repository.close()
+
 
 if __name__ == "__main__":
     unittest.main()

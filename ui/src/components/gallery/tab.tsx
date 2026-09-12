@@ -2,6 +2,7 @@ import { isEqual } from "lodash-es"
 import {
   CircleAlertIcon,
   FolderIcon,
+  FolderSyncIcon,
   LoaderCircleIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -63,13 +64,13 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
     }
   }
 
-  const reindexTab = async (tab: GalleryTab) => {
+  const reindexTab = async (tab: GalleryTab, force: boolean) => {
     try {
-      await reindexTabApi(tab.id)
+      await reindexTabApi(tab.id, force)
       updateTabs((current) => current?.map((t) => (t.id === tab.id ? { ...t, indexing: true } : t)))
     } catch (error: unknown) {
       errorToast({
-        title: t.gallery.reindexFailed,
+        title: force ? t.gallery.reindex : t.gallery.refresh,
         message: formatError(error),
       })
     }
@@ -169,8 +170,12 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuGroup>
-                <DropdownMenuItem onSelect={() => void reindexTab(tab)}>
+                <DropdownMenuItem onSelect={() => void reindexTab(tab, false)}>
                   <RefreshCwIcon />
+                  {t.gallery.refresh}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void reindexTab(tab, true)}>
+                  <FolderSyncIcon />
                   {t.gallery.reindex}
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled={!tab.editable} onSelect={() => editTab(tab)}>

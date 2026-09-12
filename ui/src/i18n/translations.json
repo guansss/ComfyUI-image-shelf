@@ -194,13 +194,13 @@
       "en": "Remove tab \"{{name}}\"?\nThis will not affect local files.",
       "cn": "要移除 \"{{name}}\" 标签页吗？\n该操作不会影响本地文件。"
     },
+    "refresh": {
+      "en": "Refresh",
+      "cn": "刷新"
+    },
     "reindex": {
       "en": "Re-index",
       "cn": "重新索引"
-    },
-    "reindexFailed": {
-      "en": "Could not start re-indexing",
-      "cn": "无法开始重新索引"
     },
     "reveal": {
       "en": "Reveal in file explorer",

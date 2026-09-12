@@ -240,8 +240,13 @@ export async function sendToFavorites(
   )
 }
 
-export async function reindexTab(tab: string): Promise<void> {
-  return await api(`reindex?${new URLSearchParams({ tab })}`, "POST", undefined, "ignore")
+export async function reindexTab(tab: string, force: boolean): Promise<void> {
+  return await api(
+    `reindex?${new URLSearchParams({ tab, force: String(force) })}`,
+    "POST",
+    undefined,
+    "ignore",
+  )
 }
 
 export async function revealImage(imageId: string): Promise<void> {
