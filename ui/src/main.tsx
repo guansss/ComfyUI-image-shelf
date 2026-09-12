@@ -63,7 +63,7 @@ function registerExtension(): void {
       ],
       setup: (app) => {
         console.log("ComfyUI.ImageShelf extension setup")
-        const openGalleryButton = new window.comfyAPI.button.ComfyButton({
+        const openGalleryButton = new window.comfyAPI!.button.ComfyButton({
           icon: "image-search",
           classList: "primary",
           content: "Gallery",

@@ -77,7 +77,12 @@ export function useImageMetadata({ filename, url }: { filename?: string; url?: s
     )
 
     const file = new File([blob], filename || "image", { type: blob.type })
-    const metadata = await getMetadataFromFile(file)
-    return metadata
+    try {
+      const metadata = await getMetadataFromFile(file)
+      return metadata
+    } catch (error) {
+      console.error("Failed to get image metadata:", error)
+      throw error
+    }
   })
 }

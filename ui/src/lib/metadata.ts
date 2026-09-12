@@ -1,7 +1,8 @@
 import exifr from "exifr"
 
-import { NotRecognizedError, suppress } from "./error"
-import { getJpegMetadata, ParsedJpegMetadata } from "./jpeg"
+import { ComfyWorkflowJSON } from "../comfy-shims"
+import { NotRecognizedError } from "./error"
+import { decodeUserComment, getJpegMetadata } from "./jpeg"
 
 interface ImageMetadata {
   workflow?: Record<string, unknown>
@@ -11,76 +12,73 @@ interface ImageMetadata {
 }
 
 export async function getMetadataFromFile(file: File): Promise<ImageMetadata | undefined> {
-  const data = await window.comfyAPI?.parser.getWorkflowDataFromFile(file)
+  try {
+    const data = await window.comfyAPI?.parser.getWorkflowDataFromFile(file)
+    if (data?.workflow) {
+      return parseGenerationInfo(data.workflow as ComfyWorkflowJSON)
+    }
+  } catch (e) {
+    // if Comfy fails to parse the metadata, we just ignore it and use our own methods
+    console.warn("getWorkflowDataFromFile failed", e)
+  }
 
-  if (data) {
-    let workflow: unknown
+  const exif = await exifr.parse(file, {
+    // we can only pick tags for JPEG files， it does not work well with PNG
+    pick: file.type === "image/jpeg" ? ["Software", "UserComment"] : undefined,
+  })
 
-    if (data && data.workflow) {
-      workflow = data.workflow
-    }
-    if (typeof workflow === "string") {
-      try {
-        workflow = JSON.parse(workflow)
-      } catch {
-        return {
-          infotext: workflow as string,
-        }
-      }
-    }
-    if (typeof workflow === "object" && workflow !== null) {
-      return {
-        workflow: workflow as Record<string, unknown>,
-        infotext: JSON.stringify(workflow, null, 2),
-        ...getComfyPrompts(workflow as Record<string, unknown>),
-      }
-    }
-  } else {
-    const exif = await exifr.parse(file, {
-      pick: ["Software", "UserComment"],
-    })
-    const software = exif?.Software
-    const userComment = exif?.userComment
+  if (exif?.workflow) {
+    return parseGenerationInfo(exif.workflow)
+  }
+  if (exif?.parameters) {
+    return parseGenerationInfo(exif.parameters)
+  }
+
+  const software = exif?.Software
+  const userComment = exif?.userComment
+
+  if (typeof software === "string" && (!userComment || userComment instanceof Uint8Array)) {
     const bytes = new Uint8Array(await file.arrayBuffer())
-
-    if (typeof software === "string" && (!userComment || userComment instanceof Uint8Array)) {
-      let jpegMetadata: ParsedJpegMetadata | undefined
-
-      try {
-        jpegMetadata = await getJpegMetadata(
-          bytes,
-          software,
-          userComment as Uint8Array<ArrayBuffer>,
-        )
-      } catch (e) {
-        if (!(e instanceof NotRecognizedError)) {
-          throw e
-        }
-      }
-
-      if (jpegMetadata) {
-        const workflow = suppress(
-          () => JSON.parse(jpegMetadata.metadata) as Record<string, unknown>,
-        )
-        if (!workflow) {
-          return {
-            infotext: jpegMetadata.metadata,
-          }
-        }
-        return {
-          workflow: workflow,
-          infotext: JSON.stringify(workflow, null, 2),
-          ...getComfyPrompts(workflow),
-        }
+    try {
+      const jpegMetadata = await getJpegMetadata(
+        bytes,
+        software,
+        userComment as Uint8Array<ArrayBuffer>,
+      )
+      return parseGenerationInfo(jpegMetadata.generationInfo)
+    } catch (e) {
+      if (!(e instanceof NotRecognizedError)) {
+        throw e
       }
     }
+  }
 
-    if (userComment && userComment instanceof Uint8Array) {
-      const text = decodeUserComment(userComment)
+  if (userComment instanceof Uint8Array) {
+    const generationInfo = await decodeUserComment(userComment as Uint8Array<ArrayBuffer>)
+    return parseGenerationInfo(generationInfo)
+  }
+  return undefined
+}
+
+function parseGenerationInfo(info: unknown): ImageMetadata | undefined {
+  if (!info) return undefined
+
+  if (typeof info === "string") {
+    try {
+      const parsedJson = JSON.parse(info)
+      if (parsedJson && typeof parsedJson === "object") {
+        info = parsedJson
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+
+    // if info is not a JSON, try to parse it as A1111 prompts
+    if (typeof info === "string") {
       try {
-        const prompts = getA1111Prompts(text)
+        const prompts = getA1111Prompts(info)
         return {
-          infotext: text,
+          infotext: info,
           ...prompts,
         }
       } catch (e) {
@@ -90,6 +88,16 @@ export async function getMetadataFromFile(file: File): Promise<ImageMetadata | u
       }
     }
   }
+
+  // if info is an object, assume it is a Comfy workflow JSON
+  if (typeof info === "object") {
+    return {
+      workflow: info as Record<string, unknown>,
+      infotext: JSON.stringify(info, null, 2),
+      ...getComfyPrompts(info as Record<string, unknown>),
+    }
+  }
+
   return undefined
 }
 
@@ -151,38 +159,6 @@ export function getA1111Prompts(infotext: string): {
     prompt: promptSection.slice(0, negativeMatch.index).trim(),
     negativePrompt: promptSection.slice(negativeMatch.index + negativeMatch[0].length).trim(),
   }
-}
-
-function decodeUserComment(data: Uint8Array): string {
-  if (startsWith(data, new TextEncoder().encode("UNICODE\0")))
-    return decodeUnicode(data.subarray(8))
-  if (startsWith(data, new TextEncoder().encode("ASCII\0\0\0")))
-    return new TextDecoder("ascii").decode(data.subarray(8))
-  if (startsWith(data, new TextEncoder().encode("JIS\0\0\0\0\0")))
-    return new TextDecoder("shift-jis").decode(data.subarray(8))
-  return new TextDecoder("utf-8").decode(data)
-}
-
-function startsWith(data: Uint8Array, prefix: Uint8Array): boolean {
-  if (data.length < prefix.length) return false
-  return prefix.every((byte, index) => data[index] === byte)
-}
-
-function decodeUnicode(data: Uint8Array): string {
-  if (data.length === 0) return ""
-
-  // EXIF specifies Unicode UserComment as UCS-2.
-  // In practice, A1111/piexif uses UTF-16-compatible encoding.
-  //
-  // Prefer the BOM when present.
-  if (data.length >= 2) {
-    const bom = (data[0] << 8) | data[1]
-    if (bom === 0xfeff) return new TextDecoder("utf-16be").decode(data.subarray(2))
-    if (bom === 0xfffe) return new TextDecoder("utf-16le").decode(data.subarray(2))
-  }
-
-  // A1111/piexif writes big-endian UTF-16 on normal systems.
-  return new TextDecoder("utf-16be").decode(data)
 }
 
 export function replaceTags<T>(

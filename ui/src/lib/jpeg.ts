@@ -1,3 +1,4 @@
+import { arraysEqual } from "../utils/lang"
 import { NotRecognizedError } from "./error"
 
 export interface MetadataHeader {
@@ -11,8 +12,7 @@ export interface MetadataHeader {
 
 export interface ParsedJpegMetadata {
   header: MetadataHeader
-  metadata: string
-  workflow: unknown
+  generationInfo: string
 }
 
 type StorageMode = typeof STORAGE_COMMENT | typeof STORAGE_APP15
@@ -38,27 +38,22 @@ export async function getJpegMetadata(
 ): Promise<ParsedJpegMetadata> {
   const header = parseSoftwareHeader(software)
 
-  let rawData: Uint8Array<ArrayBuffer>
+  let generationInfo: string
 
   if (header.storage === "comment") {
     if (!userComment) {
-      throw new Error("Workflow is declared as UserComment storage")
+      throw new Error("Metadata says UserComment storage, but UserComment is missing")
     }
 
-    rawData = userComment
+    validatePayload(userComment, header)
+    generationInfo = await decodeUserComment(userComment, header.encoding)
   } else {
-    rawData = findApp15Payload(jpeg, header)
+    const payload = findApp15Payload(jpeg, header)
+    validatePayload(payload, header)
+    generationInfo = await decodeValue(payload, header.encoding)
   }
 
-  validatePayload(rawData, header)
-
-  const { decoded, workflow } = await decodeWorkflow(rawData, header.encoding)
-
-  return {
-    header,
-    metadata: decoded,
-    workflow,
-  }
+  return { header, generationInfo }
 }
 
 /**
@@ -137,100 +132,39 @@ function parsePositiveInteger(value: string | undefined, name: string): number {
   return result
 }
 
-/**
- * Decode a zero-terminated EXIF ASCII Software value.
- *
- * EXIF Software is normally ASCII and may contain a trailing NUL.
- */
-function decodeExifSoftware(data: Uint8Array): string {
-  let end = data.indexOf(0)
+export async function decodeUserComment(
+  data: Uint8Array<ArrayBuffer>,
+  encoding?: Encoding,
+): Promise<string> {
+  const prefix = data.subarray(0, 8)
+  const payload = data.subarray(8)
 
-  if (end === -1) {
-    end = data.length
+  if (arraysEqual(prefix, new TextEncoder().encode("UNICODE\0"))) {
+    if (encoding && encoding !== ENCODING_UTF16BE) {
+      throw new Error(`Unsupported encoding for UNICODE UserComment: ${encoding}`)
+    }
+    return new TextDecoder("utf-16be").decode(payload)
+  } else if (arraysEqual(prefix, new TextEncoder().encode("ASCII\0\0\0"))) {
+    return new TextDecoder("ascii").decode(payload)
+  } else if (arraysEqual(prefix, new TextEncoder().encode("JIS\0\0\0\0\0"))) {
+    return new TextDecoder("shift-jis").decode(payload)
+  } else if (arraysEqual(prefix, new TextEncoder().encode("\0\0\0\0\0\0\0\0"))) {
+    if (!encoding) {
+      throw new Error("Encoding must be specified for UNDEFINED UserComment prefix")
+    }
+    return decodeValue(payload, encoding)
   }
-
-  return new TextDecoder("ascii", {
-    fatal: true,
-  }).decode(data.subarray(0, end))
+  throw new Error(`Unsupported UserComment prefix: ${prefix.toString()}`)
 }
 
-/**
- * Parse a JPEG and return its EXIF APP1 payload.
- *
- * This does not parse all EXIF structures itself. It extracts the APP1
- * payload so that an EXIF parser can be used on it.
- */
-function findExifApp1(jpeg: Uint8Array): Uint8Array | undefined {
-  assertJpeg(jpeg)
-
-  let offset = 2
-
-  while (offset < jpeg.length) {
-    if (jpeg[offset] !== 0xff) {
-      throw new Error(`Invalid JPEG marker at offset ${offset}`)
-    }
-
-    // Skip fill bytes.
-    while (offset < jpeg.length && jpeg[offset] === 0xff) {
-      offset++
-    }
-
-    if (offset >= jpeg.length) {
-      break
-    }
-
-    const marker = jpeg[offset++]
-
-    // Standalone markers.
-    if (marker === 0xd8) {
-      throw new Error("Unexpected SOI marker")
-    }
-
-    if (marker === 0xd9) {
-      break
-    }
-
-    if (marker === 0xda) {
-      // SOS: compressed image data starts here.
-      break
-    }
-
-    // TEM and restart markers have no length.
-    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
-      continue
-    }
-
-    if (offset + 2 > jpeg.length) {
-      throw new Error("Truncated JPEG segment length")
-    }
-
-    const length = readUint16BE(jpeg, offset)
-    offset += 2
-
-    if (length < 2 || offset + length - 2 > jpeg.length) {
-      throw new Error("Invalid JPEG segment length")
-    }
-
-    const payload = jpeg.subarray(offset, offset + length - 2)
-
-    if (marker === 0xe1) {
-      if (
-        payload.length >= 6 &&
-        payload[0] === 0x45 && // E
-        payload[1] === 0x78 && // x
-        payload[2] === 0x69 && // i
-        payload[3] === 0x66 && // f
-        payload[4] === 0x00 &&
-        payload[5] === 0x00
-      ) {
-        return payload
-      }
-    }
-
-    offset += length - 2
+async function decodeValue(data: Uint8Array<ArrayBuffer>, encoding: Encoding): Promise<string> {
+  if (encoding === ENCODING_GZIP_UTF8) {
+    const decompressed = await decompressGzip(data)
+    return new TextDecoder("utf-8").decode(decompressed)
+  } else if (encoding === ENCODING_UTF16BE) {
+    return new TextDecoder("utf-16be").decode(data)
   }
-
-  return undefined
+  throw new Error(`Unsupported encoding: ${encoding}`)
 }
 
 /**
@@ -348,25 +282,6 @@ function readUint16BE(data: Uint8Array, offset: number): number {
 }
 
 /**
- * Extract the raw UserComment bytes from an EXIF structure.
- *
- * This function intentionally does not interpret the UserComment encoding
- * because this format stores raw gzip bytes there.
- *
- * You need to provide an EXIF parser's result to this function.
- */
-function getRawUserComment(exifSubIFD: Record<number, Uint8Array | undefined>): Uint8Array {
-  // EXIF UserComment = 0x9286
-  const userComment = exifSubIFD[0x9286]
-
-  if (!userComment) {
-    throw new Error("EXIF UserComment not found")
-  }
-
-  return userComment
-}
-
-/**
  * Validate a raw workflow payload against the Software header.
  */
 function validatePayload(payload: Uint8Array, header: MetadataHeader): void {
@@ -396,32 +311,4 @@ async function decompressGzip(
   const buffer = await new Response(stream).arrayBuffer()
 
   return new Uint8Array(buffer)
-}
-
-/**
- * Decode the compressed workflow payload into JSON.
- */
-async function decodeWorkflow(
-  data: Uint8Array<ArrayBuffer>,
-  encoding: Encoding,
-): Promise<{ decoded: string; workflow: unknown }> {
-  let decoded: string
-
-  if (encoding === ENCODING_GZIP_UTF8) {
-    const decompressed = await decompressGzip(data)
-    decoded = new TextDecoder("utf-8").decode(decompressed)
-  } else if (encoding === ENCODING_UTF16BE) {
-    decoded = new TextDecoder("utf-16be").decode(data)
-  } else {
-    throw new Error(`Unsupported encoding: ${encoding}`)
-  }
-
-  try {
-    const workflow = JSON.parse(decoded)
-    return { decoded, workflow }
-  } catch (error) {
-    throw new Error(
-      `Invalid workflow JSON: ${error instanceof Error ? error.message : String(error)}`,
-    )
-  }
 }

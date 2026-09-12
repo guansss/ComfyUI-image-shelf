@@ -1,7 +1,5 @@
 import type {
   LGraphNode as _LGraphNode,
-  ChangeTracker,
-  ComfyApp,
   ComfyButton,
   ComfyNodeDef,
   ExecutableLGraphNode,
@@ -13,7 +11,7 @@ import type {
 
 declare global {
   interface Window {
-    comfyAPI: {
+    comfyAPI?: {
       button: {
         ComfyButton: typeof ComfyButton
       }
@@ -26,8 +24,8 @@ declare global {
   }
 }
 
-export type ComfyWorkflowJSON = ChangeTracker["initialState"]
-export type ComfyApiWorkflow = Parameters<ComfyApp["loadApiJson"]>[0]
+export type ComfyWorkflowJSON = Record<string, unknown>
+export type ComfyApiWorkflow = Record<string, unknown>
 
 /**
  * Metadata extracted from ComfyUI output files
