@@ -34,7 +34,7 @@ class SaveAsJPEG:
         images: Any,
         quality: int,
         output_folder: str,
-        prompt: str,
+        prompt: dict[str, Any] | None = None,
         extra_pnginfo: dict[str, Any] | None = None,
     ) -> dict[str, object]:
         destination = _output_destination(output_folder)

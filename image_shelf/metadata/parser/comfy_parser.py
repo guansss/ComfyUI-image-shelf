@@ -24,8 +24,13 @@ class ComfyParser(Parser):
 
 
 def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
-    api_workflow = json.loads(metadata.get("prompt"))
-    ui_workflow = json.loads(metadata.get("workflow", "null"))
+    api_workflow = metadata.get("prompt")
+    if isinstance(api_workflow, str):
+        api_workflow = json.loads(api_workflow)
+
+    ui_workflow = metadata.get("workflow", "null")
+    if isinstance(ui_workflow, str):
+        ui_workflow = json.loads(ui_workflow)
 
     prompt_result = parse_workflow(api_workflow)
     positive = tuple(
