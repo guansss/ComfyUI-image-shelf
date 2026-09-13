@@ -15,6 +15,7 @@ from .database import ImageRepository
 from .favorites import FileConflictError, transfer_to_favorites
 from .indexer import FolderIndexer, IndexingResult
 from .log import logger
+from .metadata.metadata import get_image_metadata
 from .models import GalleryTab
 from .paths import is_within_directory, normalize_path
 from .search import SearchTerm
@@ -244,13 +245,26 @@ class GalleryApi:
         return web.FileResponse(path)
 
     async def image_details(self, request: web.Request) -> web.Response:
-        image = self.repository.image_details(request.match_info["image_id"])
-        if image is None or not any(
-            is_within_directory(self.repository.path_for_public_id(image.id), folder)
-            for folder in self._tracked_folders()
+        details, path = self.repository.image_details(
+            request.match_info["image_id"]
+        ) or (None, None)
+        if details is None or not any(
+            is_within_directory(path, folder) for folder in self._tracked_folders()
         ):
             raise web.HTTPNotFound()
-        return web.json_response(asdict(image))
+        parse_error = details.parse_error
+        metadata = None
+        try:
+            metadata = await asyncio.to_thread(_get_image_metadata, path)
+        except Exception as error:
+            parse_error = f"{parse_error} ||| {error}" if parse_error else str(error)
+        return web.json_response(
+            {
+                **asdict(details),
+                "metadata": asdict(metadata) if metadata is not None else None,
+                "parse_error": parse_error,
+            }
+        )
 
     async def reveal_image(self, request: web.Request) -> web.Response:
         path = self.repository.path_for_public_id(request.match_info["image_id"])
@@ -514,6 +528,11 @@ def _reveal_in_file_explorer(path: Path) -> None:
         subprocess.run(["open", "-R", str(path)], check=True)
     else:
         subprocess.run(["xdg-open", str(path.parent)], check=True)
+
+
+def _get_image_metadata(path: Path):
+    with open(path, "rb") as file:
+        return get_image_metadata(file.read())
 
 
 def _pick_folder() -> str:

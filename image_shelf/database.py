@@ -283,10 +283,9 @@ class ImageRepository:
             ),
             key=lambda item: (-item[0], -item[1]["count"], item[1]["name"]),
         )
-        return tuple(
-            TagSuggestion(row["name"], row["type"])
-            for _, row in ranked_rows
-        )[:limit]
+        return tuple(TagSuggestion(row["name"], row["type"]) for _, row in ranked_rows)[
+            :limit
+        ]
 
     def path_for_public_id(self, public_id: str) -> Path | None:
         with self._lock:
@@ -295,11 +294,11 @@ class ImageRepository:
             ).fetchone()
         return Path(row["path"]) if row is not None else None
 
-    def image_details(self, public_id: str) -> ImageDetails | None:
+    def image_details(self, public_id: str) -> tuple[ImageDetails, str] | None:
         with self._lock:
             row = self.connection.execute(
                 """
-                SELECT public_id, filename, extension, width, height, file_size,
+                SELECT public_id, path, filename, extension, width, height, file_size,
                        created_at, parse_error
                 FROM images WHERE public_id = ?
                 """,
@@ -316,19 +315,22 @@ class ImageRepository:
                 """,
                 (public_id,),
             ).fetchall()
-        return ImageDetails(
-            id=row["public_id"],
-            filename=row["filename"],
-            extension=row["extension"],
-            width=row["width"],
-            height=row["height"],
-            file_size=row["file_size"],
-            created_at=row["created_at"],
-            parse_error=row["parse_error"],
-            tags=tuple(tag["name"] for tag in tags if tag["type"] == "positive"),
-            negative_tags=tuple(
-                tag["name"] for tag in tags if tag["type"] == "negative"
+        return (
+            ImageDetails(
+                id=row["public_id"],
+                filename=row["filename"],
+                extension=row["extension"],
+                width=row["width"],
+                height=row["height"],
+                file_size=row["file_size"],
+                created_at=row["created_at"],
+                parse_error=row["parse_error"],
+                tags=tuple(tag["name"] for tag in tags if tag["type"] == "positive"),
+                negative_tags=tuple(
+                    tag["name"] for tag in tags if tag["type"] == "negative"
+                ),
             ),
+            row["path"],
         )
 
     def delete_path(self, path: str | Path) -> None:

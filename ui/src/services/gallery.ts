@@ -49,7 +49,50 @@ export interface ImageDetails {
   parse_error: string | null
   tags: string[]
   negative_tags: string[]
+  metadata: ImageMetadata | null
 }
+
+export interface ImageMetadata {
+  type: string | null
+  info: string | Record<string, any> | null
+  normalized_info: string | null
+  prompt: PromptParseResult | Record<string, string> | null
+  tags: string[]
+  negative_tags: string[]
+  parse_error: string | null
+}
+
+export interface PromptParseResult {
+  matches: PromptMatch[]
+}
+
+interface PromptMatch {
+  text: string
+  node_id: string
+  class_type: string
+  input_name: string
+  role: PromptRole
+  confidence: number
+  source: MatchSource
+  path: PathStep[]
+}
+
+interface PathStep {
+  node_id: string
+  class_type: string
+  input_name?: string | null
+  output_index?: number | null
+}
+
+interface MatchSource {
+  kind: SourceKind
+  reason?: string | null
+  adapter?: string | null
+  hint_id?: string | null
+}
+
+type PromptRole = "positive" | "negative" | "unknown"
+type SourceKind = "generic" | "adapter" | "hint"
 
 export class FavoriteConflictError extends Error {
   constructor(public readonly suggestedFilename: string) {

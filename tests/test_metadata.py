@@ -10,7 +10,7 @@ ASSETS = Path(__file__).parent / "assets"
 class MetadataParsingTests(unittest.TestCase):
     def test_parses_api_workflow_prompts(self) -> None:
         with open(ASSETS / "api-workflow.json", encoding="utf-8") as workflow_file:
-            result = parse_metadata({"prompt": json.load(workflow_file)})
+            result = parse_metadata({"prompt": json.dumps(json.load(workflow_file))})
 
         self.assertIsNone(result.parse_error)
         self.assertEqual(result.type, "comfy")

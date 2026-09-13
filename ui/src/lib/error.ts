@@ -64,7 +64,3 @@ export function suppress<T>(fn: () => T): T | undefined {
     return undefined
   }
 }
-
-export class NotRecognizedError extends Error {
-  name = "NotRecognizedError"
-}

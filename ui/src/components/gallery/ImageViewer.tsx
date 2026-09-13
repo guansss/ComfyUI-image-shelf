@@ -16,9 +16,8 @@ import {
 import { useTranslation } from "../../i18n/i18n"
 import { configAtom } from "../../lib/config"
 import { copyToClipboard } from "../../lib/dom"
-import { formatError } from "../../lib/error"
 import { replaceTags } from "../../lib/metadata"
-import { GalleryImage } from "../../services/gallery"
+import { GalleryImage, PromptParseResult } from "../../services/gallery"
 import { joinJSX } from "../../utils/react"
 import { ScrollArea } from "../ui/scroll-area"
 import {
@@ -29,7 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select"
-import { useImageDetails, useImageMetadata } from "./api"
+import { Separator } from "../ui/separator"
+import { useImageDetails } from "./api"
 import { revealSelectedImage, sendImageToFavorites } from "./helpers"
 
 interface ImageViewerProps {
@@ -54,10 +54,6 @@ export function ImageViewer({
   const t = useTranslation()
   const [config, setConfig] = useAtom(configAtom)
   const { data: imageDetails } = useImageDetails({ imageId: image?.id })
-  const { data: metadata, error: metadataError } = useImageMetadata({
-    filename: image?.filename,
-    url: image?.url,
-  })
 
   useEffect(() => {
     const navigate = (event: KeyboardEvent) => {
@@ -70,6 +66,33 @@ export function ImageViewer({
     window.addEventListener("keydown", navigate)
     return () => window.removeEventListener("keydown", navigate)
   }, [onNavigate])
+
+  const { prompts, negativePrompts, generationInfo, metadataError } = useMemo(() => {
+    const metadata = imageDetails?.metadata
+    if (metadata?.parse_error) {
+      return { metadataError: metadata.parse_error }
+    }
+    if (metadata?.type === "comfy") {
+      const prompt = metadata.prompt as PromptParseResult
+      return {
+        generationInfo: JSON.stringify(metadata.info, null, 2),
+        prompts: prompt.matches
+          .filter((match) => match.role === "positive")
+          .map((match) => match.text),
+        negativePrompts: prompt.matches
+          .filter((match) => match.role === "negative")
+          .map((match) => match.text),
+      }
+    } else if (metadata?.type === "a1111") {
+      const prompt = metadata.prompt as Record<string, string>
+      return {
+        generationInfo: metadata.info as string,
+        prompts: prompt.prompt ? [prompt.prompt] : undefined,
+        negativePrompts: prompt.negative_prompt ? [prompt.negative_prompt] : undefined,
+      }
+    }
+    return {}
+  }, [imageDetails?.metadata])
 
   return (
     <Dialog onOpenChange={onOpenChange} open={isOpen}>
@@ -139,7 +162,7 @@ export function ImageViewer({
                   </dt>
                   <dd className="wrap-break-word whitespace-pre-wrap">
                     <PromptText
-                      prompt={metadata?.prompt}
+                      prompts={prompts}
                       tags={imageDetails.tags}
                       onTagClick={(tag) => {
                         onTagClick?.(tag, "positive")
@@ -150,7 +173,7 @@ export function ImageViewer({
                   <dt className="text-muted-foreground border-t pt-2">{t.gallery.negativeTags}</dt>
                   <dd className="wrap-break-word whitespace-pre-wrap">
                     <PromptText
-                      prompt={metadata?.negativePrompt}
+                      prompts={negativePrompts}
                       tags={imageDetails.negative_tags}
                       onTagClick={(tag) => {
                         onTagClick?.(tag, "negative")
@@ -173,8 +196,8 @@ export function ImageViewer({
                   </dt>
                   <dd className="wrap-break-word">
                     {metadataError ? (
-                      <span className="text-destructive">{formatError(metadataError)}</span>
-                    ) : metadata?.infotext ? (
+                      <span className="text-destructive">{metadataError}</span>
+                    ) : generationInfo ? (
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button variant="outline">{t.common.view}</Button>
@@ -186,10 +209,10 @@ export function ImageViewer({
                           <textarea
                             className="h-[80vh] overflow-y-auto font-mono"
                             readOnly
-                            value={metadata.infotext}
+                            value={generationInfo}
                           />
                           <DialogFooter>
-                            <Button onClick={() => void copyToClipboard(metadata.infotext)}>
+                            <Button onClick={() => void copyToClipboard(generationInfo)}>
                               {t.common.copy}
                             </Button>
                           </DialogFooter>
@@ -215,11 +238,11 @@ export function ImageViewer({
 }
 
 function PromptText({
-  prompt,
+  prompts,
   tags,
   onTagClick,
 }: {
-  prompt?: string
+  prompts?: string[]
   tags: string[]
   onTagClick?: (tag: string) => void
 }) {
@@ -233,7 +256,7 @@ function PromptText({
 
   const content = useMemo(() => {
     if (config.promptDisplayMode === "raw") {
-      return prompt
+      return prompts && joinJSX(prompts, <Separator />)
     }
     if (config.promptDisplayMode === "tags") {
       return joinJSX(
@@ -247,26 +270,32 @@ function PromptText({
         "\n",
       )
     }
-    if (!prompt) {
+    if (!prompts?.length) {
       return undefined
     }
 
     return (
       <div className="text-muted-foreground">
-        {replaceTags(prompt, tags, (tag, matchedText, occurrence) => (
-          <TagLink
-            key={`${tag}-${occurrence}`}
-            tag={tag}
-            onClick={(tag) => onClickRef.current?.(tag)}
-          >
-            {matchedText}
-          </TagLink>
-        ))}
+        {joinJSX(
+          prompts.map((prompt) =>
+            replaceTags(prompt, tags, (tag, matchedText, occurrence) => (
+              <TagLink
+                key={`${tag}-${occurrence}`}
+                tag={tag}
+                onClick={(tag) => onClickRef.current?.(tag)}
+              >
+                {matchedText}
+              </TagLink>
+            )),
+          ),
+          <Separator />,
+        )}
       </div>
     )
-  }, [prompt, tags, config])
+  }, [prompts, tags, config])
 
-  return content || t.gallery.noInfo
+  const isEmpty = !content || (Array.isArray(content) && content.length === 0)
+  return isEmpty ? t.gallery.noInfo : content
 }
 
 function TagLink({

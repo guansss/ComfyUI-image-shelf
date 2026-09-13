@@ -1,3 +1,5 @@
+import json
+import logging
 from typing import Any
 
 from ...prompt_parser import parse_workflow
@@ -22,7 +24,8 @@ class ComfyParser(Parser):
 
 
 def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
-    api_workflow = metadata.get("prompt")
+    api_workflow = json.loads(metadata.get("prompt"))
+    ui_workflow = json.loads(metadata.get("workflow", "null"))
 
     prompt_result = parse_workflow(api_workflow)
     positive = tuple(
@@ -39,7 +42,10 @@ def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
     )
     return ParsedMetadata(
         type="comfy",
-        info=metadata,
+        info={
+            "prompt": api_workflow,
+            "workflow": ui_workflow,
+        },
         normalized_info=_normalize_workflow(api_workflow),
         prompt=prompt_result,
         tags=unique_tags(positive),
