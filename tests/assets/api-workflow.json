@@ -1,0 +1,99 @@
+{
+  "1": {
+    "inputs": {
+      "seed": 951432413360540,
+      "steps": 25,
+      "cfg": 7,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": ["2", 0],
+      "positive": ["12:3", 0],
+      "negative": ["12:13:5", 0],
+      "latent_image": ["6", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "2": {
+    "inputs": {
+      "ckpt_name": "tNoobnai3_v8.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "6": {
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "7": {
+    "inputs": {
+      "samples": ["1", 0],
+      "vae": ["11", 0]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "10": {
+    "inputs": {
+      "quality": 95,
+      "output_folder": "shelf",
+      "images": ["7", 0]
+    },
+    "class_type": "ImageShelfSaveAsJPEG",
+    "_meta": {
+      "title": "Save as JPEG"
+    }
+  },
+  "11": {
+    "inputs": {
+      "vae_name": "sdxl_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "16": {
+    "inputs": {
+      "value": "best quality"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Text (Multiline)"
+    }
+  },
+  "12:3": {
+    "inputs": {
+      "text": ["16", 0],
+      "clip": ["2", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "12:13:5": {
+    "inputs": {
+      "text": "lowres",
+      "clip": ["2", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  }
+}

@@ -9,6 +9,7 @@ from PIL import Image
 
 from .error import NotRecognizedError
 from .models import ParsedWorkflow
+from .prompt_parser import parse_workflow
 from .utils.jpeg import decode_usercomment, get_usercomment, read_jpeg_workflow
 
 _PARENTHESIZED_TAG = re.compile(r"\(([^()]*)\)")
@@ -100,7 +101,24 @@ def _parse_workflow(info: str) -> ParsedWorkflow:
 def _parse_comfy_workflow(workflow: dict) -> ParsedWorkflow:
     nodes = workflow.get("nodes")
     if not isinstance(nodes, list):
-        raise TypeError("workflow has no nodes list")
+        result = parse_workflow(workflow)
+        positive = tuple(
+            tag
+            for match in result.matches
+            if match.role == "positive"
+            for tag in parse_tags(match.text)
+        )
+        negative = tuple(
+            tag
+            for match in result.matches
+            if match.role == "negative"
+            for tag in parse_tags(match.text)
+        )
+        return ParsedWorkflow(
+            workflow=_comfy_workflow_for_search(workflow),
+            tags=_unique_tags(positive),
+            negative_tags=_unique_tags(negative),
+        )
 
     prompt_text: str | None = None
     negative_prompt_text: str | None = None
@@ -126,6 +144,10 @@ def _parse_comfy_workflow(workflow: dict) -> ParsedWorkflow:
         tags=parse_tags(prompt_text) if prompt_text else (),
         negative_tags=parse_tags(negative_prompt_text) if negative_prompt_text else (),
     )
+
+
+def _unique_tags(tags: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(tags))
 
 
 def _comfy_workflow_for_search(workflow: dict) -> str:
