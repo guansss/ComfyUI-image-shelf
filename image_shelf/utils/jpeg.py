@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import gzip
 import io
+import json
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Any
 
 from PIL import ExifTags, Image, TiffTags
 
@@ -169,7 +171,7 @@ def parse_software_header(
 
 
 # ============================================================================
-# Workflow codec
+# Codec
 # ============================================================================
 
 
@@ -215,13 +217,13 @@ def decode_usercomment(
 
 
 def encode_value(
-    workflow: str,
+    value: str,
     encoding: str,
 ) -> bytes:
     if encoding == ENCODING_GZIP:
-        return compress_value(workflow)
+        return compress_value(value)
     elif encoding == ENCODING_UNICODE:
-        return workflow.encode("utf-16be")
+        return value.encode("utf-16be")
     else:
         raise ValueError(f"Unsupported encoding: {encoding}")
 
@@ -239,10 +241,10 @@ def decode_value(
 
 
 def compress_value(
-    workflow: str,
+    value: str,
 ) -> bytes:
     return gzip.compress(
-        workflow.encode("utf-8"),
+        value.encode("utf-8"),
         compresslevel=9,
     )
 
@@ -409,7 +411,7 @@ def extract_app15_segments(
     We require the APP15 segments to appear contiguously.
 
     This prevents unrelated APP15 segments elsewhere in the JPEG from
-    accidentally becoming part of the workflow.
+    accidentally becoming part of the metadata.
     """
 
     found = []
@@ -550,34 +552,34 @@ def fix_pillow_exif_tag():
             tag_group.pop(ExifTags.Base.UserComment, None)
 
 
-def save_jpeg_with_workflow(
+def save_jpeg_with_metadata(
     image: Image.Image,
     output_path: str,
-    workflow: str,
+    metadata: dict[str, Any],
     extension_version: ExtensionVersion,
     *,
     quality: int = 95,
 ) -> MetadataHeader:
     with fix_pillow_exif_tag():
-        return _save_jpeg_with_workflow(
+        return _save_jpeg_with_metadata(
             image,
             output_path,
-            workflow,
+            metadata,
             extension_version,
             quality=quality,
         )
 
 
-def _save_jpeg_with_workflow(
+def _save_jpeg_with_metadata(
     image: Image.Image,
     output_path: str,
-    workflow: str,
+    metadata: dict[str, Any],
     extension_version: ExtensionVersion,
     *,
     quality: int = 95,
 ) -> MetadataHeader:
     """
-    Save JPEG with embedded ComfyUI workflow.
+    Save JPEG with embedded metadata.
 
     Small payload:
         EXIF Software + EXIF UserComment
@@ -586,9 +588,11 @@ def _save_jpeg_with_workflow(
         EXIF Software + APP15 chunks
     """
 
+    metadata_str = json.dumps(metadata, separators=(",", ":"))
+
     exif = get_exif(image)
 
-    # First determine whether the compressed workflow can fit into
+    # First determine whether the compressed metadata can fit into
     # UserComment.
     #
     # We use the actual exif output to determine this rather than
@@ -603,7 +607,7 @@ def _save_jpeg_with_workflow(
     # ------------------------------------------------------------------
 
     def try_comment_storage(encoding: str) -> MetadataHeader | None:
-        usercomment = encode_usercomment(workflow, encoding)
+        usercomment = encode_usercomment(metadata_str, encoding)
 
         header = MetadataHeader(
             format_version=FORMAT_VERSION,
@@ -648,15 +652,15 @@ def _save_jpeg_with_workflow(
     # APP15 storage
     # ------------------------------------------------------------------
 
-    metadata = encode_value(workflow, ENCODING_GZIP)
-    chunks = split_payload(metadata, MAX_APP15_PAYLOAD)
+    payload = encode_value(metadata_str, ENCODING_GZIP)
+    chunks = split_payload(payload, MAX_APP15_PAYLOAD)
 
     header = MetadataHeader(
         format_version=FORMAT_VERSION,
         extension_version=extension_version,
         storage=STORAGE_APP15,
         encoding=ENCODING_GZIP,
-        size=len(metadata),
+        size=len(payload),
         chunks=len(chunks),
     )
 
@@ -677,7 +681,7 @@ def _save_jpeg_with_workflow(
 
     jpeg = buffer.getvalue()
 
-    # Inject raw workflow chunks.
+    # Inject raw metadata chunks.
     segments = [make_app15_segment(chunk) for chunk in chunks]
 
     jpeg = inject_app15(jpeg, segments)
@@ -693,12 +697,12 @@ def _save_jpeg_with_workflow(
 # ============================================================================
 
 
-def read_jpeg_workflow(
+def read_jpeg_metadata(
     image: Image.Image,
     raw: bytes,
-) -> tuple[str, MetadataHeader]:
+) -> tuple[dict[str, Any], MetadataHeader]:
     """
-    Read a workflow from a JPEG.
+    Read metadata from a JPEG.
 
     The Software tag tells us where the payload lives.
     """
@@ -725,7 +729,7 @@ def read_jpeg_workflow(
                 f"UserComment size mismatch: expected {header.size}, got {len(data)}"
             )
 
-        workflow = decode_usercomment(data, header.encoding)
+        metadata_str = decode_usercomment(data, header.encoding)
 
     elif header.storage == STORAGE_APP15:
         data = extract_app15_segments(
@@ -733,9 +737,14 @@ def read_jpeg_workflow(
             header.chunks,
             header.size,
         )
-        workflow = decode_value(data, header.encoding)
+        metadata_str = decode_value(data, header.encoding)
 
     else:
         raise ValueError(f"Unsupported storage: {header.storage}")
 
-    return workflow, header
+    try:
+        metadata = json.loads(metadata_str)
+    except json.JSONDecodeError as e:
+        raise ValueError("Failed to decode metadata as JSON") from e
+
+    return metadata, header

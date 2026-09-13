@@ -20,14 +20,6 @@ class IndexedImage:
 
 
 @dataclass(frozen=True)
-class ParsedWorkflow:
-    workflow: str | None
-    tags: tuple[str, ...]
-    negative_tags: tuple[str, ...]
-    parse_error: str | None = None
-
-
-@dataclass(frozen=True)
 class GalleryImage:
     id: str
     filename: str

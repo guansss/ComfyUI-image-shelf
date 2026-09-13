@@ -31,8 +31,8 @@ from image_shelf.utils.jpeg import (
     make_app15_segment,
     make_app15_segments,
     parse_software_header,
-    read_jpeg_workflow,
-    save_jpeg_with_workflow,
+    read_jpeg_metadata,
+    save_jpeg_with_metadata,
     split_payload,
 )
 
@@ -141,7 +141,7 @@ class JpegWorkflowTests(unittest.TestCase):
         with self.subTest(storage=STORAGE_USERCOMMENT):
             with self._saved_jpeg(image, workflow) as (jpeg, header):
                 self.assertEqual(header.storage, STORAGE_USERCOMMENT)
-                self.assertEqual(read_jpeg_workflow(image, jpeg), (workflow, header))
+                self.assertEqual(read_jpeg_metadata(image, jpeg), (workflow, header))
 
     def test_large_workflow_round_trip_uses_app15(self) -> None:
         generator = random.Random(0)
@@ -154,14 +154,14 @@ class JpegWorkflowTests(unittest.TestCase):
             self.assertEqual(header.storage, STORAGE_APP15)
             self.assertGreater(header.chunks, 1)
             self.assertGreater(header.size, MAX_APP15_PAYLOAD)
-            self.assertEqual(read_jpeg_workflow(image, jpeg), (workflow, header))
+            self.assertEqual(read_jpeg_metadata(image, jpeg), (workflow, header))
 
     @staticmethod
     @contextmanager
     def _saved_jpeg(image: Image.Image, workflow: str):
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_path = Path(temporary_directory) / "workflow.jpg"
-            header = save_jpeg_with_workflow(
+            header = save_jpeg_with_metadata(
                 image,
                 str(output_path),
                 workflow,

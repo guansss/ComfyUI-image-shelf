@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import folder_paths
 from PIL import Image
 
-from ..utils.jpeg import ExtensionVersion, save_jpeg_with_workflow
+from ..utils.jpeg import ExtensionVersion, save_jpeg_with_metadata
 
 
 class SaveAsJPEG:
@@ -27,7 +26,7 @@ class SaveAsJPEG:
                 "quality": ("INT", {"default": 95, "min": 1, "max": 100, "step": 1}),
                 "output_folder": ("STRING", {"default": "", "multiline": False}),
             },
-            "hidden": {"extra_pnginfo": "EXTRA_PNGINFO"},
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
     def save_images(
@@ -35,6 +34,7 @@ class SaveAsJPEG:
         images: Any,
         quality: int,
         output_folder: str,
+        prompt: str,
         extra_pnginfo: dict[str, Any] | None = None,
     ) -> dict[str, object]:
         destination = _output_destination(output_folder)
@@ -43,17 +43,18 @@ class SaveAsJPEG:
         save_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
             "image_shelf", str(destination), width, height
         )
-        workflow = (extra_pnginfo or {}).get("workflow")
-        workflow_str = json.dumps(workflow, separators=(",", ":"))
 
         saved_images: list[dict[str, str]] = []
         for tensor in images:
             image_path = Path(save_folder) / f"{filename}_{counter:05}.jpg"
             image = _tensor_to_pillow(tensor)
-            save_jpeg_with_workflow(
+            save_jpeg_with_metadata(
                 image=image,
                 output_path=str(image_path),
-                workflow=workflow_str,
+                metadata={
+                    "prompt": prompt,
+                    **(extra_pnginfo or {}),
+                },
                 extension_version=ExtensionVersion(0, 1, 0),
                 quality=quality,
             )

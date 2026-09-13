@@ -11,7 +11,7 @@ from PIL import Image
 from .database import ImageRepository
 from .error import ERROR_INVALID_DIR, CustomError
 from .log import debug_logger
-from .metadata import get_image_workflow
+from .metadata.metadata import get_image_metadata
 from .models import IndexedImage
 from .paths import normalize_path
 
@@ -43,7 +43,9 @@ class FolderIndexer:
             return await asyncio.to_thread(self._index_folder, normalized_folder, force)
 
     def _index_folder(self, folder: Path, force: bool = False) -> IndexingResult:
-        existing_states = self.repository.image_states_in_folder(folder) if not force else {}
+        existing_states = (
+            self.repository.image_states_in_folder(folder) if not force else {}
+        )
         existing_paths = set(existing_states)
 
         if not folder.is_dir():
@@ -101,7 +103,7 @@ class FolderIndexer:
             file = f.read()
             with Image.open(io.BytesIO(file)) as image:
                 width, height = image.size
-                parsed_workflow = get_image_workflow(file, image)
+                metadata = get_image_metadata(file, image)
         return IndexedImage(
             path=path,
             width=width,
@@ -109,8 +111,8 @@ class FolderIndexer:
             file_size=stat_result.st_size,
             created_at=stat_result.st_ctime,
             mtime=stat_result.st_mtime,
-            workflow=parsed_workflow.workflow,
-            parse_error=parsed_workflow.parse_error,
-            tags=parsed_workflow.tags,
-            negative_tags=parsed_workflow.negative_tags,
+            workflow=metadata.normalized_info,
+            parse_error=metadata.parse_error,
+            tags=metadata.tags,
+            negative_tags=metadata.negative_tags,
         )
