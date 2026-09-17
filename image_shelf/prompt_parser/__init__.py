@@ -1,7 +1,6 @@
-from .hints import PromptHint
 from .models import (
-    MatchSource,
     PathStep,
+    PromptHint,
     PromptMatch,
     PromptParseResult,
     PromptRole,
@@ -10,7 +9,6 @@ from .models import (
 from .parser import parse_workflow
 
 __all__ = [
-    "MatchSource",
     "PathStep",
     "PromptHint",
     "PromptMatch",

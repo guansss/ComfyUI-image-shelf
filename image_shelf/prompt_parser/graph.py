@@ -7,7 +7,7 @@ from typing import Any
 from .models import Connection, InputValue, Node
 
 
-class WorkflowGraph:
+class APIWorkflowGraph:
     def __init__(self, nodes: Mapping[str, Node]) -> None:
         self._nodes = dict(nodes)
         self._consumers: dict[tuple[str, int], list[tuple[str, str]]] = defaultdict(
@@ -22,7 +22,7 @@ class WorkflowGraph:
                     ].append((node.id, input_value.name))
 
     @classmethod
-    def from_api_workflow(cls, workflow: Mapping[str, Any]) -> WorkflowGraph:
+    def from_api_workflow(cls, workflow: Mapping[str, Any]) -> APIWorkflowGraph:
         nodes: dict[str, Node] = {}
         for raw_id, raw_node in workflow.items():
             if not isinstance(raw_node, Mapping):
@@ -39,7 +39,7 @@ class WorkflowGraph:
                 connection = cls._parse_connection(value)
                 inputs[name] = InputValue(name, connection if connection else value)
             node_id = str(raw_id)
-            nodes[node_id] = Node(node_id, class_type, inputs)
+            nodes[node_id] = Node(node_id, class_type, inputs, raw_node=raw_node)
         return cls(nodes)
 
     @staticmethod

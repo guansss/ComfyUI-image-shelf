@@ -32,7 +32,7 @@ def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
     if isinstance(ui_workflow, str):
         ui_workflow = json.loads(ui_workflow)
 
-    prompt_result = parse_workflow(api_workflow)
+    prompt_result = parse_workflow(api_workflow, ui_workflow)
     positive = tuple(
         tag
         for match in prompt_result.matches
