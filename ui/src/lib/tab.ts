@@ -41,3 +41,21 @@ export function readCustomFolders(): StoredCustomFolder[] {
       folder.path.trim().length > 0,
   )
 }
+
+export function moveCustomFolder(
+  folders: StoredCustomFolder[],
+  folderId: string,
+  direction: "up" | "down",
+): StoredCustomFolder[] {
+  const folderIndex = folders.findIndex((folder) => folder.id === folderId)
+  const destinationIndex = folderIndex + (direction === "up" ? -1 : 1)
+  if (folderIndex < 0 || destinationIndex < 0 || destinationIndex >= folders.length) {
+    return folders
+  }
+  const nextFolders = [...folders]
+  ;[nextFolders[folderIndex], nextFolders[destinationIndex]] = [
+    nextFolders[destinationIndex],
+    nextFolders[folderIndex],
+  ]
+  return nextFolders
+}

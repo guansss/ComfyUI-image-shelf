@@ -1,6 +1,8 @@
 import { isEqual } from "lodash-es"
 import {
   CircleAlertIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
   FolderIcon,
   FolderSyncIcon,
   LoaderCircleIcon,
@@ -16,6 +18,7 @@ import { useEffect, useState } from "react"
 import { i18n, useTranslation } from "../../i18n/i18n"
 import { errorToast, formatError } from "../../lib/error"
 import {
+  moveCustomFolder,
   readCustomFolders,
   saveCustomFolders,
   toStoredCustomFolder,
@@ -70,6 +73,10 @@ export function FolderList({
     if (folder.id === selectedFolderId) {
       onFolderSelect("outputs")
     }
+  }
+
+  const moveFolder = (folder: GalleryFolder, direction: "up" | "down") => {
+    saveCustomFolders((folders) => moveCustomFolder(folders, folder.id, direction))
   }
 
   const reindexFolder = async (folder: GalleryFolder, force: boolean) => {
@@ -137,11 +144,15 @@ export function FolderList({
 
   return (
     <nav className="flex flex-col gap-1 p-4 border-t">
-      {folders?.map((folder) => (
-        <div
-          key={folder.id}
-          className={cn("flex flex-wrap rounded-md", folder === selectedFolder && "bg-(--chart-3)")}
-        >
+      {folders?.map((folder) => {
+        const customFolderIndex = readCustomFolders().findIndex((item) => item.id === folder.id)
+        const isCustomFolder = customFolderIndex >= 0
+        const customFolderCount = readCustomFolders().length
+        return (
+          <div
+            key={folder.id}
+            className={cn("flex flex-wrap rounded-md", folder === selectedFolder && "bg-(--chart-3)")}
+          >
           <Button
             variant="flat"
             className={cn(
@@ -192,6 +203,20 @@ export function FolderList({
                   <Settings2Icon />
                   {t.gallery.editFolder}
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!isCustomFolder || customFolderIndex === 0}
+                  onSelect={() => moveFolder(folder, "up")}
+                >
+                  <ArrowUpIcon />
+                  {t.gallery.moveUp}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!isCustomFolder || customFolderIndex === customFolderCount - 1}
+                  onSelect={() => moveFolder(folder, "down")}
+                >
+                  <ArrowDownIcon />
+                  {t.gallery.moveDown}
+                </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
@@ -206,8 +231,9 @@ export function FolderList({
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      ))}
+          </div>
+        )
+      })}
       <Button className="grow justify-start" onClick={() => void addCustomFolder()} variant="flat">
         <PlusIcon data-icon="inline-start" />
         {t.gallery.addFolder}
