@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue } from "jotai"
-import { FolderOpenIcon, InfoIcon, StarIcon } from "lucide-react"
+import { ChevronLeftIcon, ChevronRightIcon, FolderOpenIcon, InfoIcon, StarIcon } from "lucide-react"
 import { Fragment, ReactNode, useEffect, useMemo, useRef } from "react"
 import { noop } from "swr/_internal"
 
@@ -136,8 +136,45 @@ export function ImageViewer({
             )}
           </ScrollArea>
         </aside>
-        <main className="grow flex flex-col" onClick={() => onOpenChange(false)}>
+        <main
+          className="relative grow flex flex-col"
+          onClick={() => onOpenChange(false)}
+          onWheel={(e) => {
+            e.stopPropagation()
+            onNavigate?.(e.deltaY > 0 ? 1 : -1)
+          }}
+        >
           <img alt={image?.filename} className="size-full object-contain" src={image?.url} />
+          {onNavigate && (
+            <div className="absolute top-1/2 left-0 -translate-y-1/2">
+              <Button
+                className="px-0 py-12"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate(-1)
+                }}
+                size={null}
+                variant="flat"
+              >
+                <ChevronLeftIcon className="size-16" />
+              </Button>
+            </div>
+          )}
+          {onNavigate && (
+            <div className="absolute top-1/2 right-0 -translate-y-1/2">
+              <Button
+                className="px-0 py-12"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate(1)
+                }}
+                size={null}
+                variant="flat"
+              >
+                <ChevronRightIcon className="size-16" />
+              </Button>
+            </div>
+          )}
         </main>
       </DialogContent>
     </Dialog>
