@@ -1,32 +1,61 @@
+from dataclasses import dataclass
+from typing import Literal, override
+
 from ..models import (
     ClaimPriority,
     ConditioningEndpoint,
     ConditioningInput,
     NodeAdapter,
+    PromptRole,
     SemanticClaim,
     TextInput,
 )
 
-ENDPOINTS = {
-    "KSampler": {"positive": "positive", "negative": "negative"},
-}
 
-TEXTS = {
-    "CLIPTextEncode": ("text",),
+@dataclass
+class KnownInput:
+    name: str
+    type: Literal["conditioning", "text"]
+    role: PromptRole | None = None
+
+
+@dataclass(frozen=True)
+class BuiltInNode:
+    type: str
+    inputs: list[KnownInput]
+
+
+BUILT_IN_NODES_LIST: list[BuiltInNode] = [
+    BuiltInNode(
+        "KSampler",
+        [
+            KnownInput("positive", "conditioning", "positive"),
+            KnownInput("negative", "conditioning", "negative"),
+        ],
+    ),
+    BuiltInNode("CLIPTextEncode", [KnownInput("text", "text")]),
+]
+
+BUILT_IN_NODES: dict[str, BuiltInNode] = {
+    node.type: node for node in BUILT_IN_NODES_LIST
 }
 
 
 class BuiltinNodesAdapter(NodeAdapter):
+    @override
     def analyze(self, node, context):
         semantics = context.semantics
 
-        if node.class_type in ENDPOINTS:
-            for input_name, role in ENDPOINTS[node.class_type].items():
+        if node.class_type in BUILT_IN_NODES:
+            for input in BUILT_IN_NODES[node.class_type].inputs:
+                if not input.role:
+                    continue
+
                 semantics.add_endpoint(
                     ConditioningEndpoint(
                         node_id=node.id,
-                        input_name=input_name,
-                        role=role,
+                        input_name=input.name,
+                        role=input.role,
                         confidence=0.9,
                         initiator=BuiltinNodesAdapter.__name__,
                         claim=SemanticClaim(
@@ -37,7 +66,7 @@ class BuiltinNodesAdapter(NodeAdapter):
                 semantics.add_input(
                     ConditioningInput(
                         node_id=node.id,
-                        input_name=input_name,
+                        input_name=input.name,
                         output_index=None,
                         confidence=0.9,
                         claim=SemanticClaim(
@@ -46,12 +75,13 @@ class BuiltinNodesAdapter(NodeAdapter):
                     )
                 )
 
-        if node.class_type in TEXTS:
-            for input_name in TEXTS[node.class_type]:
+            for input in BUILT_IN_NODES[node.class_type].inputs:
+                if input.type != "text":
+                    continue
                 semantics.add_input(
                     TextInput(
                         node_id=node.id,
-                        input_name=input_name,
+                        input_name=input.name,
                         output_index=None,
                         confidence=0.9,
                         claim=SemanticClaim(

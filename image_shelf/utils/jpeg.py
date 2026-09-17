@@ -82,7 +82,7 @@ def build_software_header(header: MetadataHeader) -> str:
         ComfyUI-Image-Shelf;v=1;ext=1.2.3;storage=app15;size=123456;chunks=2;encoding=gzip_utf-8
     """
 
-    header = (
+    header_str = (
         f"{SOFTWARE_PREFIX}"
         f";v={FORMAT_VERSION}"
         f";ext={header.extension_version}"
@@ -92,10 +92,10 @@ def build_software_header(header: MetadataHeader) -> str:
         f";encoding={header.encoding}"
     )
 
-    if len(header.encode("ascii")) + 1 > MAX_SOFTWARE_LENGTH:
+    if len(header_str.encode("ascii")) + 1 > MAX_SOFTWARE_LENGTH:
         raise ValueError("Software header is too large")
 
-    return header
+    return header_str
 
 
 def parse_software_header(
@@ -473,23 +473,6 @@ def inject_app15(
 # ============================================================================
 
 
-def get_exif(image: Image.Image) -> Image.Exif:
-    """
-    Return existing EXIF, or an empty EXIF structure.
-    """
-
-    try:
-        return image.getexif()
-    except Exception:
-        return {
-            "0th": {},
-            "Exif": {},
-            "GPS": {},
-            "1st": {},
-            "thumbnail": None,
-        }
-
-
 def get_software(
     exif: Image.Exif,
 ) -> str | None:
@@ -590,7 +573,7 @@ def _save_jpeg_with_metadata(
 
     metadata_str = json.dumps(metadata, separators=(",", ":"))
 
-    exif = get_exif(image)
+    exif = image.getexif()
 
     # First determine whether the compressed metadata can fit into
     # UserComment.
@@ -707,7 +690,7 @@ def read_jpeg_metadata(
     The Software tag tells us where the payload lives.
     """
 
-    exif = get_exif(image)
+    exif = image.getexif()
 
     software = get_software(exif)
 

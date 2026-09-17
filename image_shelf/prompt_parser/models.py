@@ -4,7 +4,9 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
+
+T = TypeVar("T")
 
 PromptRole = Literal["positive", "negative", "unknown"]
 SourceKind = Literal["tracing", "match"]
@@ -12,7 +14,7 @@ SourceKind = Literal["tracing", "match"]
 
 class NodeAdapter(ABC):
     @abstractmethod
-    def analyze(self, node: Node, context: AnalysisContext) -> list[SemanticClaim]:
+    def analyze(self, node: Node, context: AnalysisContext) -> None:
         pass
 
 
@@ -29,16 +31,16 @@ class NodeSemantics:
             Callable[[SemanticEndpoint | SemanticInput], bool]
         ] = []
 
-    def _resolve_with_claims(
+    def _resolve_with_claims[T: SemanticEndpoint | SemanticInput](
         self,
-        items: list[SemanticEndpoint] | list[SemanticInput],
-        new_item: SemanticEndpoint | SemanticInput,
+        items: list[T],
+        new_item: T,
     ) -> None:
         if any(suppression(new_item) for suppression in self._suppressions):
             return
 
         def resolve_against(
-            existing_items: list[SemanticEndpoint] | list[SemanticInput],
+            existing_items: list[T],
         ) -> None:
             if not existing_items or (
                 new_item.claim.exclusive_group

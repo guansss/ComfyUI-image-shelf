@@ -1,9 +1,11 @@
 import base64
+import json
 import random
 import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, cast
 
 from PIL import ExifTags, Image
 
@@ -23,7 +25,6 @@ from image_shelf.utils.jpeg import (
     encode_usercomment,
     encode_value,
     extract_app15_segments,
-    get_exif,
     get_software,
     get_usercomment,
     inject_app15,
@@ -90,7 +91,7 @@ class JpegSegmentTests(unittest.TestCase):
         )
         self.assertEqual(
             b"".join(
-                payload
+                cast(bytes, payload)
                 for marker, payload in iter_jpeg_segments(
                     b"\xff\xd8" + b"".join(segments) + b"\xff\xda"
                 )
@@ -118,7 +119,7 @@ class JpegSegmentTests(unittest.TestCase):
 class JpegExifTests(unittest.TestCase):
     def test_exif_helpers_read_software_and_usercomment(self) -> None:
         image = Image.new("RGB", (4, 4), "white")
-        exif = get_exif(image)
+        exif = image.getexif()
         exif[ExifTags.Base.Software] = b"ComfyUI-Image-Shelf\0"
         exif[ExifTags.Base.UserComment] = b"workflow"
 
@@ -135,7 +136,7 @@ class JpegExifTests(unittest.TestCase):
 
 class JpegWorkflowTests(unittest.TestCase):
     def test_small_workflow_round_trip_uses_usercomment(self) -> None:
-        workflow = '{"nodes": [{"type": "KSampler"}], "text": "日本語"}'
+        workflow = json.loads('{"nodes": [{"type": "KSampler"}], "text": "日本語"}')
         image = Image.new("RGB", (8, 8), "white")
 
         with self.subTest(storage=STORAGE_USERCOMMENT):
@@ -147,7 +148,7 @@ class JpegWorkflowTests(unittest.TestCase):
         generator = random.Random(0)
         random_bytes = bytes(generator.getrandbits(8) for _ in range(80000))
         workflow_data = base64.b64encode(random_bytes).decode("ascii")
-        workflow = '{"workflow": "' + workflow_data + '"}'
+        workflow = {"workflow": workflow_data}
         image = Image.new("RGB", (8, 8), "white")
 
         with self._saved_jpeg(image, workflow) as (jpeg, header):
@@ -158,7 +159,7 @@ class JpegWorkflowTests(unittest.TestCase):
 
     @staticmethod
     @contextmanager
-    def _saved_jpeg(image: Image.Image, workflow: str):
+    def _saved_jpeg(image: Image.Image, workflow: dict[str, Any]):
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_path = Path(temporary_directory) / "workflow.jpg"
             header = save_jpeg_with_metadata(

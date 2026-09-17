@@ -1,11 +1,12 @@
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, override
 
 from ..models import (
     ClaimPriority,
     ConditioningEndpoint,
     ConditioningInput,
     NodeAdapter,
+    PromptRole,
     SemanticClaim,
     SemanticInput,
     TextInput,
@@ -38,6 +39,7 @@ class HeuristicAdapter(NodeAdapter):
                 }
             )
 
+    @override
     def analyze(self, node, context):
         semantics = context.semantics
 
@@ -172,7 +174,7 @@ class HeuristicAdapter(NodeAdapter):
                 )
 
 
-def guess_conditioning_role(input_name: str) -> tuple[str, float]:
+def guess_conditioning_role(input_name: str) -> tuple[PromptRole, float]:
     name = input_name.lower().strip()
 
     if "negative" in name:

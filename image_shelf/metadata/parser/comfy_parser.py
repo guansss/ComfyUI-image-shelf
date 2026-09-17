@@ -1,6 +1,6 @@
 import json
-import logging
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, cast
 
 from ...prompt_parser import parse_workflow
 from ...tag.tag_parser import parse_tags, unique_tags
@@ -27,6 +27,7 @@ def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
     api_workflow = metadata.get("prompt")
     if isinstance(api_workflow, str):
         api_workflow = json.loads(api_workflow)
+    api_workflow = cast(Mapping[str, Any], api_workflow)
 
     ui_workflow = metadata.get("workflow", "null")
     if isinstance(ui_workflow, str):
@@ -58,7 +59,7 @@ def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
     )
 
 
-def _normalize_workflow(workflow: dict) -> str:
+def _normalize_workflow(workflow: Mapping[str, Any]) -> str:
     """
     Convert workflow data into a normalized string representation for consistent comparison.
     String values and object keys are extracted and concatenated, while non-string primitive

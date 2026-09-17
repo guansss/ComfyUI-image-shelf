@@ -75,7 +75,7 @@ class GalleryTab:
     editable: bool = False
     removable: bool = False
 
-    def dict(self) -> dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             **self.__dict__,
             "folders": [str(folder) for folder in self.folders],

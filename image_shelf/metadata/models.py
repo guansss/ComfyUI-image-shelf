@@ -22,7 +22,7 @@ class ParsedMetadata:
     type: str | None = None
     info: str | dict[str, Any] | None = None
     normalized_info: str | None = None
-    prompt: PromptParseResult | dict[str, str] | None = None
+    prompt: PromptParseResult | dict[str, str | None] | None = None
     tags: tuple[str, ...] = ()
     negative_tags: tuple[str, ...] = ()
     parse_error: str | None = None

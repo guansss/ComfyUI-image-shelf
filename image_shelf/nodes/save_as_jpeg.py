@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import folder_paths
+import folder_paths  # pyrefly: ignore [missing-import]
 from PIL import Image
 
 from ..utils.jpeg import ExtensionVersion, save_jpeg_with_metadata

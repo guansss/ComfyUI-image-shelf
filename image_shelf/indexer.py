@@ -4,6 +4,7 @@ import asyncio
 import io
 import time
 from dataclasses import dataclass
+from os import stat_result
 from pathlib import Path
 
 from PIL import Image
@@ -98,7 +99,7 @@ class FolderIndexer:
 
         return IndexingResult(indexed, skipped, len(stale_paths), errors)
 
-    def _read_image(self, path: Path, stat_result: object) -> IndexedImage:
+    def _read_image(self, path: Path, stat_result: stat_result) -> IndexedImage:
         with open(path, "rb") as f:
             file = f.read()
             with Image.open(io.BytesIO(file)) as image:

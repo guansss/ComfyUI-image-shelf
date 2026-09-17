@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from typing import override
 
 from ..models import (
     ClaimPriority,
@@ -14,6 +15,7 @@ class HintAdapter(NodeAdapter):
     def __init__(self, hints: Iterable[PromptHint]):
         self.hints = tuple(hints)
 
+    @override
     def analyze(self, node, context):
         semantics = context.semantics
 
@@ -21,6 +23,8 @@ class HintAdapter(NodeAdapter):
         input_hints = [hint for hint in hints if hint.input_name]
 
         for hint in input_hints:
+            assert hint.input_name
+
             if hint.ignore:
                 semantics.suppress(
                     lambda item, hint=hint: (

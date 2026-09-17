@@ -14,7 +14,7 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
     async def test_reindex_passes_force_option_to_indexing_task(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             folder = Path(temporary_directory)
-            api = GalleryApi(None, None)
+            api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
             api.tabs = (GalleryTab("tab-1", "First", (folder,)),)
             api._create_indexing_task = Mock()
             request = Mock(query={"tab": "tab-1", "force": "true"})
@@ -27,7 +27,7 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
     async def test_broadcasts_index_events_for_each_tab_sharing_a_folder(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             folder = Path(temporary_directory)
-            api = GalleryApi(None, None)
+            api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
             api.tabs = (
                 GalleryTab("tab-1", "First", (folder,)),
                 GalleryTab("tab-2", "Second", (folder,)),
@@ -77,7 +77,7 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
     async def test_broadcasts_index_error(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             folder = Path(temporary_directory)
-            api = GalleryApi(None, None)
+            api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
             api.tabs = (GalleryTab("tab-1", "First", (folder,)),)
             websocket = Mock()
             websocket.send_json = AsyncMock()

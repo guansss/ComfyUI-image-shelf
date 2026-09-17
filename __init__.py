@@ -1,18 +1,27 @@
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import folder_paths
-import nodes
-import server
+import folder_paths  # pyrefly: ignore [missing-import]
+import nodes  # pyrefly: ignore [missing-import]
+import server  # pyrefly: ignore [missing-import]
 from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
 
-from .image_shelf.api import GalleryApi
-from .image_shelf.configuration import ShelfSettings
-from .image_shelf.database import ImageRepository
-from .image_shelf.log import logger
-from .image_shelf.nodes.save_as_jpeg import SaveAsJPEG
-from .image_shelf.nodes.send_to_favorites import SendToFavorites
+if TYPE_CHECKING:
+    from image_shelf.api import GalleryApi
+    from image_shelf.configuration import ShelfSettings
+    from image_shelf.database import ImageRepository
+    from image_shelf.log import logger
+    from image_shelf.nodes.save_as_jpeg import SaveAsJPEG
+    from image_shelf.nodes.send_to_favorites import SendToFavorites
+else:
+    from .image_shelf.api import GalleryApi
+    from .image_shelf.configuration import ShelfSettings
+    from .image_shelf.database import ImageRepository
+    from .image_shelf.log import logger
+    from .image_shelf.nodes.save_as_jpeg import SaveAsJPEG
+    from .image_shelf.nodes.send_to_favorites import SendToFavorites
+
 
 NODE_CLASS_MAPPINGS = {
     "ImageShelfSaveAsJPEG": SaveAsJPEG,
@@ -82,7 +91,7 @@ if os.path.exists(dist_path):
     project_name = os.path.basename(workspace_path)
 
     try:
-        from comfy_config import config_parser
+        from comfy_config import config_parser  # pyrefly: ignore [missing-import]
 
         project_config = config_parser.extract_node_configuration(workspace_path)
         project_name = project_config.project.name

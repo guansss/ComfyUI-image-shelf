@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from pathlib import Path
 from threading import Lock, Timer
+from typing import Any, cast
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.observers.api import ObservedWatch
 
 from .indexer import SUPPORTED_EXTENSIONS, IndexingResult
 from .paths import normalize_path
@@ -17,13 +19,13 @@ class FolderWatcher:
 
     def __init__(
         self,
-        index_folder: Callable[[Path], Awaitable[IndexingResult]],
+        index_folder: Callable[[Path], Coroutine[Any, Any, IndexingResult]],
         loop: asyncio.AbstractEventLoop,
     ) -> None:
         self.index_folder = index_folder
         self.loop = loop
         self.observer = Observer()
-        self._watches: dict[Path, object] = {}
+        self._watches: dict[Path, ObservedWatch] = {}
         self._timers: dict[Path, Timer] = {}
         self._lock = Lock()
 
@@ -63,9 +65,7 @@ class FolderWatcher:
     def _submit_index(self, folder: Path) -> None:
         with self._lock:
             self._timers.pop(folder, None)
-        self.loop.call_soon_threadsafe(
-            asyncio.create_task, self.index_folder(folder)
-        )
+        self.loop.call_soon_threadsafe(asyncio.create_task, self.index_folder(folder))
 
     def _cancel_timer(self, folder: Path) -> None:
         timer = self._timers.pop(folder, None)
@@ -74,16 +74,17 @@ class FolderWatcher:
 
 
 class _IndexEventHandler(FileSystemEventHandler):
-    def __init__(self, folder: Path, callback: object) -> None:
+    def __init__(self, folder: Path, callback: Callable[[Path], None]) -> None:
         self.folder = folder
         self.callback = callback
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
+        src_path = cast(str, event.src_path)
         paths = (
-            Path(event.src_path),
-            Path(getattr(event, "dest_path", event.src_path)),
+            Path(src_path),
+            Path(getattr(event, "dest_path", src_path)),
         )
         if any(path.suffix.lower() in SUPPORTED_EXTENSIONS for path in paths):
             self.callback(self.folder)

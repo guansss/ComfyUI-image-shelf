@@ -96,7 +96,7 @@ def _trace_upstream(
             ),
         )
     ]
-    visited: set[tuple[str, int]] = set()
+    visited: set[tuple[str, str]] = set()
     count = 0
 
     while stack:

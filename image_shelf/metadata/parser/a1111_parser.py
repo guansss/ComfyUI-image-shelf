@@ -1,5 +1,7 @@
+# pyrefly: ignore-errors[unsupported-operation]
+
 import re
-from typing import Any
+from typing import Any, cast
 
 from ...tag.tag_parser import (
     escape_important,
@@ -37,9 +39,11 @@ class A1111Parser(Parser):
 
 
 def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
-    infotext: str = metadata.get("parameters") or metadata.get("usercomment")
+    infotext = metadata.get("parameters") or metadata.get("usercomment")
+    assert isinstance(infotext, str), "Infotext must be a string"
 
     match = _PARAMETERS_RE.search(infotext)
+    assert match, "No parameters section found in infotext"
 
     parameters_start = match.start()
 
@@ -49,7 +53,7 @@ def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
     # A1111 uses this exact marker for the negative prompt.
     negative_marker = "\nNegative prompt:"
 
-    negative_prompt = None
+    negative_prompt: str | None = None
 
     if negative_marker in prompt_section:
         prompt, negative_prompt = prompt_section.split(
@@ -91,7 +95,7 @@ def _parse_a1111_tags(prompt: str) -> tuple[str, ...]:
     # >>> _parse_a1111_prompt("a (((house:1.3)) BREAK [on] a (hill:0.5), sun, (((sky))).")
     # 'a house , on a hill, sun, sky.'
     res = _parse_prompt_attention(prompt)
-    prompt = "".join(text if text != "BREAK" else "," for text, _ in res)
+    prompt = "".join(cast(str, text) if text != "BREAK" else "," for text, _ in res)
 
     prompt = unescape_important(prompt)
 

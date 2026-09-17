@@ -86,9 +86,9 @@ class ImageRepository:
     def _upsert_image_rows(
         self,
         image_rows: tuple[tuple[Path, IndexedImage], ...],
-        workflow_ids: dict[str, int | None] | None = None,
+        workflow_ids: dict[str, int] | None = None,
     ) -> dict[Path, int]:
-        workflow_ids = workflow_ids or {None: None}
+        workflow_ids = workflow_ids or {}
         values: list[object] = []
         for normalized_path, image in image_rows:
             values.extend(
@@ -102,7 +102,7 @@ class ImageRepository:
                     image.file_size,
                     image.created_at,
                     image.mtime,
-                    workflow_ids[image.workflow],
+                    workflow_ids.get(image.workflow) if image.workflow else None,
                     image.parse_error,
                 )
             )
@@ -136,9 +136,7 @@ class ImageRepository:
             raise RuntimeError("Image upsert did not return every image ID")
         return result
 
-    def _upsert_workflows(
-        self, images: Iterable[IndexedImage]
-    ) -> dict[str, int | None]:
+    def _upsert_workflows(self, images: Iterable[IndexedImage]) -> dict[str, int]:
         workflows = {image.workflow for image in images if image.workflow}
         workflow_ids: dict[str, int] = {}
         workflows = tuple(workflows)
@@ -166,7 +164,7 @@ class ImageRepository:
             workflow_ids.update({row["content"]: int(row["id"]) for row in rows})
         if len(workflow_ids) != len(workflows):
             raise RuntimeError("Workflow upsert did not return every workflow ID")
-        return workflow_ids | {None: None}
+        return workflow_ids
 
     def list_images(
         self,

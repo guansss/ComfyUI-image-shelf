@@ -7,8 +7,9 @@ import sys
 import time
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
-from aiohttp import web
+from aiohttp import typedefs, web
 
 from .configuration import ShelfSettings
 from .database import ImageRepository
@@ -30,10 +31,10 @@ class GalleryApi:
     ) -> None:
         self.repository = repository
         self.settings = settings
-        self.tabs: list[GalleryTab] = []
+        self.tabs: tuple[GalleryTab, ...] = ()
         self.indexer = FolderIndexer(repository)
         self.indexing_tasks: dict[Path, asyncio.Task[IndexingResult]] = {}
-        self.indexing_errors: dict[Path, Exception] = {}
+        self.indexing_errors: dict[Path, BaseException] = {}
         self.folder_picker_tasks: set[asyncio.Task[None]] = set()
         self.websocket_clients: set[web.WebSocketResponse] = set()
         self.watcher: FolderWatcher | None = None
@@ -54,7 +55,7 @@ class GalleryApi:
         if self.watcher:
             self.watcher.reconfigure(current_folders)
         await self._broadcast(
-            "tabsUpdated", {"tabs": [tab.dict() for tab in self.tabs]}
+            "tabsUpdated", {"tabs": [tab.as_dict() for tab in self.tabs]}
         )
         await self._index_folders(current_folders - previous_folders)
 
@@ -248,8 +249,12 @@ class GalleryApi:
         details, path = self.repository.image_details(
             request.match_info["image_id"]
         ) or (None, None)
-        if details is None or not any(
-            is_within_directory(path, folder) for folder in self._tracked_folders()
+        if (
+            details is None
+            or path is None
+            or not any(
+                is_within_directory(path, folder) for folder in self._tracked_folders()
+            )
         ):
             raise web.HTTPNotFound()
         parse_error = details.parse_error
@@ -311,7 +316,7 @@ class GalleryApi:
 
         await self._broadcast("pickFolder", result)
 
-    async def _broadcast(self, event: str, data: dict[str, object]) -> None:
+    async def _broadcast(self, event: str, data: dict[str, Any]) -> None:
         message = {"event": event, "data": data}
         clients = tuple(self.websocket_clients)
         results = await asyncio.gather(
@@ -490,7 +495,7 @@ def create_gallery_app(
 
 @web.middleware
 async def _development_cors_middleware(
-    request: web.Request, handler: web.Handler
+    request: web.Request, handler: typedefs.Handler
 ) -> web.StreamResponse:
     origin = request.headers.get("Origin", "")
     allowed_origin = (
@@ -530,7 +535,7 @@ def _reveal_in_file_explorer(path: Path) -> None:
         subprocess.run(["xdg-open", str(path.parent)], check=True)
 
 
-def _get_image_metadata(path: Path):
+def _get_image_metadata(path: Path | str):
     with open(path, "rb") as file:
         return get_image_metadata(file.read())
 

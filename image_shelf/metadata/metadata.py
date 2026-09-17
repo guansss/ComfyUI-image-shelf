@@ -11,7 +11,7 @@ from .models import ParsedMetadata, Parser
 from .parser.a1111_parser import A1111Parser
 from .parser.comfy_parser import ComfyParser
 
-metadata_parsers: list[Parser] = [ComfyParser, A1111Parser]
+metadata_parsers: list[type[Parser]] = [ComfyParser, A1111Parser]
 
 
 def get_image_metadata(
@@ -38,7 +38,8 @@ def _read_image_metadata(
     image: Image.Image, image_bytes: bytes
 ) -> dict[str, Any] | None:
     if image.format == "PNG":
-        return image.info
+         # Only preserve string keys, and I don't know the usage of the tuple keys
+        return {k: v for k, v in image.info.items() if isinstance(k, str)}
     else:
         try:
             metadata, _ = read_jpeg_metadata(image, image_bytes)
