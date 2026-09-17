@@ -1,6 +1,6 @@
 import { useAtom, useAtomValue } from "jotai"
-import { FolderOpenIcon, StarIcon } from "lucide-react"
-import { ReactNode, useEffect, useMemo, useRef } from "react"
+import { FolderOpenIcon, InfoIcon, StarIcon } from "lucide-react"
+import { Fragment, ReactNode, useEffect, useMemo, useRef } from "react"
 import { noop } from "swr/_internal"
 
 import { Button } from "@/components/ui/button"
@@ -13,12 +13,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 
+import { ComfyApiWorkflow, ComfyWorkflowJSON } from "../../comfy-shims"
 import { useTranslation } from "../../i18n/i18n"
 import { configAtom } from "../../lib/config"
 import { copyToClipboard } from "../../lib/dom"
 import { replaceTags } from "../../lib/metadata"
-import { GalleryImage, PromptParseResult } from "../../services/gallery"
+import { GalleryImage, ImageDetails, PromptParseResult } from "../../services/gallery"
 import { joinJSX } from "../../utils/react"
+import { Badge } from "../ui/badge"
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
 import { ScrollArea } from "../ui/scroll-area"
 import {
   Select,
@@ -28,18 +31,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select"
-import { Separator } from "../ui/separator"
 import { useImageDetails } from "./api"
 import { revealSelectedImage, sendImageToFavorites } from "./helpers"
 
-interface ImageViewerProps {
+const ROLE_COLORS: Record<string, string> = {
+  positive: "bg-sky-50 text-sky-700 dark:bg-sky-900 dark:text-sky-200",
+  negative: "bg-amber-50 text-amber-700 dark:bg-amber-900 dark:text-amber-200",
+  unknown: "bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-200",
+}
+
+const ROLE_ORDER: string[] = ["positive", "negative", "unknown"]
+
+interface ImageViewerProps extends MetadataProps {
   index?: number
   total?: number
   image?: GalleryImage
   isOpen: boolean
-  onOpenChange: (open: boolean) => void
   onNavigate?: (offset: number) => void
-  onTagClick?: (tag: string, type: "positive" | "negative") => void
 }
 
 export function ImageViewer({
@@ -52,7 +60,6 @@ export function ImageViewer({
   onTagClick,
 }: ImageViewerProps) {
   const t = useTranslation()
-  const [config, setConfig] = useAtom(configAtom)
   const { data: imageDetails } = useImageDetails({ imageId: image?.id })
 
   useEffect(() => {
@@ -66,33 +73,6 @@ export function ImageViewer({
     window.addEventListener("keydown", navigate)
     return () => window.removeEventListener("keydown", navigate)
   }, [onNavigate])
-
-  const { prompts, negativePrompts, generationInfo, metadataError } = useMemo(() => {
-    const metadata = imageDetails?.metadata
-    if (metadata?.parse_error) {
-      return { metadataError: metadata.parse_error }
-    }
-    if (metadata?.type === "comfy") {
-      const prompt = metadata.prompt as PromptParseResult
-      return {
-        generationInfo: JSON.stringify(metadata.info, null, 2),
-        prompts: prompt.matches
-          .filter((match) => match.role === "positive")
-          .map((match) => match.text),
-        negativePrompts: prompt.matches
-          .filter((match) => match.role === "negative")
-          .map((match) => match.text),
-      }
-    } else if (metadata?.type === "a1111") {
-      const prompt = metadata.prompt as Record<string, string>
-      return {
-        generationInfo: metadata.info as string,
-        prompts: prompt.prompt ? [prompt.prompt] : undefined,
-        negativePrompts: prompt.negative_prompt ? [prompt.negative_prompt] : undefined,
-      }
-    }
-    return {}
-  }, [imageDetails?.metadata])
 
   return (
     <Dialog onOpenChange={onOpenChange} open={isOpen}>
@@ -126,8 +106,8 @@ export function ImageViewer({
               </Button>
             </div>
             {imageDetails ? (
-              <div className="flex flex-col gap-2 py-2 border-t text-sm">
-                <dl className="grid grid-cols-1 md:grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4">
+              <div className="flex flex-col text-sm">
+                <dl className="grid grid-cols-1 md:grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4 py-2 border-b">
                   <dt className="text-muted-foreground">{t.gallery.dimensions}</dt>
                   <dd className="wrap-break-word">
                     {imageDetails.width} x {imageDetails.height}
@@ -139,90 +119,17 @@ export function ImageViewer({
                   <dt className="text-muted-foreground">{t.gallery.fileSize}</dt>
                   <dd className="wrap-break-word">{Math.ceil(imageDetails.file_size / 1024)} KB</dd>
                 </dl>
-                <dl className="flex flex-col gap-2 px-4">
-                  <dt className="text-muted-foreground flex items-center justify-between border-t pt-2">
-                    {t.gallery.tags}
-                    <Select
-                      onValueChange={(value) =>
-                        setConfig({ promptDisplayMode: value as "tags" | "raw" | "both" })
-                      }
-                      value={config.promptDisplayMode}
-                    >
-                      <SelectTrigger title={t.viewer.promptModeSelect} className="basis-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="tags">{t.viewer.promptMode.tags}</SelectItem>
-                          <SelectItem value="raw">{t.viewer.promptMode.raw}</SelectItem>
-                          <SelectItem value="both">{t.viewer.promptMode.both}</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </dt>
-                  <dd className="wrap-break-word whitespace-pre-wrap">
-                    <PromptText
-                      prompts={prompts}
-                      tags={imageDetails.tags}
-                      onTagClick={(tag) => {
-                        onTagClick?.(tag, "positive")
-                        onOpenChange(false)
-                      }}
-                    />
-                  </dd>
-                  <dt className="text-muted-foreground border-t pt-2">{t.gallery.negativeTags}</dt>
-                  <dd className="wrap-break-word whitespace-pre-wrap">
-                    <PromptText
-                      prompts={negativePrompts}
-                      tags={imageDetails.negative_tags}
-                      onTagClick={(tag) => {
-                        onTagClick?.(tag, "negative")
-                        onOpenChange(false)
-                      }}
-                    />
-                  </dd>
-                  {imageDetails.parse_error && (
-                    <>
-                      <dt className="text-muted-foreground border-t pt-2">
-                        {t.gallery.metadataWarning}
-                      </dt>
-                      <dd className="wrap-break-word text-destructive">
-                        {imageDetails.parse_error}
-                      </dd>
-                    </>
-                  )}
-                  <dt className="text-muted-foreground border-t pt-2">
-                    {t.gallery.generationInfo}
-                  </dt>
-                  <dd className="wrap-break-word">
-                    {metadataError ? (
-                      <span className="text-destructive">{metadataError}</span>
-                    ) : generationInfo ? (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline">{t.common.view}</Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:min-w-sm">
-                          <DialogHeader>
-                            <DialogTitle>{t.gallery.generationInfo}</DialogTitle>
-                          </DialogHeader>
-                          <textarea
-                            className="h-[80vh] overflow-y-auto font-mono"
-                            readOnly
-                            value={generationInfo}
-                          />
-                          <DialogFooter>
-                            <Button onClick={() => void copyToClipboard(generationInfo)}>
-                              {t.common.copy}
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    ) : (
-                      t.gallery.noInfo
-                    )}
-                  </dd>
-                </dl>
+                {imageDetails.parse_error && (
+                  <dl className="flex flex-col gap-2 px-4 py-2 border-b">
+                    <dt className="text-muted-foreground">{t.gallery.metadataWarning}</dt>
+                    <dd className="wrap-break-word text-destructive">{imageDetails.parse_error}</dd>
+                  </dl>
+                )}
+                <Metadata
+                  imageDetails={imageDetails}
+                  onOpenChange={onOpenChange}
+                  onTagClick={onTagClick}
+                />
               </div>
             ) : (
               <p className="mt-5 text-sm text-muted-foreground">{t.gallery.loading}</p>
@@ -237,12 +144,175 @@ export function ImageViewer({
   )
 }
 
+interface MetadataProps {
+  imageDetails: ImageDetails
+  onTagClick?: (tag: string, type: "positive" | "negative") => void
+  onOpenChange: (open: boolean) => void
+}
+
+function Metadata({ imageDetails, onTagClick, onOpenChange }: MetadataProps) {
+  const t = useTranslation()
+  const [config, setConfig] = useAtom(configAtom)
+
+  const { type, prompt, info, parse_error } = imageDetails.metadata || {}
+
+  const [infoText, comfyWorkflows] = useMemo(() => {
+    if (!info) {
+      return [undefined, undefined]
+    }
+    if (type === "comfy") {
+      return [
+        JSON.stringify(info, null, 2),
+        info as { workflow: ComfyWorkflowJSON; prompt: ComfyApiWorkflow },
+      ]
+    } else if (type === "a1111") {
+      return [info as string, undefined]
+    }
+    return [undefined, undefined]
+  }, [type, info])
+
+  if (!imageDetails?.metadata) {
+    return null
+  }
+
+  return (
+    <dl className="flex flex-col gap-2 py-2">
+      <dt className="text-muted-foreground flex items-center justify-between px-4">
+        {t.gallery.tags}
+        <Select
+          onValueChange={(value) =>
+            setConfig({ promptDisplayMode: value as "tags" | "raw" | "both" })
+          }
+          value={config.promptDisplayMode}
+        >
+          <SelectTrigger title={t.viewer.promptModeSelect} className="basis-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="tags">{t.viewer.promptMode.tags}</SelectItem>
+              <SelectItem value="raw">{t.viewer.promptMode.raw}</SelectItem>
+              <SelectItem value="both">{t.viewer.promptMode.both}</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </dt>
+      {type === "comfy" &&
+        (prompt as PromptParseResult | null)?.matches
+          .sort(
+            (a, b) =>
+              (ROLE_ORDER.indexOf(a.role) + 1 || 999) - (ROLE_ORDER.indexOf(b.role) + 1 || 999) ||
+              b.score - a.score ||
+              b.text.length - a.text.length,
+          )
+          .map(({ node_id, input_name, role, text, score, path, reason }) => {
+            const getNode = (id: string) => comfyWorkflows?.prompt[id]
+            const getDisplayName = (id: string) => getNode(id)?._meta.title || id
+            const node = getNode(node_id)
+            path = path.slice().reverse()
+
+            return (
+              <Fragment key={node_id + input_name + role + text}>
+                <dt className="flex gap-2 items-center px-4 text-muted-foreground">
+                  <Badge className={ROLE_COLORS[role] || ROLE_COLORS.unknown}>{role}</Badge>
+                  <span className="truncate">{getDisplayName(node_id)}</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="flat" size="icon-sm" className="ml-auto">
+                        <InfoIcon />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto max-w-screen whitespace-pre-wrap font-mono">
+                      {`Node ID: ${node_id}
+Node Name: ${getDisplayName(node_id)}
+Node Class: ${node?.class_type ?? "N/A"}
+Input Name: ${input_name}
+Role: ${role}
+Match Reason: ${reason}
+Score: ${score}
+---
+Path:
+${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${getDisplayName(p.node_id)}]${p.output_index ?? ""}`, "  ")}
+`}
+                    </PopoverContent>
+                  </Popover>
+                </dt>
+                <dd className="px-4">
+                  <PromptText
+                    prompt={text}
+                    tags={role === "negative" ? imageDetails.negative_tags : imageDetails.tags}
+                    onTagClick={(tag) => {
+                      onTagClick?.(tag, role === "negative" ? "negative" : "positive")
+                      onOpenChange(false)
+                    }}
+                  />
+                </dd>
+              </Fragment>
+            )
+          })}
+      {type === "a1111" && (
+        <>
+          <dt className="px-4">
+            <Badge className={ROLE_COLORS["positive"]}>positive</Badge>
+          </dt>
+          <dd className="px-4 wrap-break-word whitespace-pre-wrap">
+            <PromptText
+              prompt={(prompt as Record<string, string> | null)?.prompt}
+              tags={imageDetails.tags}
+              onTagClick={(tag) => {
+                onTagClick?.(tag, "positive")
+                onOpenChange(false)
+              }}
+            />
+          </dd>
+          <dt className="px-4">
+            <Badge className={ROLE_COLORS["negative"]}>negative</Badge>
+          </dt>
+          <dd className="px-4 wrap-break-word whitespace-pre-wrap">
+            <PromptText
+              prompt={(prompt as Record<string, string> | null)?.negative_prompt}
+              tags={imageDetails.negative_tags}
+              onTagClick={(tag) => {
+                onTagClick?.(tag, "negative")
+                onOpenChange(false)
+              }}
+            />
+          </dd>
+        </>
+      )}
+      <dt className="text-muted-foreground border-t px-4 py-2">{t.gallery.generationInfo}</dt>
+      <dd className="wrap-break-word px-4">
+        {parse_error ? (
+          <span className="text-destructive">{parse_error}</span>
+        ) : infoText ? (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline">{t.common.view}</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:min-w-sm">
+              <DialogHeader>
+                <DialogTitle>{t.gallery.generationInfo}</DialogTitle>
+              </DialogHeader>
+              <textarea className="h-[80vh] overflow-y-auto font-mono" readOnly value={infoText} />
+              <DialogFooter>
+                <Button onClick={() => void copyToClipboard(infoText)}>{t.common.copy}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          t.gallery.noInfo
+        )}
+      </dd>
+    </dl>
+  )
+}
+
 function PromptText({
-  prompts,
+  prompt,
   tags,
   onTagClick,
 }: {
-  prompts?: string[]
+  prompt?: string
   tags: string[]
   onTagClick?: (tag: string) => void
 }) {
@@ -256,7 +326,7 @@ function PromptText({
 
   const content = useMemo(() => {
     if (config.promptDisplayMode === "raw") {
-      return prompts && joinJSX(prompts, <Separator />)
+      return prompt
     }
     if (config.promptDisplayMode === "tags") {
       return joinJSX(
@@ -270,29 +340,24 @@ function PromptText({
         "\n",
       )
     }
-    if (!prompts?.length) {
+    if (!prompt?.length) {
       return undefined
     }
 
     return (
       <div className="text-muted-foreground">
-        {joinJSX(
-          prompts.map((prompt) =>
-            replaceTags(prompt, tags, (tag, matchedText, occurrence) => (
-              <TagLink
-                key={`${tag}-${occurrence}`}
-                tag={tag}
-                onClick={(tag) => onClickRef.current?.(tag)}
-              >
-                {matchedText}
-              </TagLink>
-            )),
-          ),
-          <Separator />,
-        )}
+        {replaceTags(prompt, tags, (tag, matchedText, occurrence) => (
+          <TagLink
+            key={`${tag}-${occurrence}`}
+            tag={tag}
+            onClick={(tag) => onClickRef.current?.(tag)}
+          >
+            {matchedText}
+          </TagLink>
+        ))}
       </div>
     )
-  }, [prompts, tags, config])
+  }, [prompt, tags, config])
 
   const isEmpty = !content || (Array.isArray(content) && content.length === 0)
   return isEmpty ? t.gallery.noInfo : content

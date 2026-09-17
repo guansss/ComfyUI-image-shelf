@@ -72,27 +72,18 @@ interface PromptMatch {
   class_type: string
   input_name: string
   role: PromptRole
-  confidence: number
-  source: MatchSource
+  score: number
+  reason: string
   path: PathStep[]
 }
 
 interface PathStep {
   node_id: string
-  class_type: string
-  input_name?: string | null
-  output_index?: number | null
-}
-
-interface MatchSource {
-  kind: SourceKind
-  reason?: string | null
-  adapter?: string | null
-  hint_id?: string | null
+  output_index: number | null
+  input_name: string
 }
 
 type PromptRole = "positive" | "negative" | "unknown"
-type SourceKind = "generic" | "adapter" | "hint"
 
 export class FavoriteConflictError extends Error {
   constructor(public readonly suggestedFilename: string) {

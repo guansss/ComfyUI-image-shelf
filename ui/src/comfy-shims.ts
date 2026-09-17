@@ -9,6 +9,11 @@ import type {
   SerializedNodeId,
 } from "@comfyorg/comfyui-frontend-types"
 
+import {
+  ComfyApiWorkflow as _ComfyApiWorkflow,
+  ComfyWorkflowJSON as _ComfyWorkflowJSON,
+} from "./lib/workflowSchema"
+
 declare global {
   interface Window {
     comfyAPI?: {
@@ -24,8 +29,8 @@ declare global {
   }
 }
 
-export type ComfyWorkflowJSON = Record<string, unknown>
-export type ComfyApiWorkflow = Record<string, unknown>
+export type ComfyWorkflowJSON = _ComfyWorkflowJSON
+export type ComfyApiWorkflow = _ComfyApiWorkflow
 
 /**
  * Metadata extracted from ComfyUI output files
