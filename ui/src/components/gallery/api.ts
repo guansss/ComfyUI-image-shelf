@@ -1,4 +1,4 @@
-import useSWR from "swr"
+import useSWRImmutable from "swr/immutable"
 
 import { SERVER_URL } from "../../global"
 import {
@@ -12,7 +12,7 @@ import {
 interface ImageQueryOptions extends ImageQuery {}
 
 export function useImageQuery({ ...req }: ImageQueryOptions) {
-  return useSWR(
+  return useSWRImmutable(
     ["images", req],
     async () => {
       const imageList = await fetchImages(req)
@@ -26,14 +26,14 @@ export function useImageQuery({ ...req }: ImageQueryOptions) {
 }
 
 export function useTabList() {
-  return useSWR("tabs", async () => {
+  return useSWRImmutable("tabs", async () => {
     const tabList = await fetchTabs()
     return tabList.items
   })
 }
 
 export function useTagSuggestions({ query }: { query?: string }) {
-  return useSWR(
+  return useSWRImmutable(
     query ? ["tagSuggestions", query] : null,
     async ([, query]) => {
       const tagSuggestions = await fetchTagSuggestions(query, 100)
@@ -44,7 +44,7 @@ export function useTagSuggestions({ query }: { query?: string }) {
 }
 
 export function useImageDetails({ imageId }: { imageId?: string }) {
-  return useSWR(imageId ? ["imageDetails", imageId] : null, async ([, imageId]) => {
+  return useSWRImmutable(imageId ? ["imageDetails", imageId] : null, async ([, imageId]) => {
     const imageDetails = await fetchImageDetails(imageId)
     return imageDetails
   })

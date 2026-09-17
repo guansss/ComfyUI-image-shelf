@@ -42,7 +42,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 const ROLE_ORDER: string[] = ["positive", "negative", "unknown"]
 
-interface ImageViewerProps extends MetadataProps {
+interface ImageViewerProps extends Pick<MetadataProps, "onTagClick" | "onOpenChange"> {
   index?: number
   total?: number
   image?: GalleryImage

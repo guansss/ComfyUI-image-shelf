@@ -3,6 +3,7 @@ import { clamp } from "lodash-es"
 import { AlertCircleIcon, ChevronLeftIcon, ChevronRightIcon, ImageIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useDebounce } from "react-use"
+import { useSWRConfig } from "swr"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -58,6 +59,7 @@ export function GalleryControl({ openEvent }: GalleryControlProps) {
 
 export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const t = useTranslation()
+  const { unload } = useSWRConfig()
   const [selectedTabId, setSelectedTabId] = useState("outputs")
   const [query, setQuery] = useState<SearchQuery>(emptyQuery())
   const [debouncedQuery, setDebouncedQuery] = useState<SearchQuery>(query)
@@ -89,6 +91,11 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const images = imageList?.items ?? []
   const imageListTotal = imageList?.total ?? 0
   const dimensions = imageList?.dimensions ?? []
+
+  // Clear SWR cache when the gallery is opened to ensure fresh data is fetched
+  useEffect(() => {
+    if (isOpen) unload()
+  }, [isOpen, unload])
 
   const selectTab = (tabId: string) => {
     setSelectedTabId(tabId)
