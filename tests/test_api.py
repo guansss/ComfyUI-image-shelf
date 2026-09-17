@@ -7,7 +7,7 @@ from aiohttp import web
 
 from image_shelf.api import GalleryApi, _development_cors_middleware
 from image_shelf.indexer import IndexingResult
-from image_shelf.models import GalleryTab
+from image_shelf.models import GalleryFolder
 
 
 class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
@@ -15,9 +15,9 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             folder = Path(temporary_directory)
             api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
-            api.tabs = (GalleryTab("tab-1", "First", (folder,)),)
+            api.folders = (GalleryFolder("folder-1", "First", folder),)
             api._create_indexing_task = Mock()
-            request = Mock(query={"tab": "tab-1", "force": "true"})
+            request = Mock(query={"folder": "folder-1", "force": "true"})
 
             response = await api.reindex(request)
 
@@ -28,9 +28,9 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             folder = Path(temporary_directory)
             api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
-            api.tabs = (
-                GalleryTab("tab-1", "First", (folder,)),
-                GalleryTab("tab-2", "Second", (folder,)),
+            api.folders = (
+                GalleryFolder("folder-1", "First", folder),
+                GalleryFolder("folder-2", "Second", folder),
             )
             websocket = Mock()
             websocket.send_json = AsyncMock()
@@ -45,12 +45,12 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 [call.args[0] for call in websocket.send_json.await_args_list],
                 [
-                    {"event": "indexStart", "data": {"tab": "tab-1"}},
-                    {"event": "indexStart", "data": {"tab": "tab-2"}},
+                    {"event": "indexStart", "data": {"folder": "folder-1"}},
+                    {"event": "indexStart", "data": {"folder": "folder-2"}},
                     {
                         "event": "indexFinish",
                         "data": {
-                            "tab": "tab-1",
+                            "folder": "folder-1",
                             "result": {
                                 "indexed": 2,
                                 "skipped": 1,
@@ -62,7 +62,7 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
                     {
                         "event": "indexFinish",
                         "data": {
-                            "tab": "tab-2",
+                            "folder": "folder-2",
                             "result": {
                                 "indexed": 2,
                                 "skipped": 1,
@@ -78,7 +78,7 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             folder = Path(temporary_directory)
             api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
-            api.tabs = (GalleryTab("tab-1", "First", (folder,)),)
+            api.folders = (GalleryFolder("folder-1", "First", folder),)
             websocket = Mock()
             websocket.send_json = AsyncMock()
             api.websocket_clients.add(websocket)
@@ -90,10 +90,10 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 [call.args[0] for call in websocket.send_json.await_args_list],
                 [
-                    {"event": "indexStart", "data": {"tab": "tab-1"}},
+                    {"event": "indexStart", "data": {"folder": "folder-1"}},
                     {
                         "event": "indexFinish",
-                        "data": {"tab": "tab-1", "error": "failed"},
+                        "data": {"folder": "folder-1", "error": "failed"},
                     },
                 ],
             )

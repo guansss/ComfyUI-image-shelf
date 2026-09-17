@@ -17,7 +17,7 @@ from .favorites import FileConflictError, transfer_to_favorites
 from .indexer import FolderIndexer, IndexingResult
 from .log import logger
 from .metadata.metadata import get_image_metadata
-from .models import GalleryTab
+from .models import GalleryFolder
 from .paths import is_within_directory, normalize_path
 from .search import SearchTerm
 from .watcher import FolderWatcher
@@ -31,7 +31,7 @@ class GalleryApi:
     ) -> None:
         self.repository = repository
         self.settings = settings
-        self.tabs: tuple[GalleryTab, ...] = ()
+        self.folders: tuple[GalleryFolder, ...] = ()
         self.indexer = FolderIndexer(repository)
         self.indexing_tasks: dict[Path, asyncio.Task[IndexingResult]] = {}
         self.indexing_errors: dict[Path, BaseException] = {}
@@ -40,24 +40,24 @@ class GalleryApi:
         self.watcher: FolderWatcher | None = None
 
     async def apply_settings(self) -> None:
-        await self._replace_and_reindex(self.settings.get_tabs())
+        await self._replace_and_reindex(self.settings.get_folders())
 
-    async def _replace_and_reindex(self, tabs: list[GalleryTab]) -> None:
-        previous_folders = self._tracked_folders()
-        self.tabs = self._normalize_tabs(tabs)
-        current_folders = self._tracked_folders()
-        for folder in previous_folders - current_folders:
-            task = self.indexing_tasks.pop(folder, None)
+    async def _replace_and_reindex(self, folders: list[GalleryFolder]) -> None:
+        previous_paths = self._tracked_paths()
+        self.folders = self._normalize_folders(folders)
+        current_paths = self._tracked_paths()
+        for path in previous_paths - current_paths:
+            task = self.indexing_tasks.pop(path, None)
             if task and not task.done():
                 task.cancel()
-            self.indexing_errors.pop(folder, None)
-        self.repository.delete_untracked_paths(current_folders)
+            self.indexing_errors.pop(path, None)
+        self.repository.delete_untracked_paths(current_paths)
         if self.watcher:
-            self.watcher.reconfigure(current_folders)
+            self.watcher.reconfigure(current_paths)
         await self._broadcast(
-            "tabsUpdated", {"tabs": [tab.as_dict() for tab in self.tabs]}
+            "foldersUpdated", {"folders": [folder.as_dict() for folder in self.folders]}
         )
-        await self._index_folders(current_folders - previous_folders)
+        await self._index_folders(current_paths - previous_paths)
 
     async def _index_folders(self, folders: set[Path]) -> None:
         for folder in folders:
@@ -87,24 +87,24 @@ class GalleryApi:
     async def _index_folder_and_broadcast(
         self, folder: Path, force: bool = False
     ) -> IndexingResult:
-        tab_ids = tuple(tab.id for tab in self.tabs if folder in tab.folders)
-        for tab_id in tab_ids:
-            await self._broadcast("indexStart", {"tab": tab_id})
+        folder_ids = tuple(item.id for item in self.folders if folder == item.path)
+        for folder_id in folder_ids:
+            await self._broadcast("indexStart", {"folder": folder_id})
 
         try:
             result = await self.indexer.index_folder(folder, force=force)
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            for tab_id in tab_ids:
+            for folder_id in folder_ids:
                 await self._broadcast(
-                    "indexFinish", {"tab": tab_id, "error": str(error)}
+                    "indexFinish", {"folder": folder_id, "error": str(error)}
                 )
             raise
 
-        for tab_id in tab_ids:
+        for folder_id in folder_ids:
             await self._broadcast(
-                "indexFinish", {"tab": tab_id, "result": asdict(result)}
+                "indexFinish", {"folder": folder_id, "result": asdict(result)}
             )
         return result
 
@@ -144,24 +144,22 @@ class GalleryApi:
         self.repository.close()
 
     @staticmethod
-    def _normalize_tabs(tabs: list[GalleryTab]) -> tuple[GalleryTab, ...]:
+    def _normalize_folders(folders: list[GalleryFolder]) -> tuple[GalleryFolder, ...]:
         return tuple(
-            GalleryTab(
-                id=tab.id,
-                name=tab.name,
-                folders=tuple(
-                    dict.fromkeys(normalize_path(folder) for folder in tab.folders)
-                ),
-                editable=tab.editable,
-                removable=tab.removable,
+            GalleryFolder(
+                id=folder.id,
+                name=folder.name,
+                path=normalize_path(folder.path),
+                editable=folder.editable,
+                removable=folder.removable,
             )
-            for tab in tabs
+            for folder in folders
         )
 
     def register(self, app: web.Application, register_startup: bool = True) -> None:
         app.add_routes(
             [
-                web.get("/api/image-shelf/v1/tabs", self.tabs_status),
+                web.get("/api/image-shelf/v1/folders", self.folders_status),
                 web.get("/api/image-shelf/v1/images", self.list_images),
                 web.get("/api/image-shelf/v1/images/{image_id}", self.image_details),
                 web.post(
@@ -184,7 +182,7 @@ class GalleryApi:
                 web.post("/api/image-shelf/v1/settings", self.update_settings),
                 web.post("/api/image-shelf/v1/settings/reload", self.reload_settings),
                 web.post("/api/image-shelf/v1/reindex", self.reindex),
-                web.get("/api/image-shelf/v1/status", self.tabs_status),
+                web.get("/api/image-shelf/v1/status", self.folders_status),
             ]
         )
         if register_startup:
@@ -195,13 +193,13 @@ class GalleryApi:
     async def list_images(self, request: web.Request) -> web.Response:
         started_at = time.perf_counter()
         try:
-            tab = self._tab_from_request(request)
+            folder = self._folder_from_request(request)
             dimensions = tuple(
                 _parse_dimension(value)
                 for value in request.query.getall("dimension", [])
             )
             page = self.repository.list_images(
-                self._folders_for_tab(tab),
+                self._paths_for_folder(folder),
                 terms=self._terms_from_request(request),
                 dimensions=dimensions,
                 sort_by=request.query.get("sort", "created_at"),
@@ -239,7 +237,7 @@ class GalleryApi:
             path is None
             or not path.is_file()
             or not any(
-                is_within_directory(path, folder) for folder in self._tracked_folders()
+                is_within_directory(path, folder) for folder in self._tracked_paths()
             )
         ):
             raise web.HTTPNotFound()
@@ -253,7 +251,7 @@ class GalleryApi:
             details is None
             or path is None
             or not any(
-                is_within_directory(path, folder) for folder in self._tracked_folders()
+                is_within_directory(path, folder) for folder in self._tracked_paths()
             )
         ):
             raise web.HTTPNotFound()
@@ -277,7 +275,7 @@ class GalleryApi:
             path is None
             or not path.is_file()
             or not any(
-                is_within_directory(path, folder) for folder in self._tracked_folders()
+                is_within_directory(path, folder) for folder in self._tracked_paths()
             )
         ):
             raise web.HTTPNotFound()
@@ -333,17 +331,9 @@ class GalleryApi:
 
     async def send_to_favorites(self, request: web.Request) -> web.Response:
         source = self.repository.path_for_public_id(request.match_info["image_id"])
-        favorites_folder = next(
-            (
-                folder
-                for tab in self.tabs
-                if tab.id == "favorites"
-                for folder in tab.folders
-            ),
-            None,
-        )
+        favorites_folder = self.settings.get_favorites_folder()
         if source is None or not any(
-            is_within_directory(source, folder) for folder in self._tracked_folders()
+            is_within_directory(source, folder) for folder in self._tracked_paths()
         ):
             raise web.HTTPNotFound()
         if favorites_folder is None:
@@ -372,13 +362,13 @@ class GalleryApi:
         )
 
     async def tags(self, request: web.Request) -> web.Response:
-        tab = self._tab_from_request(request) if request.query.get("tab") else None
+        folder = self._folder_from_request(request) if request.query.get("folder") else None
         return web.json_response(
             {
                 "items": [
                     asdict(suggestion)
                     for suggestion in self.repository.suggest_tags(
-                        self._folders_for_tab(tab) if tab else None,
+                        self._paths_for_folder(folder) if folder else None,
                         request.query.get("q", ""),
                         limit=int(request.query.get("limit", "10")),
                     )
@@ -387,12 +377,12 @@ class GalleryApi:
         )
 
     async def reindex(self, request: web.Request) -> web.Response:
-        tab = self._tab_from_request(request)
+        folder = self._folder_from_request(request)
         force = request.query.get("force", "false").lower() == "true"
-        for folder in self._folders_for_tab(tab):
-            task = self.indexing_tasks.get(folder)
-            if task is None or task.done():
-                self.indexing_tasks[folder] = self._create_indexing_task(folder, force)
+        path = folder.path
+        task = self.indexing_tasks.get(path)
+        if task is None or task.done():
+            self.indexing_tasks[path] = self._create_indexing_task(path, force)
         return web.json_response({"accepted": True}, status=202)
 
     async def reload_settings(self, request: web.Request) -> web.Response:
@@ -417,46 +407,38 @@ class GalleryApi:
             raise web.HTTPBadRequest(text=str(error)) from error
         return web.json_response({"accepted": True}, status=202)
 
-    async def tabs_status(self, request: web.Request) -> web.Response:
+    async def folders_status(self, request: web.Request) -> web.Response:
         return web.json_response(
             {
                 "items": [
                     {
-                        "id": tab.id,
-                        "name": tab.name,
-                        "folders": [str(folder) for folder in tab.folders],
-                        "editable": tab.editable,
-                        "removable": tab.removable,
+                        "id": folder.id,
+                        "name": folder.name,
+                        "path": str(folder.path),
+                        "editable": folder.editable,
+                        "removable": folder.removable,
                         "indexing": bool(
-                            any(
-                                (task := self.indexing_tasks.get(folder))
-                                and not task.done()
-                                for folder in tab.folders
-                            )
+                            (task := self.indexing_tasks.get(folder.path))
+                            and not task.done()
                         ),
-                        "error": next(
-                            (
-                                str(self.indexing_errors[folder])
-                                for folder in tab.folders
-                                if folder in self.indexing_errors
-                            ),
-                            None,
-                        ),
+                        "error": str(self.indexing_errors[folder.path])
+                        if folder.path in self.indexing_errors
+                        else None,
                         "count": self.repository.list_images(
-                            self._folders_for_tab(tab), page_size=1
+                            self._paths_for_folder(folder), page_size=1
                         ).total,
                     }
-                    for tab in self.tabs
+                    for folder in self.folders
                 ]
             }
         )
 
-    def _tab_from_request(self, request: web.Request) -> GalleryTab:
-        tab_id = request.query.get("tab", "outputs")
-        for tab in self.tabs:
-            if tab.id == tab_id:
-                return tab
-        raise web.HTTPNotFound(text="Unknown Image Shelf tab")
+    def _folder_from_request(self, request: web.Request) -> GalleryFolder:
+        folder_id = request.query.get("folder", "outputs")
+        for folder in self.folders:
+            if folder.id == folder_id:
+                return folder
+        raise web.HTTPNotFound(text="Unknown Image Shelf folder")
 
     @staticmethod
     def _terms_from_request(request: web.Request) -> tuple[SearchTerm, ...]:
@@ -471,11 +453,11 @@ class GalleryApi:
         except (TypeError, KeyError) as error:
             raise ValueError("Invalid search term") from error
 
-    def _folders_for_tab(self, tab: GalleryTab) -> tuple[Path, ...]:
-        return tab.folders
+    def _paths_for_folder(self, folder: GalleryFolder) -> tuple[Path, ...]:
+        return (folder.path,)
 
-    def _tracked_folders(self) -> set[Path]:
-        return {folder for tab in self.tabs for folder in tab.folders}
+    def _tracked_paths(self) -> set[Path]:
+        return {folder.path for folder in self.folders}
 
 
 def create_gallery_app(

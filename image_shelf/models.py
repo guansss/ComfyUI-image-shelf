@@ -68,15 +68,15 @@ class TagSuggestion:
 
 
 @dataclass(frozen=True)
-class GalleryTab:
+class GalleryFolder:
     id: str
     name: str
-    folders: tuple[Path, ...]
+    path: Path
     editable: bool = False
     removable: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
             **self.__dict__,
-            "folders": [str(folder) for folder in self.folders],
+            "path": str(self.path),
         }

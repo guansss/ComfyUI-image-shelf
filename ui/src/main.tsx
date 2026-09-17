@@ -9,7 +9,7 @@ import { AskProvider } from "./components/ask"
 import { GalleryControl } from "./components/gallery/Gallery"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { getDriver } from "./driver/driver"
-import { CUSTOM_TABS_SETTING, EXTENSION_ID, FAVORITES_SETTING } from "./global"
+import { CUSTOM_FOLDERS_SETTING, EXTENSION_ID, FAVORITES_SETTING } from "./global"
 import { I18NProvider } from "./i18n/I18NProvider"
 import "./index.css"
 import { rootContainer } from "./lib/dom"
@@ -45,11 +45,11 @@ function registerExtension(): void {
           onChange: (value) => updateSettings({ [FAVORITES_SETTING]: value }),
         },
         {
-          id: "image-shelf.custom-tabs" as keyof Settings,
-          name: "Custom tabs",
+          id: "image-shelf.custom-folders" as keyof Settings,
+          name: "Custom folders",
           type: "hidden",
           defaultValue: [],
-          onChange: (value) => updateSettings({ [CUSTOM_TABS_SETTING]: value }),
+          onChange: (value) => updateSettings({ [CUSTOM_FOLDERS_SETTING]: value }),
         },
       ],
       commands: [

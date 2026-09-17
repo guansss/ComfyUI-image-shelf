@@ -26,15 +26,15 @@ import { toast } from "../../lib/toast"
 import { FavoriteConflictError, GalleryImage, sendToFavorites } from "../../services/gallery"
 import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"
 import { askInput } from "../ask"
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "../ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert"
 import { Field, FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { ScrollArea } from "../ui/scroll-area"
-import { useImageQuery, useTabList } from "./api"
+import { useFolderList, useImageQuery } from "./api"
 import { ImageViewer } from "./ImageViewer"
 import { Searchbar } from "./Searchbar"
-import { editTab, TabList } from "./tab"
+import { FolderList } from "./tab"
 
 interface GalleryControlProps {
   openEvent: string
@@ -60,7 +60,7 @@ export function GalleryControl({ openEvent }: GalleryControlProps) {
 export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const t = useTranslation()
   const { unload } = useSWRConfig()
-  const [selectedTabId, setSelectedTabId] = useState("outputs")
+  const [selectedFolderId, setSelectedFolderId] = useState("outputs")
   const [query, setQuery] = useState<SearchQuery>(emptyQuery())
   const [debouncedQuery, setDebouncedQuery] = useState<SearchQuery>(query)
   useDebounce(() => setDebouncedQuery(query), 500, [query])
@@ -73,14 +73,14 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const imageViewerTrigger = usePopoverTrigger()
   const [groupByDay, setGroupByDay] = useState(true)
 
-  const { data: tabs, mutate: mutateTabs } = useTabList()
+  const { data: folders, mutate: mutateFolders } = useFolderList()
 
   const {
     data: imageList,
     error: imageListError,
     isLoading: imageListIsLoading,
   } = useImageQuery({
-    tab: selectedTabId,
+    folder: selectedFolderId,
     query: debouncedQuery,
     dimensions: selectedDimensions,
     sort,
@@ -97,8 +97,8 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     if (isOpen) unload()
   }, [isOpen, unload])
 
-  const selectTab = (tabId: string) => {
-    setSelectedTabId(tabId)
+  const selectFolder = (folderId: string) => {
+    setSelectedFolderId(folderId)
     setSelectedDimensions([])
     setPage(1)
   }
@@ -160,7 +160,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     }
   }
 
-  const selectedTab = tabs?.find((tab) => tab.id === selectedTabId)
+  const selectedFolder = folders?.find((folder) => folder.id === selectedFolderId)
   const imageGroups: [string, GalleryImage[]][] = groupByDay
     ? (Object.entries(
         images.reduce<Record<string, GalleryImage[]>>((groups, image) => {
@@ -198,11 +198,11 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               <ImageIcon className="size-8" />
               <DialogTitle className="text-xl">{t.gallery.title}</DialogTitle>
             </DialogHeader>
-            <TabList
-              tabs={tabs}
-              selectedTabId={selectedTabId}
-              onTabSelect={selectTab}
-              updateTabs={mutateTabs}
+            <FolderList
+              folders={folders}
+              selectedFolderId={selectedFolderId}
+              onFolderSelect={selectFolder}
+              updateTabs={mutateFolders}
             />
             <div className="flex flex-col gap-4 p-4 border-t">
               <h3 className="text-sm font-semibold">{t.gallery.sort}</h3>
@@ -266,21 +266,11 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               <AlertDescription>{formatError(imageListError)}</AlertDescription>
             </Alert>
           )}
-          {selectedTab && !selectedTab.folders.length && (
+          {selectedFolder?.error && (
             <Alert variant="destructive" className="mx-4 w-fit self-start">
               <AlertCircleIcon />
-              <AlertTitle>{t.error.error}</AlertTitle>
-              <AlertDescription>{t.gallery.favoritesUnconfigured}</AlertDescription>
-              <AlertAction>
-                <Button onClick={() => void editTab(selectedTab)}>{t.common.configure}</Button>
-              </AlertAction>
-            </Alert>
-          )}
-          {selectedTab && !!selectedTab.folders.length && selectedTab.error && (
-            <Alert variant="destructive" className="mx-4 w-fit self-start">
-              <AlertCircleIcon />
-              <AlertTitle>{t.gallery.tabError({ name: selectedTab.name })}</AlertTitle>
-              <AlertDescription>{formatError(selectedTab.error)}</AlertDescription>
+              <AlertTitle>{t.gallery.folderError({ name: selectedFolder.name })}</AlertTitle>
+              <AlertDescription>{formatError(selectedFolder.error)}</AlertDescription>
             </Alert>
           )}
           {!images.length &&

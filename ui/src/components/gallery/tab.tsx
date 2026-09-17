@@ -9,21 +9,22 @@ import {
   RotateCcwClockIcon,
   Settings2Icon,
   SettingsIcon,
-  StarIcon,
   TrashIcon,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
-import { getDriver } from "../../driver/driver"
-import { FAVORITES_SETTING } from "../../global"
 import { i18n, useTranslation } from "../../i18n/i18n"
 import { errorToast, formatError } from "../../lib/error"
-import { readCustomTabs, saveCustomTabs, toStoredCustomTab } from "../../lib/tab"
+import {
+  readCustomFolders,
+  saveCustomFolders,
+  toStoredCustomFolder,
+} from "../../lib/tab"
 import { cn } from "../../lib/utils"
 import {
+  GalleryFolder,
   GalleryMessage,
-  GalleryTab,
-  reindexTab as reindexTabApi,
+  reindexFolder as reindexFolderApi,
   socket,
 } from "../../services/gallery"
 import { ask, askCustom, AskCustomParam, AskDialog, AskDialogProps } from "../ask"
@@ -39,35 +40,44 @@ import {
 } from "../ui/dropdown-menu"
 import { Field, FieldGroup, FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
-import { useTabList } from "./api"
+import { useFolderList } from "./api"
 
-interface TabListProps {
-  tabs?: GalleryTab[]
-  selectedTabId?: string
-  onTabSelect: (tabId: string) => void
-  updateTabs: ReturnType<typeof useTabList>["mutate"]
+interface FolderListProps {
+  folders?: GalleryFolder[]
+  selectedFolderId?: string
+  onFolderSelect: (folderId: string) => void
+  updateTabs: ReturnType<typeof useFolderList>["mutate"]
 }
 
-export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabListProps) {
+export function FolderList({
+  folders,
+  selectedFolderId,
+  onFolderSelect,
+  updateTabs,
+}: FolderListProps) {
   const t = useTranslation()
-  const selectedTab = tabs?.find((tab) => tab.id === selectedTabId)
+  const selectedFolder = folders?.find((folder) => folder.id === selectedFolderId)
 
-  const removeTab = async (tab: GalleryTab) => {
+  const removeFolder = async (folder: GalleryFolder) => {
     const confirmed = await ask({
-      title: i18n.gallery.removeTab,
-      message: i18n.gallery.removeTabMessage({ name: tab.name }),
+      title: i18n.gallery.removeFolder,
+      message: i18n.gallery.removeFolderMessage({ name: folder.name }),
     })
     if (!confirmed) return
-    saveCustomTabs((prevTabs) => prevTabs.filter((storedTab) => storedTab.id !== tab.id))
-    if (tab.id === selectedTabId) {
-      onTabSelect("outputs")
+    saveCustomFolders((prevFolders) =>
+      prevFolders.filter((storedFolder) => storedFolder.id !== folder.id),
+    )
+    if (folder.id === selectedFolderId) {
+      onFolderSelect("outputs")
     }
   }
 
-  const reindexTab = async (tab: GalleryTab, force: boolean) => {
+  const reindexFolder = async (folder: GalleryFolder, force: boolean) => {
     try {
-      await reindexTabApi(tab.id, force)
-      updateTabs((current) => current?.map((t) => (t.id === tab.id ? { ...t, indexing: true } : t)))
+      await reindexFolderApi(folder.id, force)
+      updateTabs((current) =>
+        current?.map((item) => (item.id === folder.id ? { ...item, indexing: true } : item)),
+      )
     } catch (error: unknown) {
       errorToast({
         title: force ? t.gallery.reindex : t.gallery.refresh,
@@ -77,13 +87,13 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
   }
 
   useEffect(() => {
-    const handleTabsUpdated = ({ tabs: updatedTabs }: GalleryMessage["tabsUpdated"]) => {
+    const handleFoldersUpdated = ({ folders: updatedFolders }: GalleryMessage["foldersUpdated"]) => {
       updateTabs((currentTabs) =>
-        updatedTabs.map((update) => {
-          const existingTab = currentTabs?.find((tab) => tab.id === update.id)
-          if (existingTab) {
+        updatedFolders.map((update) => {
+          const existingFolder = currentTabs?.find((folder) => folder.id === update.id)
+          if (existingFolder) {
             return {
-              ...existingTab,
+              ...existingFolder,
               ...update,
             }
           }
@@ -96,13 +106,15 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
         }),
       )
     }
-    const handleIndexStart = ({ tab }: GalleryMessage["indexStart"]) => {
-      updateTabs((current) => current?.map((t) => (t.id === tab ? { ...t, indexing: true } : t)))
+    const handleIndexStart = ({ folder }: GalleryMessage["indexStart"]) => {
+      updateTabs((current) =>
+        current?.map((item) => (item.id === folder ? { ...item, indexing: true } : item)),
+      )
     }
-    const handleIndexFinish = ({ tab, result, error }: GalleryMessage["indexFinish"]) => {
+    const handleIndexFinish = ({ folder, result, error }: GalleryMessage["indexFinish"]) => {
       updateTabs((current) =>
         current?.map((t) =>
-          t.id === tab
+          t.id === folder
             ? {
                 ...t,
                 indexing: false,
@@ -113,11 +125,11 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
         ),
       )
     }
-    socket.on("tabsUpdated", handleTabsUpdated)
+    socket.on("foldersUpdated", handleFoldersUpdated)
     socket.on("indexStart", handleIndexStart)
     socket.on("indexFinish", handleIndexFinish)
     return () => {
-      socket.off("tabsUpdated", handleTabsUpdated)
+      socket.off("foldersUpdated", handleFoldersUpdated)
       socket.off("indexStart", handleIndexStart)
       socket.off("indexFinish", handleIndexFinish)
     }
@@ -125,34 +137,32 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
 
   return (
     <nav className="flex flex-col gap-1 p-4 border-t">
-      {tabs?.map((tab) => (
+      {folders?.map((folder) => (
         <div
-          key={tab.id}
-          className={cn("flex flex-wrap rounded-md", tab === selectedTab && "bg-(--chart-3)")}
+          key={folder.id}
+          className={cn("flex flex-wrap rounded-md", folder === selectedFolder && "bg-(--chart-3)")}
         >
           <Button
             variant="flat"
             className={cn(
               "grow justify-start",
-              tab === selectedTab && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
+              folder === selectedFolder && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
             )}
-            onClick={() => onTabSelect(tab.id)}
+            onClick={() => onFolderSelect(folder.id)}
           >
-            {tab.id === "outputs" ? (
+            {folder.id === "outputs" ? (
               <RotateCcwClockIcon data-icon="inline-start" />
-            ) : tab.id === "favorites" ? (
-              <StarIcon data-icon="inline-start" />
             ) : (
               <FolderIcon data-icon="inline-start" />
             )}
-            {tab.name}
-            {tab.indexing ? (
+            {folder.name}
+            {folder.indexing ? (
               <LoaderCircleIcon data-icon="inline-end" className="animate-spin" />
             ) : (
-              ` (${tab.count})`
+              ` (${folder.count})`
             )}
-            {tab.error && (
-              <span title={formatError(tab.error)}>
+            {folder.error && (
+              <span title={formatError(folder.error)}>
                 <CircleAlertIcon data-icon="inline-end" className="text-destructive" />
               </span>
             )}
@@ -162,7 +172,7 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
               <Button
                 variant="flat"
                 className={cn(
-                  tab === selectedTab && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
+                  folder === selectedFolder && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
                 )}
               >
                 <SettingsIcon />
@@ -170,90 +180,79 @@ export function TabList({ tabs, selectedTabId, onTabSelect, updateTabs }: TabLis
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuGroup>
-                <DropdownMenuItem onSelect={() => void reindexTab(tab, false)}>
+                <DropdownMenuItem onSelect={() => void reindexFolder(folder, false)}>
                   <RefreshCwIcon />
                   {t.gallery.refresh}
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void reindexTab(tab, true)}>
+                <DropdownMenuItem onSelect={() => void reindexFolder(folder, true)}>
                   <FolderSyncIcon />
                   {t.gallery.reindex}
                 </DropdownMenuItem>
-                <DropdownMenuItem disabled={!tab.editable} onSelect={() => editTab(tab)}>
+                <DropdownMenuItem disabled={!folder.editable} onSelect={() => editFolder(folder)}>
                   <Settings2Icon />
-                  {t.gallery.editTab}
+                  {t.gallery.editFolder}
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem
                   variant="destructive"
-                  disabled={!tab.removable}
-                  onSelect={async () => void removeTab(tab)}
+                  disabled={!folder.removable}
+                  onSelect={async () => void removeFolder(folder)}
                 >
                   <TrashIcon />
-                  {t.gallery.removeTab}
+                  {t.gallery.removeFolder}
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       ))}
-      <Button className="grow justify-start" onClick={() => void addCustomTab()} variant="flat">
+      <Button className="grow justify-start" onClick={() => void addCustomFolder()} variant="flat">
         <PlusIcon data-icon="inline-start" />
-        {t.gallery.addTab}
+        {t.gallery.addFolder}
       </Button>
     </nav>
   )
 }
 
-const addCustomTab = async () => {
-  const result = await askCreateTab({})
+const addCustomFolder = async () => {
+  const result = await askCreateFolder({})
   if (!result) return
-  saveCustomTabs((prevTabs) => [...prevTabs, toStoredCustomTab(result.tab)])
+  saveCustomFolders((prevFolders) => [...prevFolders, toStoredCustomFolder(result.folder)])
 }
 
-export async function editTab(tab: GalleryTab) {
-  if (tab.id === "favorites") {
-    // read the favorites folder from settings as the source of truth,
-    // in case the tab info is somehow out of sync
-    const favoriteSetting = getDriver().getSetting(FAVORITES_SETTING)
-    const currentFavoritesFolder = typeof favoriteSetting === "string" ? favoriteSetting : ""
-    const result = await askEditTab({}, { ...tab, folders: [currentFavoritesFolder] })
-    const newFolder = result?.tab.folders[0]?.trim()
-    if (!newFolder || newFolder === currentFavoritesFolder) return
-    getDriver().setSetting(FAVORITES_SETTING, newFolder)
-  } else {
-    const result = await askEditTab({}, tab)
-    if (!result) return
-    const storedTabs = readCustomTabs()
-    const storedTab = storedTabs.find((storedTab) => storedTab.id === tab.id)
-    if (!storedTab) {
-      console.warn(
-        "[Image Shelf] editTab: stored tab not found",
-        tab.id,
-        storedTabs.map((t) => t.id),
-      )
-      return
-    }
-    const newTab = { ...storedTab, ...toStoredCustomTab(result.tab) }
-    if (isEqual(storedTab, newTab)) return
-    saveCustomTabs(storedTabs.map((t) => (t.id === storedTab.id ? newTab : t)))
+export async function editFolder(folder: GalleryFolder) {
+  const result = await askEditFolder({}, folder)
+  if (!result) return
+  const storedFolders = readCustomFolders()
+  const storedFolder = storedFolders.find((item) => item.id === folder.id)
+  if (!storedFolder) {
+    console.warn(
+      "[Image Shelf] editFolder: stored folder not found",
+      folder.id,
+      storedFolders.map((item) => item.id),
+    )
+    return
   }
+  const newFolder = { ...storedFolder, ...toStoredCustomFolder(result.folder) }
+  if (isEqual(storedFolder, newFolder)) return
+  saveCustomFolders(storedFolders.map((item) => (item.id === storedFolder.id ? newFolder : item)))
 }
 
-interface EditTabDialogValue {
-  tab: GalleryTab
+interface EditFolderDialogValue {
+  folder: GalleryFolder
 }
 
-interface EditTabDialogMeta {
+interface EditFolderDialogMeta {
   mode: "create" | "edit"
 }
 
-function newTab(): GalleryTab {
+function newFolder(): GalleryFolder {
   return {
     id: `custom-${crypto.randomUUID()}`,
     name: "",
-    folders: [],
+    path: "",
     editable: true,
     removable: true,
     indexing: true,
@@ -262,79 +261,77 @@ function newTab(): GalleryTab {
   }
 }
 
-export async function askCreateTab(
-  req: Omit<AskCustomParam<EditTabDialogValue>, "component" | "title" | "initialValue" | "meta">,
+export async function askCreateFolder(
+  req: Omit<AskCustomParam<EditFolderDialogValue>, "component" | "title" | "initialValue" | "meta">,
 ) {
-  const tab: GalleryTab = newTab()
+  const folder = newFolder()
   return await askCustom({
-    title: i18n.gallery.addTab,
+    title: i18n.gallery.addFolder,
     meta: { mode: "create" },
-    initialValue: { tab },
+    initialValue: { folder },
     ...req,
-    component: EditTabDialog,
+    component: EditFolderDialog,
   })
 }
 
-export async function askEditTab(
+export async function askEditFolder(
   req: Omit<
-    AskCustomParam<EditTabDialogValue, EditTabDialogMeta>,
+    AskCustomParam<EditFolderDialogValue, EditFolderDialogMeta>,
     "component" | "title" | "initialValue" | "meta"
   >,
-  tab: GalleryTab,
+  folder: GalleryFolder,
 ) {
   return await askCustom({
-    title: i18n.gallery.editTab,
+    title: i18n.gallery.editFolder,
     meta: { mode: "edit" },
-    initialValue: { tab },
+    initialValue: { folder },
     ...req,
-    component: EditTabDialog,
+    component: EditFolderDialog,
   })
 }
 
-function EditTabDialog({
+function EditFolderDialog({
   initialValue,
   onConfirm,
   ...props
-}: AskDialogProps<EditTabDialogValue, EditTabDialogMeta>) {
+}: AskDialogProps<EditFolderDialogValue, EditFolderDialogMeta>) {
   const t = useTranslation()
-  const initialTab = initialValue?.tab
-  const [name, setName] = useState(initialTab?.name ?? "")
-  const [folder, setFolder] = useState(initialTab?.folders[0] ?? "")
+  const initialFolder = initialValue?.folder
+  const [name, setName] = useState(initialFolder?.name ?? "")
+  const [path, setPath] = useState(initialFolder?.path ?? "")
   const { requestPickFolder } = usePickFolder({
-    onChange: (folder) => setFolder(folder),
+    onChange: (folder) => setPath(folder),
   })
 
-  if (!initialTab) {
-    console.error("[Image Shelf] tab not provided")
+  if (!initialFolder) {
+    console.error("[Image Shelf] folder not provided")
     return null
   }
 
   const handleConfirm = () => {
     if (!name.trim()) {
       errorToast({
-        title: props.meta.mode === "create" ? t.gallery.addTab : t.gallery.editTab,
-        message: t.error.required({ field: t.gallery.tabName }),
+        title: props.meta.mode === "create" ? t.gallery.addFolder : t.gallery.editFolder,
+        message: t.error.required({ field: t.gallery.folderName }),
       })
       return false
     }
-    if (!folder.trim()) {
+    if (!path.trim()) {
       errorToast({
-        title: props.meta.mode === "create" ? t.gallery.addTab : t.gallery.editTab,
+        title: props.meta.mode === "create" ? t.gallery.addFolder : t.gallery.editFolder,
         message: t.error.required({ field: t.filePicker.folderPath }),
       })
       return false
     }
     onConfirm?.({
-      tab: {
-        ...initialTab,
+      folder: {
+        ...initialFolder,
         name: name.trim(),
-        folders: folder.trim() ? [folder] : [],
+        path: path.trim(),
       },
     })
     return true
   }
-
-  const renamable = initialTab.id !== "favorites"
 
   return (
     <AskDialog
@@ -343,16 +340,10 @@ function EditTabDialog({
         <FieldGroup>
           <Field>
             <FieldLabel>
-              {t.gallery.tabName}
-              {!renamable && (
-                <span className="ml-2 text-sm italic text-muted-foreground">
-                  ({t.gallery.cannotEdit})
-                </span>
-              )}
+              {t.gallery.folderName}
             </FieldLabel>
             <Input
-              placeholder={t.gallery.tabNamePlaceholder}
-              disabled={!renamable}
+              placeholder={t.gallery.folderNamePlaceholder}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -366,8 +357,8 @@ function EditTabDialog({
             </FieldLabel>
             <Input
               placeholder={t.filePicker.folderPlaceholder}
-              value={folder}
-              onChange={(e) => setFolder(e.target.value)}
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
             />
           </Field>
         </FieldGroup>

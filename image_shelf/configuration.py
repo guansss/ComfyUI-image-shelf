@@ -10,7 +10,7 @@ from typing import Any
 from dotenv import dotenv_values
 
 from .log import logger
-from .models import GalleryTab
+from .models import GalleryFolder
 from .paths import normalize_path
 
 
@@ -31,27 +31,21 @@ class ShelfSettings:
             **new_settings,
         }
 
-    def get_tabs(self) -> list[GalleryTab]:
-        favorites_folder = _as_path(
-            self.comfy_settings.get("image-shelf.favorites-folder")
-        )
-        custom_tabs = _parse_custom_tabs(
-            self.comfy_settings.get("image-shelf.custom-tabs")
+    def get_folders(self) -> list[GalleryFolder]:
+        custom_folders = _parse_custom_folders(
+            self.comfy_settings.get("image-shelf.custom-folders")
         )
         return [
-            GalleryTab(
+            GalleryFolder(
                 "outputs",
                 "Outputs",
-                (self.output_folder,),
+                self.output_folder,
             ),
-            GalleryTab(
-                "favorites",
-                "Favorites",
-                (favorites_folder,) if favorites_folder else (),
-                editable=True,
-            ),
-            *custom_tabs,
+            *custom_folders,
         ]
+
+    def get_favorites_folder(self) -> Path | None:
+        return _as_path(self.comfy_settings.get("image-shelf.favorites-folder"))
 
 
 @dataclass(frozen=True)
@@ -116,32 +110,32 @@ def _required_var(name: str, default: str | None = None) -> str:
     return value
 
 
-def _parse_custom_tabs(value: Any) -> list[GalleryTab]:
+def _parse_custom_folders(value: Any) -> list[GalleryFolder]:
     if not isinstance(value, list):
         logger.warning(
-            "Expected a list for custom tabs, but got: %s", type(value).__name__
+            "Expected a list for custom folders, but got: %s", type(value).__name__
         )
         return []
 
-    tabs: list[GalleryTab] = []
+    folders: list[GalleryFolder] = []
     for item in value:
         if not isinstance(item, dict):
             continue
-        tab_id = item.get("id")
+        folder_id = item.get("id")
         name = item.get("name")
-        folder = _as_path(item.get("folder"))
-        if isinstance(tab_id, str):
-            name = isinstance(name, str) and name or f"???{tab_id}"
-            tabs.append(
-                GalleryTab(
-                    tab_id,
+        path = _as_path(item.get("path"))
+        if isinstance(folder_id, str) and path is not None:
+            name = isinstance(name, str) and name or f"???{folder_id}"
+            folders.append(
+                GalleryFolder(
+                    folder_id,
                     name,
-                    (folder,) if folder else (),
+                    path,
                     editable=True,
                     removable=True,
                 )
             )
-    return tabs
+    return folders
 
 
 def _as_path(value: Any) -> Path | None:

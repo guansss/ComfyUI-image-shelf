@@ -36,7 +36,7 @@ The standalone server reads gallery settings from:
 <COMFYUI_PATH>/user/default/comfy.settings.json
 ```
 
-It uses `image-shelf.favorites-folder` and `image-shelf.custom-tabs` from that file to configure the Favorites and custom gallery tabs. Start it with:
+It uses `image-shelf.favorites-folder` for transfers and `image-shelf.custom-folders` for custom gallery folders. Outputs is the default gallery folder. Start it with:
 
 ```powershell
 .\.venv\Scripts\python.exe gallery_backend.py
@@ -46,4 +46,4 @@ By default it listens on `http://127.0.0.1:8189`. When running the Vite frontend
 
 ## Current Status
 
-The gallery backend currently provides background indexing, SQLite FTS5 search, dimension facets, tag suggestions, secure opaque image URLs, tabs, and standalone settings reload. The frontend opens from `Extensions > Image Shelf > Open Image Shelf` and renders tab-scoped image thumbnails.
+The gallery backend currently provides background indexing, SQLite FTS5 search, dimension facets, tag suggestions, secure opaque image URLs, custom folders, and standalone settings reload. The frontend opens from `Extensions > Image Shelf > Open Image Shelf` and renders folder-scoped image thumbnails.

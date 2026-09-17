@@ -158,41 +158,37 @@
       "en": "All images",
       "cn": "所有图像"
     },
-    "loadTabs": {
-      "en": "Load tabs",
-      "cn": "加载标签页"
+    "loadFolders": {
+      "en": "Load folders",
+      "cn": "加载文件夹"
     },
-    "tabError": {
-      "en": "An error occurred in tab \"{{name}}\"",
-      "cn": "标签页 \"{{name}}\" 出现错误"
+    "folderError": {
+      "en": "An error occurred in folder \"{{name}}\"",
+      "cn": "文件夹 \"{{name}}\" 出现错误"
     },
-    "addTab": {
-      "en": "Add tab",
-      "cn": "添加标签页"
+    "addFolder": {
+      "en": "Add folder",
+      "cn": "添加文件夹"
     },
-    "editTab": {
-      "en": "Edit tab",
-      "cn": "编辑标签页"
+    "editFolder": {
+      "en": "Edit folder",
+      "cn": "编辑文件夹"
     },
-    "cannotEdit": {
-      "en": "Cannot edit",
-      "cn": "不可编辑"
+    "folderName": {
+      "en": "Folder name",
+      "cn": "文件夹名称"
     },
-    "tabName": {
-      "en": "Tab name",
-      "cn": "标签页名称"
-    },
-    "tabNamePlaceholder": {
+    "folderNamePlaceholder": {
       "en": "Example: My Images",
       "cn": "例如: 我的图像"
     },
-    "removeTab": {
-      "en": "Remove tab",
-      "cn": "移除标签页"
+    "removeFolder": {
+      "en": "Remove folder",
+      "cn": "移除文件夹"
     },
-    "removeTabMessage": {
-      "en": "Remove tab \"{{name}}\"?\nThis will not affect local files.",
-      "cn": "要移除 \"{{name}}\" 标签页吗？\n该操作不会影响本地文件。"
+    "removeFolderMessage": {
+      "en": "Remove folder \"{{name}}\"?\nThis will not affect local files.",
+      "cn": "要移除 \"{{name}}\" 文件夹吗？\n该操作不会影响本地文件。"
     },
     "refresh": {
       "en": "Refresh",
@@ -321,10 +317,6 @@
     "empty": {
       "en": "No images match this view.",
       "cn": "此视图中没有匹配的图像。"
-    },
-    "favoritesUnconfigured": {
-      "en": "Favorites folder is not configured. Please configure it.",
-      "cn": "收藏夹文件夹未配置。请配置。"
     }
   },
   "viewer": {

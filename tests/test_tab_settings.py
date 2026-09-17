@@ -6,38 +6,47 @@ from pathlib import Path
 from image_shelf.configuration import ShelfSettings
 
 
-class TabSettingsTests(unittest.IsolatedAsyncioTestCase):
-    async def test_apply_settings_preserves_outputs_and_adds_configured_tabs(
+class FolderSettingsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_get_folders_preserves_outputs_and_adds_configured_folders(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             output = root / "output"
-            favorites = root / "favorites"
             custom = root / "custom"
 
             settings = ShelfSettings(
                 output_folder=output,
                 comfy_settings_loader=lambda: {
-                    "image-shelf.favorites-folder": str(favorites),
-                    "image-shelf.custom-tabs": [
+                    "image-shelf.custom-folders": [
                         {
-                            "id": "custom-1",
+                            "id": "folder-1",
                             "name": "Inspiration",
-                            "folder": str(custom),
+                            "path": str(custom),
                         }
                     ],
                 },
             )
             settings.load_comfy_settings()
-            tabs = settings.get_tabs()
+            folders = settings.get_folders()
 
-            self.assertEqual(
-                [tab.id for tab in tabs], ["outputs", "favorites", "custom-1"]
-            )
-            self.assertEqual(tabs[0].folders, (output.resolve(),))
-            self.assertEqual(tabs[1].folders, (favorites.resolve(),))
-            self.assertEqual(tabs[2].folders, (custom.resolve(),))
+            self.assertEqual([folder.id for folder in folders], ["outputs", "folder-1"])
+            self.assertEqual(folders[0].path, output.resolve())
+            self.assertEqual(folders[1].path, custom.resolve())
+
+    async def test_get_folders_ignores_custom_folders_without_paths(self) -> None:
+        settings = ShelfSettings(
+            output_folder=Path("output"),
+            comfy_settings_loader=lambda: {
+                "image-shelf.custom-folders": [
+                    {"id": "missing-path", "name": "Missing"},
+                    {"id": "empty-path", "name": "Empty", "path": "  "},
+                ]
+            },
+        )
+        settings.load_comfy_settings()
+
+        self.assertEqual([folder.id for folder in settings.get_folders()], ["outputs"])
 
 
 if __name__ == "__main__":

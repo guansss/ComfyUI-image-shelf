@@ -4,10 +4,10 @@ import { API_ROOT } from "../global"
 import { SearchQuery, toBackendSearchTerms } from "../lib/search"
 import { api } from "./network"
 
-export interface GalleryTab {
+export interface GalleryFolder {
   id: string
   name: string
-  folders: string[]
+  path: string
   editable: boolean
   removable: boolean
   indexing: boolean
@@ -92,7 +92,7 @@ export class FavoriteConflictError extends Error {
 }
 
 export interface ImageQuery {
-  tab: string
+  folder: string
   query: SearchQuery
   dimensions: string[]
   sort: "created_at" | "filename"
@@ -111,20 +111,20 @@ export interface ImageListResponse {
 }
 
 export type GalleryMessage = {
-  tabsUpdated: {
-    tabs: {
+  foldersUpdated: {
+    folders: {
       id: string
       name: string
-      folders: string[]
+      path: string
       editable: boolean
       removable: boolean
     }[]
   }
   indexStart: {
-    tab: string
+    folder: string
   }
   indexFinish: {
-    tab: string
+    folder: string
     error?: string
     result?: {
       indexed: number
@@ -225,13 +225,13 @@ export class GalleryWebSocket {
 export const socket = new GalleryWebSocket()
 socket.connect()
 
-export async function fetchTabs(): Promise<{ items: GalleryTab[] }> {
-  return await api<{ items: GalleryTab[] }>("tabs", "GET", undefined, "json")
+export async function fetchFolders(): Promise<{ items: GalleryFolder[] }> {
+  return await api<{ items: GalleryFolder[] }>("folders", "GET", undefined, "json")
 }
 
 export async function fetchImages(imageQuery: ImageQuery): Promise<ImageListResponse> {
   const parameters = new URLSearchParams({
-    tab: imageQuery.tab,
+    folder: imageQuery.folder,
     terms: JSON.stringify(toBackendSearchTerms(imageQuery.query.terms)),
     sort: imageQuery.sort,
     direction: imageQuery.direction,
@@ -274,9 +274,9 @@ export async function sendToFavorites(
   )
 }
 
-export async function reindexTab(tab: string, force: boolean): Promise<void> {
+export async function reindexFolder(folder: string, force: boolean): Promise<void> {
   return await api(
-    `reindex?${new URLSearchParams({ tab, force: String(force) })}`,
+    `reindex?${new URLSearchParams({ folder, force: String(force) })}`,
     "POST",
     undefined,
     "ignore",

@@ -4,7 +4,7 @@ import { SERVER_URL } from "../../global"
 import {
   fetchImageDetails,
   fetchImages,
-  fetchTabs,
+  fetchFolders,
   fetchTagSuggestions,
   ImageQuery,
 } from "../../services/gallery"
@@ -25,10 +25,10 @@ export function useImageQuery({ ...req }: ImageQueryOptions) {
   )
 }
 
-export function useTabList() {
-  return useSWRImmutable("tabs", async () => {
-    const tabList = await fetchTabs()
-    return tabList.items
+export function useFolderList() {
+  return useSWRImmutable("folders", async () => {
+    const folderList = await fetchFolders()
+    return folderList.items
   })
 }
 

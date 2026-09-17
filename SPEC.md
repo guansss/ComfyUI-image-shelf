@@ -26,32 +26,30 @@ The gallery will include a toolbar with:
 - A search bar. (See "Search" section below)
 - Filtering and sorting options. (See "Filtering and Sorting" section below)
 
-#### Tabs
+#### Folders
 
-- The gallery will include tabs for different categories of images.
-- Default tabs will include:
-  - **Outputs**: Displays all generated images in ComfyUI's output folder.
-  - **Favorites**: Displays images in the "Favorites" folder. By default, the "Favorites" folder will be unspecified, and when selected, a message will be displayed in the image grid, prompting the user to set the folder in the settings or dropdown menu.
-- Users will be able to add custom tabs for other folders by clicking a "Add Tab" button and selecting a local folder. Custom tabs will be saved to the [settings](https://docs.comfy.org/custom-nodes/js/javascript_settings).
-- Multiple tabs can be pointed to the same folder, and the gallery will index the folder only once. The gallery will de-duplicate images based on their full path, so if the same image exists in multiple tabs, it will only be displayed once in the gallery.
-- Each tab will display the number of images it contains, or a loading indicator if the indexing process is ongoing.
-- Each tab will have a dropdown menu with options to:
+- The gallery will include folders for different categories of images.
+- **Outputs** is the only default folder and displays all generated images in ComfyUI's output folder.
+- Users will be able to add custom folders by clicking an "Add Folder" button and selecting a local folder. Each custom folder has exactly one required path and is saved to the [settings](https://docs.comfy.org/custom-nodes/js/javascript_settings) under `image-shelf.custom-folders`.
+- Multiple folders can point to the same path, and the gallery will index that path only once. The gallery will de-duplicate images based on their full path, so if the same image exists in multiple folders, it will only be displayed once in the gallery.
+- Each folder will display the number of images it contains, or a loading indicator if the indexing process is ongoing.
+- Each folder will have a dropdown menu with options to:
   - Re-index the folder (see "Indexing" section below)
-  - Rename the tab
-  - Change the folder path ("Favorites" and custom tabs only)
-  - Remove the tab (custom tabs only)
+  - Rename the folder
+  - Change the folder path (custom folders only)
+  - Remove the folder (custom folders only)
 
 #### Image Grid
 
 - The gallery will display a grid of images.
-- The images to display will be filtered based on the selected tab, search query, and filter/sort options.
+- The images to display will be filtered based on the selected folder, search query, and filter/sort options.
 - The grid will support pagination to handle large numbers of images efficiently.
 - The grid columns will be responsive, adjusting the number of columns based on the screen size.
 - The grid will categorize images into sections based on their creation day. This feature can be toggled on/off by the user.
 - Each image will have a dropdown menu with options to:
   - Reveal the image in the file explorer
   - Load the image's workflow in ComfyUI
-  - Send the image to the "Favorites" folder
+  - Send the image to the configured "Favorites" destination
 - The gallery will display a loading state while fetching images from the backend or the indexing process is ongoing.
 
 #### Filtering and Sorting
@@ -81,7 +79,7 @@ The gallery will include a toolbar with:
 - The viewer will include options to:
   - Reveal the image in the file explorer
   - Load the image's workflow in ComfyUI
-  - Send the image to the "Favorites" folder
+  - Send the image to the configured "Favorites" destination
 
 ### "Save as JPEG" Node
 
@@ -105,7 +103,7 @@ The gallery will include a toolbar with:
 - The settings will allow users to configure:
   - The "Favorites" folder
 - The settings will include the following "hidden" options for storing user configurations from other parts of the UI:
-  - Custom tabs (folder paths)
+  - Custom folders (one required path per folder)
   - Last used search query
   - Last used filter and sort options
 
@@ -118,7 +116,7 @@ The gallery will include a toolbar with:
 - The frontend must never access arbitrary filesystem paths directly.
 - The backend must only serve files belonging to configured/tracked folders.
 - Indexing must not block ComfyUI's HTTP request handling or frontend UI.
-- Multiple tabs referring to the same folder must share a single index.
+- Multiple folders referring to the same path must share a single index.
 - File-system paths must be normalized before being stored or compared.
 - The implementation must handle files being created, modified, renamed,
   or deleted while indexing.
@@ -139,12 +137,12 @@ The frontend, when launched in development mode, will add a "Debug" switch to th
 
 The backend will provide API endpoints to:
 
-- Fetch the list of images with metadata for a specific tab, with support for filtering, sorting, and pagination. A URL will be provided for each image for displaying in the frontend. The URL will be generated by the backend based on served static files, and will not expose the actual filesystem path.
-- Fetch the list of available filtering options (e.g., dimensions) for a specific tab.
+- Fetch the list of images with metadata for a specific folder, with support for filtering, sorting, and pagination. A URL will be provided for each image for displaying in the frontend. The URL will be generated by the backend based on served static files, and will not expose the actual filesystem path.
+- Fetch the list of available filtering options (e.g., dimensions) for a specific folder.
 - Fuzzy search for tags (including negative tags) for providing auto-complete suggestions in the gallery's search bar.
-- Update the user's custom tabs, which can be called when the user adds or removes a custom tab.
+- Update the user's custom folders, which can be called when the user adds or removes a custom folder.
 - Trigger re-indexing of a specific folder.
-- Check the indexing status for each tab, which can be called when the gallery is opened or when the user triggers a re-indexing operation.
+- Check the indexing status for each folder, which can be called when the gallery is opened or when the user triggers a re-indexing operation.
 
 ### Tag Parsing
 
@@ -177,16 +175,15 @@ The extension will monitor the tracked folders for changes (new images, deleted 
 The tracked folders will include:
 
 - ComfyUI's output folder
-- The "Favorites" folder if specified
-- Other folders added through the gallery's custom tabs
+- Other folders added through the gallery's custom folders
 
 Images that cannot be opened by Pillow will be skipped and ignored.
 
 "Creation date" refers to the timestamp of the image file's creation time on disk.
 
-When a custom tab is added, the extension will immediately index the folder.
+When a custom folder is added, the extension will immediately index the folder.
 
-When a custom tab is removed, the extension will stop monitoring the folder and remove all associated records from the database if the folder is not being tracked by any other tab.
+When a custom folder is removed, the extension will stop monitoring the folder and remove all associated records from the database if the folder is not being tracked by any other folder.
 
 The output folder can be read with ComfyUI's `folder_paths.get_output_directory()` (https://github.com/Comfy-Org/ComfyUI/blob/master/folder_paths.py). In standalone mode, the extension will read the output folder path from the `.env` file instead.
 

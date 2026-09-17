@@ -5,6 +5,8 @@
 - Always run Python code in the project's virtual environment (`.venv`).
 - Always navigate to the `ui` folder or use command line arguments (if applicable) to point to the `ui` folder when running commands related to the frontend, e.g. `npm run --prefix ui test`.
 - **Do not** access any external images without the user's explicit request. Prefer to use the images in `tests/assets` or craft a simple image if needed for testing. If accessing external images is necessary, ask the user for permission first.
+- Specifications of the i18n framework can be found at `ui/src/i18n/README.md`.
+- `ui/src/i18n/generated` contains programmatically generated localization files and should not be manually edited.
 
 ## Typecheck / Linting
 
