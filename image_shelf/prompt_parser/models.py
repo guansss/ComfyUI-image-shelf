@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any, Literal, TypeVar
 
+from ..utils.timing import Timings
+
 T = TypeVar("T")
 
 PromptRole = Literal["positive", "negative", "unknown"]
@@ -266,3 +268,4 @@ class PromptMatch:
 @dataclass(frozen=True)
 class PromptParseResult:
     matches: list[PromptMatch]
+    timings: Timings

@@ -4,6 +4,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from ..utils.timing import Timings
 from .adapters.builtin_nodes_adapter import BuiltinNodesAdapter
 from .adapters.heuristic_adapter import HeuristicAdapter
 from .adapters.hint_adapter import HintAdapter
@@ -25,7 +26,10 @@ def parse_workflow(
     ui_workflow: Mapping[str, Any] | None = None,
     hints: Iterable[PromptHint] = (),
 ) -> PromptParseResult:
-    graph = APIWorkflowGraph.from_api_workflow(api_workflow)
+    timings = Timings()
+
+    with timings.measure("graph"):
+        graph = APIWorkflowGraph.from_api_workflow(api_workflow)
 
     adapters: list[NodeAdapter] = [
         BuiltinNodesAdapter(),
@@ -36,37 +40,41 @@ def parse_workflow(
     semantics = NodeSemantics()
     context = AnalysisContext(semantics=semantics)
 
-    for node in graph.nodes():
-        for adapter in adapters:
-            adapter.analyze(node, context)
+    with timings.measure("analysis"):
+        for node in graph.nodes():
+            for adapter in adapters:
+                adapter.analyze(node, context)
 
     matches: list[PromptMatch] = []
 
-    for endpoint in semantics.get_endpoints():
-        endpoint_node = graph.require_node(endpoint.node_id)
+    with timings.measure("traversal"):
+        for endpoint in semantics.get_endpoints():
+            endpoint_node = graph.require_node(endpoint.node_id)
 
-        for step in _trace_upstream(graph, semantics, endpoint):
-            node = graph.get_node(step.node_id)
-            if not node:
-                continue
+            for step in _trace_upstream(graph, semantics, endpoint):
+                node = graph.get_node(step.node_id)
+                if not node:
+                    continue
 
-            input = graph.get_input(step.node_id, step.input_name)
+                input = graph.get_input(step.node_id, step.input_name)
 
-            if input and isinstance(input.value, str) and input.value.strip():
-                matches.append(
-                    PromptMatch(
-                        text=input.value,
-                        node_id=step.node_id,
-                        class_type=node.class_type,
-                        input_name=input.name,
-                        role=endpoint.role,
-                        score=step.score,
-                        reason=f"{endpoint.initiator}:{endpoint_node.class_type}.{endpoint.input_name}",
-                        path=step.path,
+                if input and isinstance(input.value, str) and input.value.strip():
+                    matches.append(
+                        PromptMatch(
+                            text=input.value,
+                            node_id=step.node_id,
+                            class_type=node.class_type,
+                            input_name=input.name,
+                            role=endpoint.role,
+                            score=step.score,
+                            reason=f"{endpoint.initiator}:{endpoint_node.class_type}.{endpoint.input_name}",
+                            path=step.path,
+                        )
                     )
-                )
 
-    return PromptParseResult(_merge_matches(matches))
+    merged_matches = _merge_matches(matches)
+
+    return PromptParseResult(merged_matches, timings)
 
 
 @dataclass(frozen=True)

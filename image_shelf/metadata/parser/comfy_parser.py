@@ -4,6 +4,7 @@ from typing import Any, cast
 
 from ...prompt_parser import parse_workflow
 from ...tag.tag_parser import parse_tags, unique_tags
+from ...utils.timing import Timings
 from ..models import ParsedMetadata, Parser
 
 
@@ -24,38 +25,50 @@ class ComfyParser(Parser):
 
 
 def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
-    api_workflow = metadata.get("prompt")
-    if isinstance(api_workflow, str):
-        api_workflow = json.loads(api_workflow)
-    api_workflow = cast(Mapping[str, Any], api_workflow)
+    timings = Timings()
 
-    ui_workflow = metadata.get("workflow", "null")
+    api_workflow = metadata.get("prompt")
+    assert api_workflow is not None, "API workflow is missing"
+    if isinstance(api_workflow, str):
+        with timings.measure("parse_json"):
+            api_workflow = cast(Mapping[str, Any], json.loads(api_workflow))
+
+    ui_workflow = metadata.get("workflow")
     if isinstance(ui_workflow, str):
-        ui_workflow = json.loads(ui_workflow)
+        with timings.measure("parse_json"):
+            ui_workflow = json.loads(ui_workflow)
 
     prompt_result = parse_workflow(api_workflow, ui_workflow)
-    positive = tuple(
-        tag
-        for match in prompt_result.matches
-        if match.role == "positive"
-        for tag in parse_tags(match.text)
-    )
-    negative = tuple(
-        tag
-        for match in prompt_result.matches
-        if match.role == "negative"
-        for tag in parse_tags(match.text)
-    )
+    timings.merge("prompt", prompt_result.timings)
+
+    with timings.measure("parse_tags"):
+        positive = tuple(
+            tag
+            for match in prompt_result.matches
+            if match.role == "positive"
+            for tag in parse_tags(match.text)
+        )
+        negative = tuple(
+            tag
+            for match in prompt_result.matches
+            if match.role == "negative"
+            for tag in parse_tags(match.text)
+        )
+
+    with timings.measure("normalize"):
+        normalized_info = _normalize_workflow(api_workflow)
+
     return ParsedMetadata(
         type="comfy",
         info={
             "prompt": api_workflow,
             "workflow": ui_workflow,
         },
-        normalized_info=_normalize_workflow(api_workflow),
+        normalized_info=normalized_info,
         prompt=prompt_result,
         tags=unique_tags(positive),
         negative_tags=unique_tags(negative),
+        timings=timings,
     )
 
 
@@ -74,20 +87,18 @@ def _normalize_workflow(workflow: Mapping[str, Any]) -> str:
     of the same workflow.
     """
     keywords: list[str] = []
+    stack: list[Any] = [workflow]
 
-    def _normalize(value: Any) -> None:
+    while stack:
+        value = stack.pop()
         if isinstance(value, dict):
-            for k, v in value.items():
-                keywords.append(k)
-                _normalize(v)
+            for key, child in reversed(list(value.items())):
+                stack.append(child)
+                stack.append(key)
         elif isinstance(value, list):
-            for item in value:
-                _normalize(item)
+            stack.extend(reversed(value))
         elif isinstance(value, str):
             keywords.append(value)
-        else:
-            # drop non-string primitive values (numbers, booleans, null)
-            pass
+        # Drop non-string primitive values (numbers, booleans, null).
 
-    _normalize(workflow)
     return " ".join(keywords).lower()

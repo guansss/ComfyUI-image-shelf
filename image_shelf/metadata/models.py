@@ -3,18 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..prompt_parser.models import PromptParseResult
-
-
-class Parser(ABC):
-    @staticmethod
-    @abstractmethod
-    def can_handle(metadata: dict[str, Any]) -> bool:
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def parse(metadata: dict[str, Any]) -> Any:
-        pass
+from ..utils.timing import Timings
 
 
 @dataclass(frozen=True)
@@ -25,4 +14,17 @@ class ParsedMetadata:
     prompt: PromptParseResult | dict[str, str | None] | None = None
     tags: tuple[str, ...] = ()
     negative_tags: tuple[str, ...] = ()
+    timings: Timings | None = None
     parse_error: str | None = None
+
+
+class Parser(ABC):
+    @staticmethod
+    @abstractmethod
+    def can_handle(metadata: dict[str, Any]) -> bool:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def parse(metadata: dict[str, Any]) -> ParsedMetadata:
+        pass
