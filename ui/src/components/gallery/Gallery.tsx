@@ -34,7 +34,7 @@ import { ScrollArea } from "../ui/scroll-area"
 import { useFolderList, useImageQuery } from "./api"
 import { ImageViewer } from "./ImageViewer"
 import { Searchbar } from "./Searchbar"
-import { FolderList } from "./tab"
+import { FolderList } from "./folder"
 
 interface GalleryControlProps {
   openEvent: string

@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest"
 
-import { moveCustomFolder, StoredCustomFolder } from "../src/lib/tab"
+import { moveCustomFolder } from "../src/lib/folder"
+import { CustomFolderSetting } from "../src/lib/settings"
 
-const folders: StoredCustomFolder[] = [
+const folders: CustomFolderSetting[] = [
   { id: "one", name: "One", path: "C:/one" },
   { id: "two", name: "Two", path: "C:/two" },
   { id: "three", name: "Three", path: "C:/three" },

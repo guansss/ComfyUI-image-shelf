@@ -1,22 +1,21 @@
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import folder_paths  # pyrefly: ignore [missing-import]
 import nodes  # pyrefly: ignore [missing-import]
 import server  # pyrefly: ignore [missing-import]
 from aiohttp import web
-from aiohttp.test_utils import make_mocked_request
 
 if TYPE_CHECKING:
     from image_shelf.api import GalleryApi
-    from image_shelf.configuration import ShelfSettings
+    from image_shelf.configuration import ShelfSettings, load_settings_path
     from image_shelf.database import ImageRepository
     from image_shelf.log import logger
     from image_shelf.nodes.save_as_jpeg import SaveAsJPEG
     from image_shelf.nodes.send_to_favorites import SendToFavorites
 else:
     from .image_shelf.api import GalleryApi
-    from .image_shelf.configuration import ShelfSettings
+    from .image_shelf.configuration import ShelfSettings, load_settings_path
     from .image_shelf.database import ImageRepository
     from .image_shelf.log import logger
     from .image_shelf.nodes.save_as_jpeg import SaveAsJPEG
@@ -46,15 +45,6 @@ async def _on_server_start(app: web.Application) -> None:
     server_started = True
 
 
-def get_comfy_settings() -> dict[str, Any]:
-    if not server_started:
-        logger.warning(
-            "Attempting to load Comfy settings before the server has started. This may cause issues."
-        )
-    req = make_mocked_request("GET", "/settings")
-    return server.PromptServer.instance.user_manager.settings.get_settings(req)
-
-
 def launch_gallery() -> None:
     app = server.PromptServer.instance.app
     app.on_startup.append(_on_server_start)
@@ -62,7 +52,7 @@ def launch_gallery() -> None:
     repository = ImageRepository(database_path)
     settings = ShelfSettings(
         output_folder=folder_paths.get_output_directory(),
-        comfy_settings_loader=get_comfy_settings,
+        settings_path=load_settings_path(),
     )
     api = GalleryApi(repository, settings)
     app["image_shelf_api"] = api

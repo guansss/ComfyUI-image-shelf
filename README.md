@@ -28,15 +28,13 @@ Standalone mode runs the gallery API without starting ComfyUI. Copy `.env.exampl
 ```dotenv
 COMFYUI_PATH=C:/path/to/ComfyUI
 COMFYUI_OUTPUT_FOLDER=C:/path/to/ComfyUI/output
+# Optional; defaults to settings.json in the project root
+IMAGE_SHELF_SETTINGS_PATH=C:/path/to/image-shelf/settings.json
 ```
 
-The standalone server reads gallery settings from:
+The backend reads and writes gallery settings from `settings.json` in the project root by default. Set `IMAGE_SHELF_SETTINGS_PATH` to use another file. Unknown fields are ignored and invalid known fields are rejected.
 
-```text
-<COMFYUI_PATH>/user/default/comfy.settings.json
-```
-
-It uses `image-shelf.favorites-folder` for transfers and `image-shelf.custom-folders` for custom gallery folders. Outputs is the default gallery folder. Start it with:
+It uses `custom_folders` for custom gallery folders. Outputs is the default gallery folder. Start it with:
 
 ```powershell
 .\.venv\Scripts\python.exe gallery_backend.py
@@ -46,4 +44,4 @@ By default it listens on `http://127.0.0.1:8189`. When running the Vite frontend
 
 ## Current Status
 
-The gallery backend currently provides background indexing, SQLite FTS5 search, dimension facets, tag suggestions, secure opaque image URLs, custom folders, and standalone settings reload. The frontend opens from `Extensions > Image Shelf > Open Image Shelf` and renders folder-scoped image thumbnails.
+The gallery backend currently provides background indexing, SQLite FTS5 search, dimension facets, tag suggestions, secure opaque image URLs, and custom folders. The frontend opens from `Extensions > Image Shelf > Open Image Shelf` and renders folder-scoped image thumbnails.

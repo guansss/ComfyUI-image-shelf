@@ -3,17 +3,15 @@ from __future__ import annotations
 import argparse
 import logging
 from pathlib import Path
-from typing import Any
 
 from aiohttp import web
 
 from image_shelf.api import create_gallery_app
 from image_shelf.configuration import (
     ShelfSettings,
-    load_standalone_comfy_settings,
     load_standalone_configuration,
 )
-from image_shelf.log import debug_logger, logger
+from image_shelf.log import debug_logger
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,13 +31,9 @@ def main() -> None:
     except ValueError as error:
         raise SystemExit(str(error)) from error
 
-    def settings_loader() -> dict[str, Any]:
-        logger.info("Loading Comfy settings from %s", configuration.settings_path)
-        return load_standalone_comfy_settings(configuration)
-
     settings = ShelfSettings(
         output_folder=configuration.output_folder,
-        comfy_settings_loader=settings_loader,
+        settings_path=configuration.settings_path,
     )
     app = create_gallery_app(
         args.database,

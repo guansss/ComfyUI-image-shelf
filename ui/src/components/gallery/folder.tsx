@@ -1,8 +1,9 @@
+import { useAtom } from "jotai"
 import { isEqual } from "lodash-es"
 import {
-  CircleAlertIcon,
   ArrowDownIcon,
   ArrowUpIcon,
+  CircleAlertIcon,
   FolderIcon,
   FolderSyncIcon,
   LoaderCircleIcon,
@@ -17,12 +18,8 @@ import { useEffect, useState } from "react"
 
 import { i18n, useTranslation } from "../../i18n/i18n"
 import { errorToast, formatError } from "../../lib/error"
-import {
-  moveCustomFolder,
-  readCustomFolders,
-  saveCustomFolders,
-  toStoredCustomFolder,
-} from "../../lib/tab"
+import { moveCustomFolder, toStoredCustomFolder } from "../../lib/folder"
+import { settingsAtom } from "../../lib/settings"
 import { cn } from "../../lib/utils"
 import {
   GalleryFolder,
@@ -30,6 +27,7 @@ import {
   reindexFolder as reindexFolderApi,
   socket,
 } from "../../services/gallery"
+import { uuidv4 } from "../../utils/lang"
 import { ask, askCustom, AskCustomParam, AskDialog, AskDialogProps } from "../ask"
 import { usePickFolder } from "../pick-folder"
 import { Button } from "../ui/button"
@@ -60,6 +58,18 @@ export function FolderList({
 }: FolderListProps) {
   const t = useTranslation()
   const selectedFolder = folders?.find((folder) => folder.id === selectedFolderId)
+  const [settings, setSettings] = useAtom(settingsAtom)
+
+  const addFolder = async () => {
+    const result = await askCreateFolder({})
+    if (!result) return
+    await setSettings(({ custom_folders }) => {
+      if (!custom_folders) return
+      return {
+        custom_folders: [...custom_folders, toStoredCustomFolder(result.folder)],
+      }
+    })
+  }
 
   const removeFolder = async (folder: GalleryFolder) => {
     const confirmed = await ask({
@@ -67,16 +77,46 @@ export function FolderList({
       message: i18n.gallery.removeFolderMessage({ name: folder.name }),
     })
     if (!confirmed) return
-    saveCustomFolders((prevFolders) =>
-      prevFolders.filter((storedFolder) => storedFolder.id !== folder.id),
-    )
+    await setSettings(({ custom_folders }) => {
+      if (!custom_folders) return
+      return {
+        custom_folders: custom_folders.filter((storedFolder) => storedFolder.id !== folder.id),
+      }
+    })
     if (folder.id === selectedFolderId) {
       onFolderSelect("outputs")
     }
   }
 
-  const moveFolder = (folder: GalleryFolder, direction: "up" | "down") => {
-    saveCustomFolders((folders) => moveCustomFolder(folders, folder.id, direction))
+  const moveFolder = async (folder: GalleryFolder, direction: "up" | "down") => {
+    await setSettings(({ custom_folders }) => {
+      if (!custom_folders) return
+      return {
+        custom_folders: moveCustomFolder(custom_folders, folder.id, direction),
+      }
+    })
+  }
+
+  const editFolder = async (folder: GalleryFolder) => {
+    const result = await askEditFolder({}, folder)
+    if (!result) return
+    await setSettings(({ custom_folders }) => {
+      if (!custom_folders) return
+      const existingFolder = custom_folders.find((item) => item.id === folder.id)
+      if (!existingFolder) {
+        console.warn(
+          "[Image Shelf] editFolder: stored folder not found",
+          folder.id,
+          custom_folders.map((item) => item.id),
+        )
+        return
+      }
+      const newFolder = { ...existingFolder, ...toStoredCustomFolder(result.folder) }
+      if (isEqual(existingFolder, newFolder)) return
+      return {
+        custom_folders: custom_folders.map((item) => (item.id === folder.id ? newFolder : item)),
+      }
+    })
   }
 
   const reindexFolder = async (folder: GalleryFolder, force: boolean) => {
@@ -94,7 +134,9 @@ export function FolderList({
   }
 
   useEffect(() => {
-    const handleFoldersUpdated = ({ folders: updatedFolders }: GalleryMessage["foldersUpdated"]) => {
+    const handleFoldersUpdated = ({
+      folders: updatedFolders,
+    }: GalleryMessage["foldersUpdated"]) => {
       updateTabs((currentTabs) =>
         updatedFolders.map((update) => {
           const existingFolder = currentTabs?.find((folder) => folder.id === update.id)
@@ -145,125 +187,106 @@ export function FolderList({
   return (
     <nav className="flex flex-col gap-1 p-4 border-t">
       {folders?.map((folder) => {
-        const customFolderIndex = readCustomFolders().findIndex((item) => item.id === folder.id)
+        const customFolderIndex = (settings.custom_folders ?? []).findIndex(
+          (item) => item.id === folder.id,
+        )
         const isCustomFolder = customFolderIndex >= 0
-        const customFolderCount = readCustomFolders().length
+        const customFolderCount = settings.custom_folders?.length ?? 0
         return (
           <div
             key={folder.id}
-            className={cn("flex flex-wrap rounded-md", folder === selectedFolder && "bg-(--chart-3)")}
-          >
-          <Button
-            variant="flat"
             className={cn(
-              "grow justify-start",
-              folder === selectedFolder && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
+              "flex flex-wrap rounded-md",
+              folder === selectedFolder && "bg-(--chart-3)",
             )}
-            onClick={() => onFolderSelect(folder.id)}
           >
-            {folder.id === "outputs" ? (
-              <RotateCcwClockIcon data-icon="inline-start" />
-            ) : (
-              <FolderIcon data-icon="inline-start" />
-            )}
-            {folder.name}
-            {folder.indexing ? (
-              <LoaderCircleIcon data-icon="inline-end" className="animate-spin" />
-            ) : (
-              ` (${folder.count})`
-            )}
-            {folder.error && (
-              <span title={formatError(folder.error)}>
-                <CircleAlertIcon data-icon="inline-end" className="text-destructive" />
-              </span>
-            )}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="flat"
-                className={cn(
-                  folder === selectedFolder && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
-                )}
-              >
-                <SettingsIcon />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuGroup>
-                <DropdownMenuItem onSelect={() => void reindexFolder(folder, false)}>
-                  <RefreshCwIcon />
-                  {t.gallery.refresh}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void reindexFolder(folder, true)}>
-                  <FolderSyncIcon />
-                  {t.gallery.reindex}
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled={!folder.editable} onSelect={() => editFolder(folder)}>
-                  <Settings2Icon />
-                  {t.gallery.editFolder}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={!isCustomFolder || customFolderIndex === 0}
-                  onSelect={() => moveFolder(folder, "up")}
+            <Button
+              variant="flat"
+              className={cn(
+                "grow justify-start",
+                folder === selectedFolder && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
+              )}
+              onClick={() => onFolderSelect(folder.id)}
+            >
+              {folder.id === "outputs" ? (
+                <RotateCcwClockIcon data-icon="inline-start" />
+              ) : (
+                <FolderIcon data-icon="inline-start" />
+              )}
+              {folder.name}
+              {folder.indexing ? (
+                <LoaderCircleIcon data-icon="inline-end" className="animate-spin" />
+              ) : (
+                ` (${folder.count})`
+              )}
+              {folder.error && (
+                <span title={formatError(folder.error)}>
+                  <CircleAlertIcon data-icon="inline-end" className="text-destructive" />
+                </span>
+              )}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="flat"
+                  className={cn(
+                    folder === selectedFolder && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
+                  )}
                 >
-                  <ArrowUpIcon />
-                  {t.gallery.moveUp}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={!isCustomFolder || customFolderIndex === customFolderCount - 1}
-                  onSelect={() => moveFolder(folder, "down")}
-                >
-                  <ArrowDownIcon />
-                  {t.gallery.moveDown}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={!folder.removable}
-                  onSelect={async () => void removeFolder(folder)}
-                >
-                  <TrashIcon />
-                  {t.gallery.removeFolder}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <SettingsIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onSelect={() => void reindexFolder(folder, false)}>
+                    <RefreshCwIcon />
+                    {t.gallery.refresh}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void reindexFolder(folder, true)}>
+                    <FolderSyncIcon />
+                    {t.gallery.reindex}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={!folder.editable} onSelect={() => editFolder(folder)}>
+                    <Settings2Icon />
+                    {t.gallery.editFolder}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!isCustomFolder || customFolderIndex === 0}
+                    onSelect={() => moveFolder(folder, "up")}
+                  >
+                    <ArrowUpIcon />
+                    {t.gallery.moveUp}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!isCustomFolder || customFolderIndex === customFolderCount - 1}
+                    onSelect={() => moveFolder(folder, "down")}
+                  >
+                    <ArrowDownIcon />
+                    {t.gallery.moveDown}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={!folder.removable}
+                    onSelect={async () => void removeFolder(folder)}
+                  >
+                    <TrashIcon />
+                    {t.gallery.removeFolder}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )
       })}
-      <Button className="grow justify-start" onClick={() => void addCustomFolder()} variant="flat">
+      <Button className="grow justify-start" onClick={() => void addFolder()} variant="flat">
         <PlusIcon data-icon="inline-start" />
         {t.gallery.addFolder}
       </Button>
     </nav>
   )
-}
-
-const addCustomFolder = async () => {
-  const result = await askCreateFolder({})
-  if (!result) return
-  saveCustomFolders((prevFolders) => [...prevFolders, toStoredCustomFolder(result.folder)])
-}
-
-export async function editFolder(folder: GalleryFolder) {
-  const result = await askEditFolder({}, folder)
-  if (!result) return
-  const storedFolders = readCustomFolders()
-  const storedFolder = storedFolders.find((item) => item.id === folder.id)
-  if (!storedFolder) {
-    console.warn(
-      "[Image Shelf] editFolder: stored folder not found",
-      folder.id,
-      storedFolders.map((item) => item.id),
-    )
-    return
-  }
-  const newFolder = { ...storedFolder, ...toStoredCustomFolder(result.folder) }
-  if (isEqual(storedFolder, newFolder)) return
-  saveCustomFolders(storedFolders.map((item) => (item.id === storedFolder.id ? newFolder : item)))
 }
 
 interface EditFolderDialogValue {
@@ -276,7 +299,7 @@ interface EditFolderDialogMeta {
 
 function newFolder(): GalleryFolder {
   return {
-    id: `custom-${crypto.randomUUID()}`,
+    id: uuidv4(),
     name: "",
     path: "",
     editable: true,
@@ -365,9 +388,7 @@ function EditFolderDialog({
       content={
         <FieldGroup>
           <Field>
-            <FieldLabel>
-              {t.gallery.folderName}
-            </FieldLabel>
+            <FieldLabel>{t.gallery.folderName}</FieldLabel>
             <Input
               placeholder={t.gallery.folderNamePlaceholder}
               value={name}

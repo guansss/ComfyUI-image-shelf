@@ -1,7 +1,5 @@
-import type { Settings } from "@comfyorg/comfyui-frontend-types"
-
 import "./driver/comfy-driver"
-
+// This comment prevents the above import from being messed up by formatters
 import React from "react"
 import ReactDOM from "react-dom/client"
 
@@ -9,11 +7,12 @@ import { AskProvider } from "./components/ask"
 import { GalleryControl } from "./components/gallery/Gallery"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { getDriver } from "./driver/driver"
-import { CUSTOM_FOLDERS_SETTING, EXTENSION_ID, FAVORITES_SETTING } from "./global"
+import { EXTENSION_ID } from "./global"
 import { I18NProvider } from "./i18n/I18NProvider"
 import "./index.css"
 import { rootContainer } from "./lib/dom"
-import { updateSettings } from "./services/gallery"
+import { formatError } from "./lib/error"
+import { initializeSettings } from "./lib/settings"
 
 const OPEN_EVENT = "image-shelf:open"
 
@@ -35,23 +34,6 @@ function registerExtension(): void {
     .getComfyApp()
     .registerExtension({
       name: "ComfyUI.ImageShelf",
-      settings: [
-        {
-          id: "image-shelf.favorites-folder" as keyof Settings,
-          name: "Favorites folder",
-          type: "text",
-          defaultValue: "",
-          category: ["Image Shelf", "Storage", "Favorites folder"],
-          onChange: (value) => updateSettings({ [FAVORITES_SETTING]: value }),
-        },
-        {
-          id: "image-shelf.custom-folders" as keyof Settings,
-          name: "Custom folders",
-          type: "hidden",
-          defaultValue: [],
-          onChange: (value) => updateSettings({ [CUSTOM_FOLDERS_SETTING]: value }),
-        },
-      ],
       commands: [
         {
           id: "imageShelf.openGallery",
@@ -84,10 +66,20 @@ function loadStylesheet(): void {
   document.head.appendChild(link)
 }
 
-function main() {
-  loadStylesheet()
-  mountUI()
-  registerExtension()
+async function main() {
+  try {
+    await initializeSettings()
+    loadStylesheet()
+    mountUI()
+    registerExtension()
+  } catch (err) {
+    console.error("[Image Shelf] Failed to initialize", err)
+    getDriver().toast({
+      type: "error",
+      title: "[Image Shelf] Failed to initialize",
+      message: formatError(err),
+    })
+  }
 }
 
-main()
+void main()

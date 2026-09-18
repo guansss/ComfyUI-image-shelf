@@ -2,38 +2,79 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from dotenv import dotenv_values
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from .log import logger
 from .models import GalleryFolder
 from .paths import normalize_path
 
 
+class CustomFolderSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    name: str | None = None
+    path: str
+
+    @field_validator("id", "path")
+    @classmethod
+    def require_non_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+
+class ImageShelfSettingsModel(BaseModel):
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    custom_folders: list[CustomFolderSettings] = Field(
+        default_factory=list, alias="custom_folders"
+    )
+
+
 class ShelfSettings:
-    def __init__(
-        self, output_folder: Path, comfy_settings_loader: Callable[[], dict[str, Any]]
-    ) -> None:
+    def __init__(self, output_folder: Path, settings_path: Path) -> None:
         self.output_folder = output_folder
-        self._comfy_settings_loader = comfy_settings_loader
-        self.comfy_settings = {}
+        self.settings_path = settings_path
+        self.settings = ImageShelfSettingsModel()
 
-    def load_comfy_settings(self) -> None:
-        self.comfy_settings = self._comfy_settings_loader()
+    def load(self) -> None:
+        if not self.settings_path.is_file():
+            self.settings = ImageShelfSettingsModel()
+            return
+        try:
+            content = json.loads(self.settings_path.read_text(encoding="utf-8"))
+            self.settings = ImageShelfSettingsModel.model_validate(content)
+        except (OSError, json.JSONDecodeError, ValidationError, TypeError) as error:
+            raise ValueError(
+                f"Failed to load settings from {self.settings_path}: {error}"
+            ) from error
 
-    def update_comfy_settings(self, new_settings: dict[str, Any]) -> None:
-        self.comfy_settings = {
-            **self.comfy_settings,
-            **new_settings,
-        }
+    def update(self, patch: dict[str, Any]) -> None:
+        current = self.settings.model_dump(by_alias=True)
+        merged = {**current, **patch}
+        try:
+            updated = ImageShelfSettingsModel.model_validate(merged)
+            self.settings_path.parent.mkdir(parents=True, exist_ok=True)
+            self.settings_path.write_text(
+                json.dumps(updated.model_dump(by_alias=True), indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except (OSError, ValidationError, TypeError) as error:
+            raise ValueError(f"Failed to update settings: {error}") from error
+        self.settings = updated
+
+    def as_dict(self) -> dict[str, Any]:
+        return self.settings.model_dump(by_alias=True, exclude_none=True)
 
     def get_folders(self) -> list[GalleryFolder]:
         custom_folders = _parse_custom_folders(
-            self.comfy_settings.get("image-shelf.custom-folders")
+            [folder.model_dump() for folder in self.settings.custom_folders]
         )
         return [
             GalleryFolder(
@@ -44,8 +85,17 @@ class ShelfSettings:
             *custom_folders,
         ]
 
-    def get_favorites_folder(self) -> Path | None:
-        return _as_path(self.comfy_settings.get("image-shelf.favorites-folder"))
+
+_settings: ShelfSettings | None = None
+
+
+def settings() -> ShelfSettings | None:
+    return _settings
+
+
+def set_settings(new_settings: ShelfSettings) -> None:
+    global _settings
+    _settings = new_settings
 
 
 @dataclass(frozen=True)
@@ -69,12 +119,7 @@ def load_standalone_configuration(
     output_folder = normalize_path(
         _required_var("COMFYUI_OUTPUT_FOLDER", default=str(comfyui_path / "output"))
     )
-    settings_path = normalize_path(
-        _required_var(
-            "COMFYUI_SETTINGS_PATH",
-            default=str(comfyui_path / "user" / "default" / "comfy.settings.json"),
-        )
-    )
+    settings_path = load_settings_path(env_path)
     return StandaloneConfiguration(
         port=port,
         comfyui_path=comfyui_path,
@@ -83,22 +128,18 @@ def load_standalone_configuration(
     )
 
 
-def load_standalone_comfy_settings(
-    configuration: StandaloneConfiguration,
-) -> dict[str, Any]:
-    path = configuration.settings_path
-    if not path.is_file():
-        logger.error(f"Settings file {path} does not exist.")
-        return {}
-    try:
-        content = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        logger.error(f"Failed to load settings from {path}.")
-        return {}
-    if not isinstance(content, dict):
-        logger.error(f"Settings file {path} is not a valid JSON object.")
-        return {}
-    return content
+def load_settings_path(env_path: str | Path = ".env") -> Path:
+    env = {
+        **dotenv_values(env_path),
+        **dotenv_values(".env.local"),
+    }
+    {os.environ.setdefault(k, v) for k, v in env.items() if v is not None}
+    return normalize_path(
+        _required_var(
+            "IMAGE_SHELF_SETTINGS_PATH",
+            default=str(Path(__file__).resolve().parent.parent / "settings.json"),
+        )
+    )
 
 
 def _required_var(name: str, default: str | None = None) -> str:

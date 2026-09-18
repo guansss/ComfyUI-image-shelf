@@ -2,6 +2,7 @@ import mitt, { Emitter } from "mitt"
 
 import { API_ROOT } from "../global"
 import { SearchQuery, toBackendSearchTerms } from "../lib/search"
+import { ImageShelfSettings } from "../lib/settings"
 import { api } from "./network"
 
 export interface GalleryFolder {
@@ -294,10 +295,12 @@ export async function pickFolder(): Promise<void> {
 /**
  * This api should only be used in standalone mode.
  */
-export async function fetchSettings(): Promise<Record<string, unknown>> {
-  return await api<Record<string, unknown>>(`settings`, "GET")
+export async function fetchSettings(): Promise<ImageShelfSettings> {
+  return await api<ImageShelfSettings>(`settings`, "GET")
 }
 
-export async function updateSettings(patch: Record<string, unknown>): Promise<void> {
-  return await api(`settings`, "POST", patch, "ignore")
+export async function updateSettings(
+  patch: Partial<ImageShelfSettings>,
+): Promise<ImageShelfSettings> {
+  return await api<ImageShelfSettings>(`settings`, "POST", patch)
 }

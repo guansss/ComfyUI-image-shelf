@@ -6,6 +6,7 @@ license = {file = "LICENSE"}
 dependencies = [
 	"aiohttp",
 	"Pillow",
+	"pydantic",
 	"python-dotenv",
 	"watchdog",
 ]

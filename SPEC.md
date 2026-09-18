@@ -30,7 +30,7 @@ The gallery will include a toolbar with:
 
 - The gallery will include folders for different categories of images.
 - **Outputs** is the only default folder and displays all generated images in ComfyUI's output folder.
-- Users will be able to add custom folders by clicking an "Add Folder" button and selecting a local folder. Each custom folder has exactly one required path and is saved to the [settings](https://docs.comfy.org/custom-nodes/js/javascript_settings) under `image-shelf.custom-folders`.
+- Users will be able to add custom folders by clicking an "Add Folder" button and selecting a local folder. Each custom folder has exactly one required path and is saved to the backend-managed settings file under `custom_folders`.
 - Multiple folders can point to the same path, and the gallery will index that path only once. The gallery will de-duplicate images based on their full path, so if the same image exists in multiple folders, it will only be displayed once in the gallery.
 - Each folder will display the number of images it contains, or a loading indicator if the indexing process is ongoing.
 - Each folder will have a dropdown menu with options to:
@@ -99,13 +99,13 @@ The gallery will include a toolbar with:
 
 ### Settings
 
-- The extension will register a settings category through ComfyUI's [settings API](https://docs.comfy.org/custom-nodes/js/javascript_settings).
-- The settings will allow users to configure:
-  - The "Favorites" folder
-- The settings will include the following "hidden" options for storing user configurations from other parts of the UI:
-  - Custom folders (one required path per folder)
-  - Last used search query
-  - Last used filter and sort options
+- The backend owns a JSON settings file named `settings.json` at the project root by default.
+- `IMAGE_SHELF_SETTINGS_PATH` in `.env` can override the settings file location.
+- The settings API provides GET and partial-update POST endpoints at `/api/image-shelf/v1/settings`.
+- Pydantic validation ignores unknown fields and rejects invalid known fields before persistence.
+- The settings include:
+  - `image-shelf.favorites-folder`
+  - `custom_folders` (one required path per folder)
 
 ## Implementation Details
 
@@ -129,7 +129,7 @@ For development purposes, the image gallery's backend will be implemented in a w
 
 A `gallery_backend.py` script will be provided that can be run independently of ComfyUI. This script will start an aiohttp server that serves the gallery's API endpoints and handles image indexing, searching, and metadata parsing.
 
-A `.env` file will be used to provide ComfyUI's installation path and the output folder path to the standalone backend.
+A `.env` file will be used to provide ComfyUI's installation path, the output folder path, and optionally the settings file path to the standalone backend.
 
 The frontend, when launched in development mode, will add a "Debug" switch to the settings page that allows users to connect the frontend to the standalone backend instead of ComfyUI's backend. This will allow developers to test the gallery without needing to reboot ComfyUI.
 

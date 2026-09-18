@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,6 +7,7 @@ from unittest.mock import AsyncMock, Mock
 from aiohttp import web
 
 from image_shelf.api import GalleryApi, _development_cors_middleware
+from image_shelf.configuration import ShelfSettings
 from image_shelf.indexer import IndexingResult
 from image_shelf.models import GalleryFolder
 
@@ -111,6 +113,32 @@ class DevelopmentCorsMiddlewareTests(unittest.IsolatedAsyncioTestCase):
             response.headers["Access-Control-Allow-Origin"],
             "http://localhost:8188",
         )
+
+
+class GalleryApiSettingsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_settings_are_read_and_updated_through_the_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            settings = ShelfSettings(root, root / "settings.json")
+            api = GalleryApi(None, settings)  # pyrefly: ignore [bad-argument-type]
+            api.apply_settings = AsyncMock()
+            await api.get_settings(Mock())
+
+            new_settings = {
+                "custom_folders": [
+                    {"id": "folder-1", "name": "Custom", "path": str(root / "custom")}
+                ]
+            }
+            request = Mock()
+            request.json = AsyncMock(return_value=new_settings)
+            response = await api.update_settings(request)
+
+            self.assertEqual(response.status, 200)
+            api.apply_settings.assert_awaited_once()
+            self.assertEqual(
+                json.loads((Path(temporary_directory) / "settings.json").read_text()),
+                new_settings,
+            )
 
 
 if __name__ == "__main__":

@@ -113,7 +113,7 @@ class GalleryApi:
         if self.watcher is None:
             self.watcher = FolderWatcher(self._index_folder_and_broadcast, loop)
             self.watcher.start()
-        self.settings.load_comfy_settings()
+        self.settings.load()
         await self.apply_settings()
 
     async def shutdown_websockets(self) -> None:
@@ -180,7 +180,6 @@ class GalleryApi:
                 web.get("/api/image-shelf/v1/tags", self.tags),
                 web.get("/api/image-shelf/v1/settings", self.get_settings),
                 web.post("/api/image-shelf/v1/settings", self.update_settings),
-                web.post("/api/image-shelf/v1/settings/reload", self.reload_settings),
                 web.post("/api/image-shelf/v1/reindex", self.reindex),
                 web.get("/api/image-shelf/v1/status", self.folders_status),
             ]
@@ -331,7 +330,7 @@ class GalleryApi:
 
     async def send_to_favorites(self, request: web.Request) -> web.Response:
         source = self.repository.path_for_public_id(request.match_info["image_id"])
-        favorites_folder = self.settings.get_favorites_folder()
+        favorites_folder = Path("favorites")
         if source is None or not any(
             is_within_directory(source, folder) for folder in self._tracked_paths()
         ):
@@ -362,7 +361,9 @@ class GalleryApi:
         )
 
     async def tags(self, request: web.Request) -> web.Response:
-        folder = self._folder_from_request(request) if request.query.get("folder") else None
+        folder = (
+            self._folder_from_request(request) if request.query.get("folder") else None
+        )
         return web.json_response(
             {
                 "items": [
@@ -385,27 +386,19 @@ class GalleryApi:
             self.indexing_tasks[path] = self._create_indexing_task(path, force)
         return web.json_response({"accepted": True}, status=202)
 
-    async def reload_settings(self, request: web.Request) -> web.Response:
-        try:
-            self.settings.load_comfy_settings()
-            await self.apply_settings()
-        except ValueError as error:
-            raise web.HTTPNotImplemented(text=str(error)) from error
-        return web.json_response({"accepted": True}, status=202)
-
     async def get_settings(self, request: web.Request) -> web.Response:
-        return web.json_response(self.settings.comfy_settings)
+        return web.json_response(self.settings.as_dict())
 
     async def update_settings(self, request: web.Request) -> web.Response:
         try:
             settings = await request.json()
             if not isinstance(settings, dict):
                 raise TypeError("Image Shelf settings must be an object.")
-            self.settings.update_comfy_settings(settings)
+            self.settings.update(settings)
             await self.apply_settings()
         except (ValueError, TypeError) as error:
             raise web.HTTPBadRequest(text=str(error)) from error
-        return web.json_response({"accepted": True}, status=202)
+        return web.json_response(self.settings.as_dict())
 
     async def folders_status(self, request: web.Request) -> web.Response:
         return web.json_response(

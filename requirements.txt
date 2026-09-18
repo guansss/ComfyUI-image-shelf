@@ -3,4 +3,5 @@ watchdog
 # Already installed by ComfyUI
 aiohttp
 dotenv
+pydantic
 Pillow

@@ -13,3 +13,4 @@ node.zip
 generated/
 *.sqlite3
 *.local
+settings.json
