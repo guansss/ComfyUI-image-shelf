@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
@@ -23,15 +24,22 @@ class NodeAdapter(ABC):
 @dataclass(frozen=True)
 class AnalysisContext:
     semantics: NodeSemantics
+    timings: Timings
 
 
 class NodeSemantics:
     def __init__(self):
         self._endpoints: list[SemanticEndpoint] = []
         self._inputs: list[SemanticInput] = []
+        self._inputs_by_node: dict[str, list[SemanticInput]] = defaultdict(list)
         self._suppressions: list[
             Callable[[SemanticEndpoint | SemanticInput], bool]
         ] = []
+
+    def _rebuild_input_index(self) -> None:
+        self._inputs_by_node = defaultdict(list)
+        for input in self._inputs:
+            self._inputs_by_node[input.node_id].append(input)
 
     def _resolve_with_claims[T: SemanticEndpoint | SemanticInput](
         self,
@@ -95,7 +103,12 @@ class NodeSemantics:
         self._resolve_with_claims(self._endpoints, endpoint)
 
     def add_input(self, input: SemanticInput) -> None:
+        input_count = len(self._inputs)
         self._resolve_with_claims(self._inputs, input)
+        if len(self._inputs) == input_count + 1:
+            self._inputs_by_node[input.node_id].append(input)
+        else:
+            self._rebuild_input_index()
 
     def suppress(
         self, condition: Callable[[SemanticEndpoint | SemanticInput], bool]
@@ -110,6 +123,8 @@ class NodeSemantics:
             if condition(input):
                 self._inputs.remove(input)
 
+        self._rebuild_input_index()
+
     def get_endpoints(self) -> list[SemanticEndpoint]:
         return self._endpoints
 
@@ -118,9 +133,8 @@ class NodeSemantics:
     ) -> list[SemanticInput]:
         return [
             input
-            for input in self._inputs
-            if input.node_id == node_id
-            and (
+            for input in self._inputs_by_node.get(node_id, ())
+            if (
                 output_index is None
                 or input.output_index is None
                 or input.output_index == output_index

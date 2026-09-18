@@ -38,7 +38,7 @@ def parse_workflow(
     ]
 
     semantics = NodeSemantics()
-    context = AnalysisContext(semantics=semantics)
+    context = AnalysisContext(semantics=semantics, timings=timings)
 
     with timings.measure("analysis"):
         for node in graph.nodes():
@@ -68,7 +68,7 @@ def parse_workflow(
                             role=endpoint.role,
                             score=step.score,
                             reason=f"{endpoint.initiator}:{endpoint_node.class_type}.{endpoint.input_name}",
-                            path=step.path,
+                            path=step.path(),
                         )
                     )
 
@@ -78,11 +78,29 @@ def parse_workflow(
 
 
 @dataclass(frozen=True)
+class _PathLink:
+    step: PathStep
+    parent: _PathLink | None = None
+
+    def materialize(self) -> tuple[PathStep, ...]:
+        path: list[PathStep] = []
+        current: _PathLink | None = self
+        while current is not None:
+            path.append(current.step)
+            current = current.parent
+        path.reverse()
+        return tuple(path)
+
+
+@dataclass(frozen=True)
 class TraversalStep:
     node_id: str
     input_name: str
     score: float
-    path: tuple[PathStep, ...]
+    path_link: _PathLink
+
+    def path(self) -> tuple[PathStep, ...]:
+        return self.path_link.materialize()
 
 
 def _trace_upstream(
@@ -95,8 +113,8 @@ def _trace_upstream(
             node_id=endpoint.node_id,
             input_name=endpoint.input_name,
             score=endpoint.confidence,
-            path=(
-                PathStep(
+            path_link=_PathLink(
+                step=PathStep(
                     node_id=endpoint.node_id,
                     input_name=endpoint.input_name,
                     output_index=None,
@@ -131,13 +149,13 @@ def _trace_upstream(
                         node_id=source.node_id,
                         input_name=semantic_input.input_name,
                         score=max(current_step.score, semantic_input.confidence),
-                        path=current_step.path
-                        + (
-                            PathStep(
+                        path_link=_PathLink(
+                            step=PathStep(
                                 node_id=source.node_id,
                                 input_name=semantic_input.input_name,
                                 output_index=source.output_index,
                             ),
+                            parent=current_step.path_link,
                         ),
                     )
                 )

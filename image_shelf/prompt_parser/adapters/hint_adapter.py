@@ -1,3 +1,4 @@
+from collections import defaultdict
 from collections.abc import Iterable
 from typing import override
 
@@ -13,16 +14,28 @@ from ..models import (
 
 class HintAdapter(NodeAdapter):
     def __init__(self, hints: Iterable[PromptHint]):
-        self.hints = tuple(hints)
+        self.hints_by_class: dict[str, tuple[PromptHint, ...]] = {
+            class_type: tuple(class_hints)
+            for class_type, class_hints in self._group_hints(hints).items()
+        }
+
+    @staticmethod
+    def _group_hints(
+        hints: Iterable[PromptHint],
+    ) -> dict[str, list[PromptHint]]:
+        grouped: defaultdict[str, list[PromptHint]] = defaultdict(list)
+        for hint in hints:
+            grouped[hint.class_type].append(hint)
+        return grouped
 
     @override
     def analyze(self, node, context):
         semantics = context.semantics
 
-        hints = [hint for hint in self.hints if hint.class_type == node.class_type]
-        input_hints = [hint for hint in hints if hint.input_name]
+        for hint in self.hints_by_class.get(node.class_type, ()):
+            if not hint.input_name:
+                continue
 
-        for hint in input_hints:
             assert hint.input_name
 
             if hint.ignore:
