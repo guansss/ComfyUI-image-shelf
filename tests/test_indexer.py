@@ -70,6 +70,82 @@ class FolderIndexerTests(unittest.TestCase):
             self.assertEqual(repository.list_images([root]).total, 81)
             repository.close()
 
+    def test_tag_upsert_batches_and_replaces_links(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            repository = ImageRepository(root / "index.sqlite")
+            first_image = IndexedImage(
+                root / "first.png",
+                1,
+                1,
+                1,
+                1.0,
+                1.0,
+                None,
+                None,
+                ("Cat", "cat", "Dog"),
+                ("CAT",),
+            )
+            second_image = IndexedImage(
+                root / "second.png",
+                1,
+                1,
+                1,
+                1.0,
+                1.0,
+                None,
+                None,
+                ("Bird",),
+                (),
+            )
+
+            with patch.object(repository, "_parameter_limit", return_value=2):
+                repository.upsert_images((first_image, second_image))
+
+            public_id = repository.connection.execute(
+                "SELECT public_id FROM images WHERE path = ?", (str(first_image.path),)
+            ).fetchone()[0]
+            details = repository.image_details(public_id)
+            self.assertIsNotNone(details)
+            first_details, _ = details
+            self.assertEqual(first_details.tags, ("Cat", "Dog"))
+            self.assertEqual(first_details.negative_tags, ("CAT",))
+
+            repository.upsert_image(
+                IndexedImage(
+                    first_image.path,
+                    1,
+                    1,
+                    1,
+                    1.0,
+                    1.0,
+                    None,
+                    None,
+                    ("Fox",),
+                    (),
+                )
+            )
+            details = repository.image_details(public_id)
+            self.assertIsNotNone(details)
+            first_details, _ = details
+            self.assertEqual(first_details.tags, ("Fox",))
+            self.assertEqual(first_details.negative_tags, ())
+
+            tag_rows = repository.connection.execute(
+                "SELECT name, type FROM tags ORDER BY type, name"
+            ).fetchall()
+            self.assertEqual(
+                [(row["name"], row["type"]) for row in tag_rows],
+                [
+                    ("CAT", "negative"),
+                    ("Bird", "positive"),
+                    ("Cat", "positive"),
+                    ("Dog", "positive"),
+                    ("Fox", "positive"),
+                ],
+            )
+            repository.close()
+
     def test_deleting_images_removes_images(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

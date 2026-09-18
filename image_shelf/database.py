@@ -76,11 +76,20 @@ class ImageRepository:
                     self._upsert_image_rows(image_rows, workflow_ids)
                 )
 
-            tag_cache: dict[tuple[str, str], int] = {}
-            for path, image in unique_images.items():
-                image_id = image_ids_by_path[path]
-                self._replace_tags(image_id, image.tags, "positive", tag_cache)
-                self._replace_tags(image_id, image.negative_tags, "negative", tag_cache)
+            self._replace_tags_batch(
+                (
+                    (image_ids_by_path[path], image.tags)
+                    for path, image in unique_images.items()
+                ),
+                "positive",
+            )
+            self._replace_tags_batch(
+                (
+                    (image_ids_by_path[path], image.negative_tags)
+                    for path, image in unique_images.items()
+                ),
+                "negative",
+            )
         return tuple(image_ids_by_path[normalize_path(image.path)] for image in images)
 
     def _upsert_image_rows(
@@ -397,44 +406,94 @@ class ImageRepository:
             if (path := Path(row["path"])).parent == normalized_folder_path
         }
 
-    def _replace_tags(
+    def _replace_tags_batch(
         self,
-        image_id: int,
-        tags: Iterable[str],
+        image_tags: Iterable[tuple[int, Iterable[str]]],
         tag_type: str,
-        tag_cache: dict[tuple[str, str], int] | None = None,
     ) -> None:
-        self.connection.execute(
-            """
-            DELETE FROM image_tags
-            WHERE image_id = ? AND tag_id IN (SELECT id FROM tags WHERE type = ?)
-            """,
-            (image_id, tag_type),
-        )
-        for tag in tags:
-            normalized_name = tag.lower()
-            cache_key = (normalized_name, tag_type)
-            tag_id = tag_cache.get(cache_key) if tag_cache is not None else None
-            if tag_id is None:
-                self.connection.execute(
-                    """
-                    INSERT INTO tags (name, normalized_name, type) VALUES (?, ?, ?)
-                    ON CONFLICT(normalized_name, type) DO NOTHING
-                    """,
-                    (tag, normalized_name, tag_type),
-                )
-                tag_row = self.connection.execute(
-                    "SELECT id FROM tags WHERE normalized_name = ? AND type = ?",
-                    (normalized_name, tag_type),
-                ).fetchone()
-                if tag_row is None:
+        image_tag_rows: list[tuple[int, str, str]] = []
+        image_ids: list[int] = []
+        seen_image_ids: set[int] = set()
+        tag_definitions: dict[tuple[str, str], str] = {}
+        for image_id, tags in image_tags:
+            if image_id not in seen_image_ids:
+                image_ids.append(image_id)
+                seen_image_ids.add(image_id)
+            seen_tags: set[str] = set()
+            for tag in tags:
+                normalized_name = tag.lower()
+                if normalized_name in seen_tags:
                     continue
-                tag_id = int(tag_row["id"])
-                if tag_cache is not None:
-                    tag_cache[cache_key] = tag_id
+                seen_tags.add(normalized_name)
+                tag_key = (normalized_name, tag_type)
+                tag_definitions.setdefault(tag_key, tag)
+                image_tag_rows.append((image_id, normalized_name, tag_type))
+
+        parameter_limit = self._parameter_limit()
+        image_delete_batch_size = max(1, parameter_limit - 1)
+        for start in range(0, len(image_ids), image_delete_batch_size):
+            image_id_batch = image_ids[
+                start : start + image_delete_batch_size
+            ]
+            placeholders = ", ".join("?" for _ in image_id_batch)
             self.connection.execute(
-                "INSERT OR IGNORE INTO image_tags (image_id, tag_id) VALUES (?, ?)",
-                (image_id, tag_id),
+                f"""
+                DELETE FROM image_tags
+                WHERE image_id IN ({placeholders})
+                  AND tag_id IN (SELECT id FROM tags WHERE type = ?)
+                """,
+                (*image_id_batch, tag_type),
+            )
+
+        definition_items = tuple(tag_definitions.items())
+        definition_batch_size = max(1, parameter_limit // 3)
+        for start in range(0, len(definition_items), definition_batch_size):
+            definition_batch = definition_items[start : start + definition_batch_size]
+            self.connection.execute(
+                f"""
+                INSERT INTO tags (name, normalized_name, type)
+                VALUES {", ".join("(?, ?, ?)" for _ in definition_batch)}
+                ON CONFLICT(normalized_name, type) DO NOTHING
+                """,
+                tuple(
+                    value
+                    for (normalized_name, tag_type), name in definition_batch
+                    for value in (name, normalized_name, tag_type)
+                ),
+            )
+
+        tag_ids: dict[tuple[str, str], int] = {}
+        tag_keys = tuple(tag_definitions)
+        tag_lookup_batch_size = max(1, parameter_limit // 2)
+        for start in range(0, len(tag_keys), tag_lookup_batch_size):
+            tag_key_batch = tag_keys[start : start + tag_lookup_batch_size]
+            conditions = " OR ".join(
+                "(normalized_name = ? AND type = ?)" for _ in tag_key_batch
+            )
+            rows = self.connection.execute(
+                f"SELECT id, normalized_name, type FROM tags WHERE {conditions}",
+                tuple(value for tag_key in tag_key_batch for value in tag_key),
+            ).fetchall()
+            tag_ids.update(
+                {
+                    (row["normalized_name"], row["type"]): int(row["id"])
+                    for row in rows
+                }
+            )
+
+        link_rows = [
+            (image_id, tag_ids[(normalized_name, tag_type)])
+            for image_id, normalized_name, tag_type in image_tag_rows
+        ]
+        link_batch_size = max(1, parameter_limit // 2)
+        for start in range(0, len(link_rows), link_batch_size):
+            link_batch = link_rows[start : start + link_batch_size]
+            self.connection.execute(
+                f"""
+                INSERT OR IGNORE INTO image_tags (image_id, tag_id)
+                VALUES {", ".join("(?, ?)" for _ in link_batch)}
+                """,
+                tuple(value for row in link_batch for value in row),
             )
 
     def _migrate(self) -> None:
