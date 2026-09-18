@@ -1,7 +1,9 @@
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 
+@dataclass
 class Timings:
     def __init__(self) -> None:
         self.durations: dict[str, float] = {}
