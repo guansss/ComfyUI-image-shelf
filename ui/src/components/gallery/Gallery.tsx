@@ -48,7 +48,7 @@ import { Label } from "../ui/label"
 import { ScrollArea } from "../ui/scroll-area"
 import { useFolderList, useImageQuery } from "./api"
 import { FolderList } from "./folder"
-import { transferSelectedImage } from "./helpers"
+import { transferSelectedImages } from "./helpers"
 import { ImageViewer } from "./ImageViewer"
 import { Searchbar } from "./Searchbar"
 
@@ -376,6 +376,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                   mode="copy"
                   label={t.gallery.copyTo}
                   icon={<CopyPlusIcon data-icon="inline-start" />}
+                  onComplete={() => setSelectedImages([])}
                 />
                 <TransferMenu
                   folders={folders}
@@ -383,6 +384,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                   mode="move"
                   label={t.gallery.moveTo}
                   icon={<FileInputIcon data-icon="inline-start" />}
+                  onComplete={() => setSelectedImages([])}
                 />
               </>
             ) : (
@@ -486,12 +488,14 @@ function TransferMenu({
   mode,
   label,
   icon,
+  onComplete,
 }: {
   folders?: GalleryFolder[]
   images: GalleryImage[]
   mode: "copy" | "move"
   label: string
   icon: ReactNode
+  onComplete: () => void
 }) {
   return (
     <DropdownMenu>
@@ -505,7 +509,11 @@ function TransferMenu({
         {folders?.map((folder) => (
           <DropdownMenuItem
             key={folder.id}
-            onSelect={() => images.length > 0 && transferSelectedImage(images, folder, mode)}
+            onSelect={async () => {
+              if (images.length > 0 && (await transferSelectedImages(images, folder, mode))) {
+                onComplete()
+              }
+            }}
           >
             {folder.name}
           </DropdownMenuItem>

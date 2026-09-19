@@ -92,6 +92,18 @@ export class TransferConflictError extends Error {
   }
 }
 
+export interface TransferConflict {
+  image_id: string
+  filename: string
+  suggested_filename: string
+}
+
+export class TransferConflictsError extends Error {
+  constructor(public readonly conflicts: TransferConflict[]) {
+    super("One or more files already exist in the target folder.")
+  }
+}
+
 export interface ImageQuery {
   folder: string
   query: SearchQuery
@@ -258,21 +270,61 @@ export function fetchImageDetails(imageId: string): Promise<ImageDetails> {
 }
 
 export type TransferMode = "copy" | "move"
+export type TransferConflictMode = "rename" | "suggest" | "fail"
+
+export interface TransferResult {
+  folder: string
+  filename: string
+  mode: TransferMode
+}
+
+export interface BatchTransferResult {
+  folder: string
+  mode: TransferMode
+  items: { image_id: string; filename: string }[]
+}
 
 export async function transferImage(
   imageId: string,
   folder: string,
   mode: TransferMode,
   filename?: string,
-): Promise<{ folder: string; filename: string; mode: TransferMode }> {
+  conflict: TransferConflictMode = "suggest",
+): Promise<TransferResult> {
   return await api(
     `images/${encodeURIComponent(imageId)}/transfer`,
     "POST",
-    { folder, mode, filename },
+    { folder, mode, filename, conflict },
     async (res, defaultHandler) => {
       if (res.status === 409) {
         const payload: { suggested_filename: string } = await res.json()
         throw new TransferConflictError(payload.suggested_filename)
+      }
+      return defaultHandler("json")
+    },
+  )
+}
+
+export async function transferImages(
+  imageIds: string[],
+  folder: string,
+  mode: TransferMode,
+  conflict: TransferConflictMode = "suggest",
+  filenames?: Record<string, string>,
+): Promise<BatchTransferResult> {
+  return await api(
+    "batch/images/transfer",
+    "POST",
+    { image_ids: imageIds, folder, mode, conflict, filenames },
+    async (res, defaultHandler) => {
+      if (res.status === 409) {
+        const payload: {
+          error: string
+          conflicts?: TransferConflict[]
+        } = await res.json()
+        if (payload.conflicts) {
+          throw new TransferConflictsError(payload.conflicts)
+        }
       }
       return defaultHandler("json")
     },

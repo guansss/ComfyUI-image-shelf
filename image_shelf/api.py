@@ -19,7 +19,12 @@ from .metadata.metadata import get_image_metadata
 from .models import GalleryFolder
 from .paths import is_within_directory, normalize_path
 from .search import SearchTerm
-from .transfer import FileConflictError, transfer_file
+from .transfer import (
+    BatchFileConflictError,
+    FileConflictError,
+    transfer_file,
+    transfer_files,
+)
 from .watcher import FolderWatcher
 
 
@@ -165,6 +170,10 @@ class GalleryApi:
                 web.post(
                     "/api/image-shelf/v1/images/{image_id}/transfer",
                     self.transfer_image,
+                ),
+                web.post(
+                    "/api/image-shelf/v1/batch/images/transfer",
+                    self.transfer_images,
                 ),
                 web.post(
                     "/api/image-shelf/v1/images/{image_id}/reveal",
@@ -352,13 +361,16 @@ class GalleryApi:
             if is_within_directory(source, destination_folder):
                 raise web.HTTPBadRequest(text="Image is already in the target folder")
             mode = body.get("mode", "copy")
+            conflict = body.get("conflict", "suggest")
             filename = body.get("filename")
             if not isinstance(mode, str):
                 raise TypeError("Transfer mode must be a string.")
+            if not isinstance(conflict, str):
+                raise TypeError("Transfer conflict must be a string.")
             if filename is not None and not isinstance(filename, str):
                 raise ValueError("Transfer filename must be a string.")
             destination = await asyncio.to_thread(
-                transfer_file, source, destination_folder, mode, filename
+                transfer_file, source, destination_folder, mode, filename, conflict
             )
         except FileConflictError as error:
             return web.json_response(
@@ -372,6 +384,94 @@ class GalleryApi:
             raise web.HTTPBadRequest(text=str(error)) from error
         return web.json_response(
             {"folder": folder_id, "filename": destination.name, "mode": mode},
+            status=201,
+        )
+
+    async def transfer_images(self, request: web.Request) -> web.Response:
+        sources: list[tuple[str, Path, str | None]] = []
+        try:
+            body = await request.json()
+            if not isinstance(body, dict):
+                raise TypeError("Transfer request must be an object.")
+            image_ids = body.get("image_ids")
+            if not isinstance(image_ids, list) or not image_ids:
+                raise TypeError("Transfer image_ids must be a non-empty array.")
+            if not all(isinstance(image_id, str) for image_id in image_ids):
+                raise TypeError("Transfer image_ids must contain strings.")
+            if len(set(image_ids)) != len(image_ids):
+                raise ValueError("Transfer image_ids must be unique.")
+            folder_id = body.get("folder")
+            if not isinstance(folder_id, str):
+                raise TypeError("Transfer folder must be a string.")
+            destination_folder = next(
+                (folder.path for folder in self.folders if folder.id == folder_id),
+                None,
+            )
+            if destination_folder is None:
+                raise web.HTTPNotFound(text="Unknown Image Shelf folder")
+            if not destination_folder.is_dir():
+                raise web.HTTPNotFound(text="Target folder does not exist")
+            mode = body.get("mode", "copy")
+            conflict = body.get("conflict", "suggest")
+            filenames = body.get("filenames", {})
+            if not isinstance(mode, str):
+                raise TypeError("Transfer mode must be a string.")
+            if not isinstance(conflict, str):
+                raise TypeError("Transfer conflict must be a string.")
+            if not isinstance(filenames, dict) or not all(
+                isinstance(key, str) and isinstance(value, str)
+                for key, value in filenames.items()
+            ):
+                raise TypeError("Transfer filenames must be an object of strings.")
+
+            for image_id in image_ids:
+                source = self.repository.path_for_public_id(image_id)
+                if source is None or not any(
+                    is_within_directory(source, folder)
+                    for folder in self._tracked_paths()
+                ):
+                    raise web.HTTPNotFound(
+                        text=f"Image not found or not within tracked folders: {image_id}"
+                    )
+                if is_within_directory(source, destination_folder):
+                    raise web.HTTPBadRequest(
+                        text="Image is already in the target folder"
+                    )
+                sources.append((image_id, source, filenames.get(image_id)))
+
+            destinations = await asyncio.to_thread(
+                transfer_files,
+                [(source, filename) for _, source, filename in sources],
+                destination_folder,
+                mode,
+                conflict,
+            )
+        except BatchFileConflictError as error:
+            return web.json_response(
+                {
+                    "error": "filename_conflicts",
+                    "conflicts": [
+                        {
+                            "image_id": sources[int(item["index"])][0],
+                            "filename": item["filename"],
+                            "suggested_filename": item["suggested_filename"],
+                        }
+                        for item in error.conflicts
+                    ],
+                },
+                status=409,
+            )
+        except (FileNotFoundError, TypeError, ValueError) as error:
+            raise web.HTTPBadRequest(text=str(error)) from error
+        return web.json_response(
+            {
+                "folder": folder_id,
+                "mode": mode,
+                "items": [
+                    {"image_id": image_id, "filename": destination.name}
+                    for (image_id, _, _), destination in zip(sources, destinations)
+                ],
+            },
             status=201,
         )
 

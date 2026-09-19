@@ -6,8 +6,10 @@ import {
   GalleryImage,
   revealImage,
   TransferConflictError,
+  TransferConflictsError,
   TransferMode,
   transferImage,
+  transferImages,
 } from "../../services/gallery"
 import { askInput } from "../ask"
 
@@ -29,7 +31,7 @@ export async function transferSelectedImage(
   filename?: string,
 ) {
   try {
-    const result = await transferImage(image.id, folder.id, mode, filename)
+    const result = await transferImage(image.id, folder.id, mode, filename, "suggest")
     toast({
       type: "success",
       title: mode === "copy" ? i18n.gallery.copied : i18n.gallery.moved,
@@ -62,5 +64,79 @@ export async function transferSelectedImage(
       title: i18n.gallery.transferFailed,
       message: formatError(error),
     })
+  }
+}
+
+export async function transferSelectedImages(
+  images: GalleryImage[],
+  folder: GalleryFolder,
+  mode: TransferMode,
+): Promise<boolean> {
+  try {
+    const result = await transferImages(
+      images.map((image) => image.id),
+      folder.id,
+      mode,
+      "suggest",
+    )
+    toast({
+      type: "success",
+      title: mode === "copy" ? i18n.gallery.copied : i18n.gallery.moved,
+      message: result.items.map((item) => item.filename).join(", "),
+    })
+    return true
+  } catch (error: unknown) {
+    if (error instanceof TransferConflictsError) {
+      const filenames: Record<string, string> = {}
+      for (const conflict of error.conflicts) {
+        const replacement = await askInput(
+          {
+            title: i18n.gallery.transferConflict,
+            message: i18n.gallery.transferConflictMessage,
+            initialValue: conflict.suggested_filename,
+          },
+          {
+            validate: (value) => {
+              if (!value.trim()) {
+                errorToast({
+                  message: i18n.error.required({ field: i18n.gallery.filename }),
+                })
+                return false
+              }
+              return true
+            },
+          },
+        )
+        if (!replacement) return false
+        filenames[conflict.image_id] = replacement
+      }
+
+      try {
+        const result = await transferImages(
+          images.map((image) => image.id),
+          folder.id,
+          mode,
+          "fail",
+          filenames,
+        )
+        toast({
+          type: "success",
+          title: mode === "copy" ? i18n.gallery.copied : i18n.gallery.moved,
+          message: result.items.map((item) => item.filename).join(", "),
+        })
+        return true
+      } catch (retryError: unknown) {
+        errorToast({
+          title: i18n.gallery.transferFailed,
+          message: formatError(retryError),
+        })
+        return false
+      }
+    }
+    errorToast({
+      title: i18n.gallery.transferFailed,
+      message: formatError(error),
+    })
+    return false
   }
 }

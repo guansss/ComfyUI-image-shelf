@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
 
-import { fetchImages, transferImage } from "../src/services/gallery"
+import { fetchImages, transferImage, transferImages } from "../src/services/gallery"
 
 describe("gallery API client", () => {
   test("sends server-side gallery controls as query parameters", async () => {
@@ -61,7 +61,45 @@ describe("gallery API client", () => {
       expect.stringContaining("images/image%2Fid/transfer"),
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ folder: "custom", mode: "move", filename: undefined }),
+        body: JSON.stringify({
+          folder: "custom",
+          mode: "move",
+          filename: undefined,
+          conflict: "suggest",
+        }),
+      }),
+    )
+    fetchMock.mockRestore()
+  })
+
+  test("transfers multiple images through the batch endpoint", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          folder: "custom",
+          mode: "copy",
+          items: [
+            { image_id: "one", filename: "one.png" },
+            { image_id: "two", filename: "two.png" },
+          ],
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      ),
+    )
+
+    await transferImages(["one", "two"], "custom", "copy", "suggest")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("batch/images/transfer"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          image_ids: ["one", "two"],
+          folder: "custom",
+          mode: "copy",
+          conflict: "suggest",
+          filenames: undefined,
+        }),
       }),
     )
     fetchMock.mockRestore()

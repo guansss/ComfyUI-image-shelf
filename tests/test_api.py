@@ -180,6 +180,110 @@ class GalleryApiTransferTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(web.HTTPBadRequest):
                 await api.transfer_image(request)
 
+    async def test_transfers_multiple_images_to_selected_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source_folder = root / "source"
+            target_folder = root / "target"
+            source_folder.mkdir()
+            target_folder.mkdir()
+            sources = {
+                "first": source_folder / "first.png",
+                "second": source_folder / "second.png",
+            }
+            sources["first"].write_bytes(b"first")
+            sources["second"].write_bytes(b"second")
+
+            repository = Mock()
+            repository.path_for_public_id.side_effect = sources.get
+            api = GalleryApi(repository, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (
+                GalleryFolder("source", "Source", source_folder),
+                GalleryFolder("target", "Target", target_folder),
+            )
+            request = Mock()
+            request.json = AsyncMock(
+                return_value={
+                    "image_ids": ["first", "second"],
+                    "folder": "target",
+                    "mode": "copy",
+                    "conflict": "fail",
+                }
+            )
+
+            response = await api.transfer_images(request)
+
+            self.assertEqual(response.status, 201)
+            self.assertEqual(
+                json.loads(response.text or ""),
+                {
+                    "folder": "target",
+                    "mode": "copy",
+                    "items": [
+                        {"image_id": "first", "filename": "first.png"},
+                        {"image_id": "second", "filename": "second.png"},
+                    ],
+                },
+            )
+
+    async def test_batch_suggest_returns_all_conflicts_without_transfer(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source_folder = root / "source"
+            target_folder = root / "target"
+            source_folder.mkdir()
+            target_folder.mkdir()
+            first = source_folder / "first.png"
+            second = source_folder / "second.png"
+            first.write_bytes(b"first")
+            second.write_bytes(b"second")
+            (target_folder / "first.png").write_bytes(b"existing first")
+            (target_folder / "second.png").write_bytes(b"existing second")
+
+            repository = Mock()
+            repository.path_for_public_id.side_effect = {
+                "first-id": first,
+                "second-id": second,
+            }.get
+            api = GalleryApi(repository, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (
+                GalleryFolder("source", "Source", source_folder),
+                GalleryFolder("target", "Target", target_folder),
+            )
+            request = Mock()
+            request.json = AsyncMock(
+                return_value={
+                    "image_ids": ["first-id", "second-id"],
+                    "folder": "target",
+                    "mode": "move",
+                    "conflict": "suggest",
+                }
+            )
+
+            response = await api.transfer_images(request)
+
+            self.assertEqual(response.status, 409)
+            self.assertEqual(
+                json.loads(response.text or ""),
+                {
+                    "error": "filename_conflicts",
+                    "conflicts": [
+                        {
+                            "image_id": "first-id",
+                            "filename": "first.png",
+                            "suggested_filename": "first_1.png",
+                        },
+                        {
+                            "image_id": "second-id",
+                            "filename": "second.png",
+                            "suggested_filename": "second_1.png",
+                        },
+                    ],
+                },
+            )
+            self.assertTrue(first.exists())
+            self.assertTrue(second.exists())
+
 class DevelopmentCorsMiddlewareTests(unittest.IsolatedAsyncioTestCase):
     async def test_adds_cors_headers_to_http_errors(self) -> None:
         request = Mock(method="GET", headers={"Origin": "http://localhost:8188"})
