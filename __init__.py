@@ -8,27 +8,35 @@ from aiohttp import web
 
 if TYPE_CHECKING:
     from image_shelf.api import GalleryApi
-    from image_shelf.configuration import ShelfSettings, load_settings_path
+    from image_shelf.configuration import (
+        ShelfSettings,
+        load_settings_path,
+        set_settings,
+    )
     from image_shelf.database import ImageRepository
     from image_shelf.log import logger
     from image_shelf.nodes.save_as_jpeg import SaveAsJPEG
-    from image_shelf.nodes.send_to_favorites import SendToFavorites
+    from image_shelf.nodes.send_to_folder import SendToFolder
 else:
     from .image_shelf.api import GalleryApi
-    from .image_shelf.configuration import ShelfSettings, load_settings_path
+    from .image_shelf.configuration import (
+        ShelfSettings,
+        load_settings_path,
+        set_settings,
+    )
     from .image_shelf.database import ImageRepository
     from .image_shelf.log import logger
     from .image_shelf.nodes.save_as_jpeg import SaveAsJPEG
-    from .image_shelf.nodes.send_to_favorites import SendToFavorites
+    from .image_shelf.nodes.send_to_folder import SendToFolder
 
 
 NODE_CLASS_MAPPINGS = {
     "ImageShelfSaveAsJPEG": SaveAsJPEG,
-    "ImageShelfSendToFavorites": SendToFavorites,
+    "ImageShelfSendToFolder": SendToFolder,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageShelfSaveAsJPEG": "Save as JPEG",
-    "ImageShelfSendToFavorites": "Send to Favorites",
+    "ImageShelfSendToFolder": "Send to Folder",
 }
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 
@@ -54,6 +62,8 @@ def launch_gallery() -> None:
         output_folder=folder_paths.get_output_directory(),
         settings_path=load_settings_path(),
     )
+    settings.load()
+    set_settings(settings)
     api = GalleryApi(repository, settings)
     app["image_shelf_api"] = api
     api.register(app)

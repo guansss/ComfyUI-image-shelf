@@ -10,6 +10,7 @@ from image_shelf.api import create_gallery_app
 from image_shelf.configuration import (
     ShelfSettings,
     load_standalone_configuration,
+    set_settings,
 )
 from image_shelf.log import debug_logger
 
@@ -35,6 +36,7 @@ def main() -> None:
         output_folder=configuration.output_folder,
         settings_path=configuration.settings_path,
     )
+    set_settings(settings)
     app = create_gallery_app(
         args.database,
         settings=settings,

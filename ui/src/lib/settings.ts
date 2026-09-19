@@ -38,3 +38,7 @@ export async function initializeSettings(): Promise<void> {
   const settings = await fetchSettings()
   getDefaultStore().set(internalSettingsAtom, settings)
 }
+
+export function getSettings(): ImageShelfSettings {
+  return getDefaultStore().get(internalSettingsAtom)
+}

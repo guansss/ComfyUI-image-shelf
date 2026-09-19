@@ -12,7 +12,8 @@ import { I18NProvider } from "./i18n/I18NProvider"
 import "./index.css"
 import { rootContainer } from "./lib/dom"
 import { formatError } from "./lib/error"
-import { initializeSettings } from "./lib/settings"
+import { getSettings, initializeSettings } from "./lib/settings"
+import { transferImage } from "./services/gallery"
 
 const OPEN_EVENT = "image-shelf:open"
 
@@ -55,6 +56,26 @@ function registerExtension(): void {
           },
         })
         app.menu.settingsGroup.append(openGalleryButton)
+      },
+      nodeCreated: (node) => {
+        if (node.comfyClass === "ImageShelfSendToFolder") {
+          const folderSlot = node.inputs.find((input) => input.name === "folder")
+          const folderWidget = node.getWidgetFromSlot(folderSlot!)
+          folderWidget!.options.getOptionLabel = (option) => {
+            if (!option) return "N/A"
+            return (
+              getSettings().custom_folders?.find((folder) => folder.id === option)?.name ?? option
+            )
+          }
+          const button = node.addWidget(
+            "button",
+            "Send",
+            "",
+            () => transferImage("dummy image", "outputs", "copy", "dummy name"),
+            { serialize: false },
+          )
+          button.serialize = false
+        }
       },
     })
 }
