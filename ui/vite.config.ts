@@ -71,8 +71,6 @@ function scopeCssVariables(options: { selector: string }): PluginOption {
   }
 }
 
-generateTranslations()
-
 const envDir = path.resolve(import.meta.dirname, "../")
 const env = loadEnv("", envDir, "")
 
@@ -90,57 +88,61 @@ if (USE_STANDALONE_BACKEND) {
   console.log(`Using standalone backend at ${backendBaseUrl}`)
 }
 
-export default defineConfig(({ mode }) => ({
-  plugins: [
-    tailwindcss(),
-    scopeCssVariables({ selector: "#imsh" }),
-    react(),
-    rewriteComfyImports({ isDev: mode === "development" }),
-  ],
-  define: {
-    __DEV__: mode === "development" || process.argv.includes("--watch"),
-    __USE_STANDALONE_BACKEND__: USE_STANDALONE_BACKEND,
-    __BACKEND_BASE_URL__: JSON.stringify(backendBaseUrl),
-  },
-  envDir,
-  resolve: {
-    alias: {
-      "@": path.resolve(import.meta.dirname, "./src"),
+export default defineConfig(({ mode }) => {
+  generateTranslations(mode === "development" || process.argv.includes("--watch"))
+
+  return {
+    plugins: [
+      tailwindcss(),
+      scopeCssVariables({ selector: "#imsh" }),
+      react(),
+      rewriteComfyImports({ isDev: mode === "development" }),
+    ],
+    define: {
+      __DEV__: mode === "development" || process.argv.includes("--watch"),
+      __USE_STANDALONE_BACKEND__: USE_STANDALONE_BACKEND,
+      __BACKEND_BASE_URL__: JSON.stringify(backendBaseUrl),
     },
-  },
-  test: {
-    setupFiles: ["./test/setup.ts"],
-  },
-  server: {
-    proxy: {
-      "/api/image-shelf": "http://127.0.0.1:8188",
-    },
-    fs: {
-      // Allow serving files from one level up to the project root
-      allow: [import.meta.dirname, "../tests/assets"],
-    },
-  },
-  build: {
-    emptyOutDir: true,
-    rollupOptions: {
-      // Don't bundle ComfyUI scripts - they will be loaded from the ComfyUI server
-      external: ["/scripts/app.js", "/scripts/api.js"],
-      input: {
-        main: path.resolve(import.meta.dirname, "src/main.tsx"),
+    envDir,
+    resolve: {
+      alias: {
+        "@": path.resolve(import.meta.dirname, "./src"),
       },
-      output: {
-        dir: "../dist",
-        entryFileNames: "[name].js",
-        chunkFileNames: "[name]-[hash].js",
-        assetFileNames: "[name][extname]",
-        // Split React into a separate vendor chunk for better caching
-        manualChunks(id) {
-          if (["react", "react-dom"].some((pkg) => id.includes(`/node_modules/${pkg}/`))) {
-            return "vendor"
-          }
-          return null
+    },
+    test: {
+      setupFiles: ["./test/setup.ts"],
+    },
+    server: {
+      proxy: {
+        "/api/image-shelf": "http://127.0.0.1:8188",
+      },
+      fs: {
+        // Allow serving files from one level up to the project root
+        allow: [import.meta.dirname, "../tests/assets"],
+      },
+    },
+    build: {
+      emptyOutDir: true,
+      rollupOptions: {
+        // Don't bundle ComfyUI scripts - they will be loaded from the ComfyUI server
+        external: ["/scripts/app.js", "/scripts/api.js"],
+        input: {
+          main: path.resolve(import.meta.dirname, "src/main.tsx"),
+        },
+        output: {
+          dir: "../dist",
+          entryFileNames: "[name].js",
+          chunkFileNames: "[name]-[hash].js",
+          assetFileNames: "[name][extname]",
+          // Split React into a separate vendor chunk for better caching
+          manualChunks(id) {
+            if (["react", "react-dom"].some((pkg) => id.includes(`/node_modules/${pkg}/`))) {
+              return "vendor"
+            }
+            return null
+          },
         },
       },
     },
-  },
-}))
+  }
+})
