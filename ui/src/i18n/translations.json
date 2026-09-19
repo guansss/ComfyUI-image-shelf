@@ -290,6 +290,17 @@
       "en": "Page {{page}} of {{total}}",
       "cn": "第 {{page}} 页，共 {{total}} 页"
     },
+    "selectedImages": {
+      "en": {
+        "1": "Selected {{count}} image",
+        "other": "Selected {{count}} images"
+      },
+      "cn": "已选择 {{count}} 张图像"
+    },
+    "selectAll": {
+      "en": "Select all",
+      "cn": "全选"
+    },
     "copyTo": {
       "en": "Copy to...",
       "cn": "复制到..."

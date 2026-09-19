@@ -7,7 +7,7 @@ import { inspect } from "node:util"
 const translationsFile = fileURLToPath(new URL("../src/i18n/translations.json", import.meta.url))
 const outputDir = fileURLToPath(new URL("../src/i18n/generated", import.meta.url))
 
-export function generateTranslations(watch: boolean = process.argv.includes("--watch")) {
+export function generateTranslations(watch: boolean) {
   splitTranslations()
 
   if (watch) {

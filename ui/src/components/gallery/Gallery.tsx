@@ -1,7 +1,17 @@
 import { useAtom } from "jotai"
 import { clamp } from "lodash-es"
-import { AlertCircleIcon, ChevronLeftIcon, ChevronRightIcon, ImageIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import {
+  AlertCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CopyPlusIcon,
+  EllipsisVerticalIcon,
+  FileInputIcon,
+  ImageIcon,
+  SquareCheckBigIcon,
+  SquareIcon,
+} from "lucide-react"
+import { ReactNode, useEffect, useState } from "react"
 import { useDebounce } from "react-use"
 import { useSWRConfig } from "swr"
 
@@ -22,15 +32,23 @@ import { useTranslation } from "../../i18n/i18n"
 import { configAtom } from "../../lib/config"
 import { formatError } from "../../lib/error"
 import { emptyQuery, SearchQuery, SearchTerm } from "../../lib/search"
-import { GalleryImage } from "../../services/gallery"
+import { cn } from "../../lib/utils"
+import { GalleryFolder, GalleryImage } from "../../services/gallery"
 import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu"
 import { Field, FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { ScrollArea } from "../ui/scroll-area"
 import { useFolderList, useImageQuery } from "./api"
 import { FolderList } from "./folder"
+import { transferSelectedImage } from "./helpers"
 import { ImageViewer } from "./ImageViewer"
 import { Searchbar } from "./Searchbar"
 
@@ -67,7 +85,8 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const [direction, setDirection] = useState<"asc" | "desc">("desc")
   const [page, setPage] = useState(1)
   const [config, setConfig] = useAtom(configAtom)
-  const [selectedImage, setSelectedImage] = useState<GalleryImage | undefined>(undefined)
+  const [activeImage, setActiveImage] = useState<GalleryImage | undefined>(undefined)
+  const [selectedImages, setSelectedImages] = useState<GalleryImage[]>([])
   const imageViewerTrigger = usePopoverTrigger()
   const [groupByDay, setGroupByDay] = useState(true)
 
@@ -130,18 +149,18 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
         }, {}),
       ) as [string, GalleryImage[]][])
     : [[t.gallery.allImages, images]]
-  const selectedImageIndexInCurrentPage = selectedImage
-    ? images.findIndex((image) => image.id === selectedImage.id)
+  const activeImageIndexInCurrentPage = activeImage
+    ? images.findIndex((image) => image.id === activeImage.id)
     : -1
-  const selectedImageIndexInAllPages =
-    selectedImageIndexInCurrentPage !== -1
-      ? (page - 1) * config.pageSize + selectedImageIndexInCurrentPage
+  const activeImageIndexInAllPages =
+    activeImageIndexInCurrentPage !== -1
+      ? (page - 1) * config.pageSize + activeImageIndexInCurrentPage
       : -1
 
   const handleNavigate = (offset: number) => {
-    const currentIndex = images.findIndex((image) => image.id === selectedImage?.id)
+    const currentIndex = images.findIndex((image) => image.id === activeImage?.id)
     const nextIndex = clamp(currentIndex + offset, 0, images.length - 1)
-    setSelectedImage(images[nextIndex])
+    setActiveImage(images[nextIndex])
   }
 
   return (
@@ -246,110 +265,186 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
           {images.length > 0 && (
             <ScrollArea className="min-h-0 flex-1">
               {imageGroups.map(([day, group]) => (
-                <section className="border-b px-5 py-4 first:pt-2 last:border-b-0" key={day}>
+                <section className="border-b px-4 py-4 first:pt-2 last:border-b-0" key={day}>
                   {groupByDay && (
-                    <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{day}</h2>
+                    <h2 className="mb-2 px-2 text-sm font-semibold text-muted-foreground">{day}</h2>
                   )}
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                     {group.map((image) => (
-                      <Button
-                        className="group h-auto min-w-0 flex-col items-stretch gap-2 overflow-hidden border bg-card p-2 text-left font-normal shadow-xs hover:bg-accent"
+                      <figure
                         key={image.id}
-                        onClick={() => {
-                          setSelectedImage(image)
-                          imageViewerTrigger.toggle(true)
-                        }}
-                        type="button"
-                        variant="outline"
+                        className={cn(
+                          "relative group h-auto min-w-0 flex flex-col",
+                          selectedImages.some((img) => img.id === image.id) &&
+                            "ring-inset ring-2 ring-blue-500",
+                        )}
                       >
-                        <img
-                          alt={image.filename}
-                          className="aspect-square w-full rounded-sm object-cover"
-                          loading="lazy"
-                          src={image.url}
-                        />
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="truncate">{image.filename}</span>
-                          {image.parse_error && (
-                            <Badge
-                              aria-label={t.gallery.metadataWarning}
-                              className="ml-auto shrink-0 px-1.5"
-                              title={image.parse_error}
-                              variant="destructive"
-                            >
-                              !
-                            </Badge>
+                        <Button
+                          className="h-full flex-col items-stretch gap-2 overflow-hidden border p-2 font-normal shadow-xs"
+                          onClick={() => {
+                            setActiveImage(image)
+                            imageViewerTrigger.toggle(true)
+                          }}
+                          type="button"
+                          variant="flat"
+                        >
+                          <img
+                            alt={image.filename}
+                            className="aspect-square w-full rounded-sm object-cover"
+                            loading="lazy"
+                            src={image.url}
+                          />
+                          <h4 className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate">{image.filename}</span>
+                            {image.parse_error && (
+                              <Badge
+                                aria-label={t.gallery.metadataWarning}
+                                className="ml-auto shrink-0 px-1.5"
+                                title={image.parse_error}
+                                variant="destructive"
+                              >
+                                !
+                              </Badge>
+                            )}
+                          </h4>
+                        </Button>
+                        <div
+                          className={cn(
+                            "absolute top-2 left-2 right-2 flex items-center group-hover:opacity-100 opacity-0 bg-linear-180 from-black/50 to-transparent transition-opacity",
+                            selectedImages.some((img) => img.id === image.id) && "opacity-100",
                           )}
-                        </span>
-                      </Button>
+                        >
+                          <Button
+                            className="-ml-2 -mt-2 p-2"
+                            variant="flat"
+                            size={null}
+                            onClick={() => {
+                              if (selectedImages.some((img) => img.id === image.id)) {
+                                setSelectedImages(
+                                  selectedImages.filter((img) => img.id !== image.id),
+                                )
+                              } else {
+                                setSelectedImages([...selectedImages, image])
+                              }
+                            }}
+                          >
+                            {selectedImages.some((img) => img.id === image.id) ? (
+                              <SquareCheckBigIcon className="size-6" />
+                            ) : (
+                              <SquareIcon className="size-6" />
+                            )}
+                          </Button>
+                          <Button className="-mr-3 -mt-2 ml-auto p-2" variant="flat" size={null}>
+                            <EllipsisVerticalIcon className="size-6" />
+                          </Button>
+                        </div>
+                      </figure>
                     ))}
                   </div>
                 </section>
               ))}
             </ScrollArea>
           )}
-          <footer className="flex flex-wrap items-center gap-2 border-t px-4 py-2">
+          <footer className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
             {imageList && (
               <div className="text-muted-foreground text-xs">
                 {t.gallery.searchTime({ elapsed: Math.round(imageList.elapsed * 1000) })}
               </div>
             )}
-            <Field orientation="horizontal" className="w-fit ml-auto">
-              <FieldLabel htmlFor="select-rows-per-page">{t.gallery.pageSize}</FieldLabel>
-              <Select
-                value={`${config.pageSize}`}
-                onValueChange={(value) => setConfig({ pageSize: parseInt(value, 10) })}
-              >
-                <SelectTrigger className="w-20" id="select-rows-per-page">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="start">
-                  <SelectGroup>
-                    {[18, 36, 60, 100, 150, 200, 300, 1000].map((size) => (
-                      <SelectItem key={size} value={`${size}`}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-            <nav aria-label={t.gallery.pagination} className="flex items-center gap-3">
-              <Button
-                disabled={page === 1}
-                onClick={() => setPage(page - 1)}
-                size="sm"
-                variant="outline"
-              >
-                <ChevronLeftIcon data-icon="inline-start" />
-                {t.gallery.previous}
-              </Button>
-              <Input
-                className="w-16 text-center"
-                type="number"
-                value={page}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value, 10)
-                  if (
-                    !isNaN(value) &&
-                    value >= 1 &&
-                    value <= Math.ceil(imageListTotal / config.pageSize)
-                  ) {
-                    setPage(value)
-                  }
-                }}
-              />
-              <span>/{Math.ceil(imageListTotal / config.pageSize)}</span>
-              <Button
-                disabled={page * config.pageSize >= imageListTotal}
-                onClick={() => setPage(page + 1)}
-                size="sm"
-                variant="outline"
-              >
-                {t.gallery.next}
-                <ChevronRightIcon data-icon="inline-end" />
-              </Button>
-            </nav>
+            {selectedImages.length > 0 ? (
+              <>
+                <div className="ml-auto text-muted-foreground">
+                  {t.gallery.selectedImages({ count: selectedImages.length })}
+                </div>
+                <Button
+                  className="min-w-18"
+                  variant="outline"
+                  onClick={() => setSelectedImages([])}
+                >
+                  {t.common.cancel}
+                </Button>
+                <Button
+                  className="min-w-18"
+                  variant="outline"
+                  onClick={() => setSelectedImages(images)}
+                >
+                  {t.gallery.selectAll}
+                </Button>
+                <TransferMenu
+                  folders={folders}
+                  images={selectedImages}
+                  mode="copy"
+                  label={t.gallery.copyTo}
+                  icon={<CopyPlusIcon data-icon="inline-start" />}
+                />
+                <TransferMenu
+                  folders={folders}
+                  images={selectedImages}
+                  mode="move"
+                  label={t.gallery.moveTo}
+                  icon={<FileInputIcon data-icon="inline-start" />}
+                />
+              </>
+            ) : (
+              <>
+                <Field orientation="horizontal" className="w-fit ml-auto">
+                  <FieldLabel htmlFor="select-rows-per-page">{t.gallery.pageSize}</FieldLabel>
+                  <Select
+                    value={`${config.pageSize}`}
+                    onValueChange={(value) => setConfig({ pageSize: parseInt(value, 10) })}
+                  >
+                    <SelectTrigger className="w-20" id="select-rows-per-page">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      <SelectGroup>
+                        {[18, 36, 60, 100, 150, 200, 300, 1000].map((size) => (
+                          <SelectItem key={size} value={`${size}`}>
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <nav aria-label={t.gallery.pagination} className="flex items-center gap-3">
+                  <Button
+                    disabled={page === 1}
+                    onClick={() => setPage(page - 1)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <ChevronLeftIcon data-icon="inline-start" />
+                    {t.gallery.previous}
+                  </Button>
+                  <Input
+                    className="w-16 text-center"
+                    type="number"
+                    value={page}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value, 10)
+                      if (
+                        !isNaN(value) &&
+                        value >= 1 &&
+                        value <= Math.ceil(imageListTotal / config.pageSize)
+                      ) {
+                        setPage(value)
+                      }
+                    }}
+                  />
+                  <span>/{Math.ceil(imageListTotal / config.pageSize)}</span>
+                  <Button
+                    disabled={page * config.pageSize >= imageListTotal}
+                    onClick={() => setPage(page + 1)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {t.gallery.next}
+                    <ChevronRightIcon data-icon="inline-end" />
+                  </Button>
+                </nav>
+              </>
+            )}
           </footer>
         </main>
 
@@ -359,9 +454,9 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               folders={folders}
               isOpen={isOpen}
               onOpenChange={setOpenState}
-              index={selectedImageIndexInAllPages}
+              index={activeImageIndexInAllPages}
               total={imageListTotal}
-              image={selectedImage}
+              image={activeImage}
               onNavigate={handleNavigate}
               onTagClick={(tag, type) => {
                 const term: SearchTerm = {
@@ -382,5 +477,40 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
         </PopoverControl>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function TransferMenu({
+  folders,
+  images,
+  mode,
+  label,
+  icon,
+}: {
+  folders?: GalleryFolder[]
+  images: GalleryImage[]
+  mode: "copy" | "move"
+  label: string
+  icon: ReactNode
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button>
+          {icon}
+          {label}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        {folders?.map((folder) => (
+          <DropdownMenuItem
+            key={folder.id}
+            onSelect={() => images.length > 0 && transferSelectedImage(images, folder, mode)}
+          >
+            {folder.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
