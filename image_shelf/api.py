@@ -13,13 +13,13 @@ from aiohttp import typedefs, web
 
 from .configuration import ShelfSettings
 from .database import ImageRepository
-from .favorites import FileConflictError, transfer_to_favorites
 from .indexer import FolderIndexer, IndexingResult
 from .log import logger
 from .metadata.metadata import get_image_metadata
 from .models import GalleryFolder
 from .paths import is_within_directory, normalize_path
 from .search import SearchTerm
+from .transfer import FileConflictError, transfer_file
 from .watcher import FolderWatcher
 
 
@@ -163,8 +163,8 @@ class GalleryApi:
                 web.get("/api/image-shelf/v1/images", self.list_images),
                 web.get("/api/image-shelf/v1/images/{image_id}", self.image_details),
                 web.post(
-                    "/api/image-shelf/v1/images/{image_id}/favorite",
-                    self.send_to_favorites,
+                    "/api/image-shelf/v1/images/{image_id}/transfer",
+                    self.transfer_image,
                 ),
                 web.post(
                     "/api/image-shelf/v1/images/{image_id}/reveal",
@@ -328,23 +328,37 @@ class GalleryApi:
                 )
                 await client.close()
 
-    async def send_to_favorites(self, request: web.Request) -> web.Response:
+    async def transfer_image(self, request: web.Request) -> web.Response:
         source = self.repository.path_for_public_id(request.match_info["image_id"])
-        favorites_folder = Path("favorites")
         if source is None or not any(
             is_within_directory(source, folder) for folder in self._tracked_paths()
         ):
-            raise web.HTTPNotFound()
-        if favorites_folder is None:
-            raise web.HTTPBadRequest(text="Favorites folder is not configured.")
+            raise web.HTTPNotFound(text="Image not found or not within tracked folders")
         try:
             body = await request.json()
+            if not isinstance(body, dict):
+                raise TypeError("Transfer request must be an object.")
+            folder_id = body.get("folder")
+            if not isinstance(folder_id, str):
+                raise TypeError("Transfer folder must be a string.")
+            destination_folder = next(
+                (folder.path for folder in self.folders if folder.id == folder_id),
+                None,
+            )
+            if destination_folder is None:
+                raise web.HTTPNotFound(text="Unknown Image Shelf folder")
+            if not destination_folder.is_dir():
+                raise web.HTTPNotFound(text="Target folder does not exist")
+            if is_within_directory(source, destination_folder):
+                raise web.HTTPBadRequest(text="Image is already in the target folder")
             mode = body.get("mode", "copy")
             filename = body.get("filename")
+            if not isinstance(mode, str):
+                raise TypeError("Transfer mode must be a string.")
             if filename is not None and not isinstance(filename, str):
-                raise ValueError("Favorites filename must be a string.")
+                raise ValueError("Transfer filename must be a string.")
             destination = await asyncio.to_thread(
-                transfer_to_favorites, source, favorites_folder, mode, filename
+                transfer_file, source, destination_folder, mode, filename
             )
         except FileConflictError as error:
             return web.json_response(
@@ -354,10 +368,11 @@ class GalleryApi:
                 },
                 status=409,
             )
-        except (FileNotFoundError, ValueError) as error:
+        except (FileNotFoundError, TypeError, ValueError) as error:
             raise web.HTTPBadRequest(text=str(error)) from error
         return web.json_response(
-            {"filename": destination.name, "mode": mode}, status=201
+            {"folder": folder_id, "filename": destination.name, "mode": mode},
+            status=201,
         )
 
     async def tags(self, request: web.Request) -> web.Response:

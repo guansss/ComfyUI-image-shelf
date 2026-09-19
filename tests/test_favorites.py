@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from image_shelf.favorites import FileConflictError, transfer_to_favorites
+from image_shelf.transfer import FileConflictError, transfer_file
 
 
 class FavoritesTransferTests(unittest.TestCase):
@@ -13,15 +13,15 @@ class FavoritesTransferTests(unittest.TestCase):
             favorites = root / "favorites"
             source.write_bytes(b"image")
 
-            copied = transfer_to_favorites(source, favorites, "copy")
+            copied = transfer_file(source, favorites, "copy")
             self.assertEqual(copied.read_bytes(), b"image")
             self.assertTrue(source.exists())
 
             with self.assertRaises(FileConflictError) as context:
-                transfer_to_favorites(source, favorites, "copy")
+                transfer_file(source, favorites, "copy")
             self.assertEqual(context.exception.suggested_name, "source_1.png")
 
-            moved = transfer_to_favorites(source, favorites, "move", "moved.png")
+            moved = transfer_file(source, favorites, "move", "moved.png")
             self.assertTrue(moved.is_file())
             self.assertFalse(source.exists())
 

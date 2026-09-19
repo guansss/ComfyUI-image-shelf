@@ -101,6 +101,85 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
             )
 
 
+class GalleryApiTransferTests(unittest.IsolatedAsyncioTestCase):
+    async def test_transfers_image_to_selected_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source_folder = root / "source"
+            target_folder = root / "target"
+            source_folder.mkdir()
+            target_folder.mkdir()
+            source = source_folder / "image.png"
+            source.write_bytes(b"image")
+
+            repository = Mock()
+            repository.path_for_public_id.return_value = source
+            api = GalleryApi(repository, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (
+                GalleryFolder("source", "Source", source_folder),
+                GalleryFolder("target", "Target", target_folder),
+            )
+            request = Mock(match_info={"image_id": "image-id"})
+            request.json = AsyncMock(
+                return_value={"folder": "target", "mode": "copy"}
+            )
+
+            response = await api.transfer_image(request)
+
+            self.assertEqual(response.status, 201)
+            self.assertEqual(
+                json.loads(response.text or ""),
+                {"folder": "target", "filename": "image.png", "mode": "copy"},
+            )
+            self.assertTrue(source.is_file())
+            self.assertTrue((target_folder / "image.png").is_file())
+
+    async def test_rejects_unknown_target_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "image.png"
+            source.write_bytes(b"image")
+            repository = Mock()
+            repository.path_for_public_id.return_value = source
+            api = GalleryApi(repository, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (GalleryFolder("outputs", "Outputs", root),)
+            request = Mock(match_info={"image_id": "image-id"})
+            request.json = AsyncMock(return_value={"folder": "missing"})
+
+            with self.assertRaises(web.HTTPNotFound):
+                await api.transfer_image(request)
+
+    async def test_rejects_missing_target_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "image.png"
+            source.write_bytes(b"image")
+            target = root / "missing"
+            repository = Mock()
+            repository.path_for_public_id.return_value = source
+            api = GalleryApi(repository, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (GalleryFolder("target", "Target", target),)
+            request = Mock(match_info={"image_id": "image-id"})
+            request.json = AsyncMock(return_value={"folder": "target"})
+
+            with self.assertRaises(web.HTTPNotFound):
+                await api.transfer_image(request)
+
+    async def test_rejects_image_already_in_target_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            folder = Path(temporary_directory)
+            source = folder / "image.png"
+            source.write_bytes(b"image")
+            repository = Mock()
+            repository.path_for_public_id.return_value = source
+            api = GalleryApi(repository, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (GalleryFolder("target", "Target", folder),)
+            request = Mock(match_info={"image_id": "image-id"})
+            request.json = AsyncMock(return_value={"folder": "target"})
+
+            with self.assertRaises(web.HTTPBadRequest):
+                await api.transfer_image(request)
+
 class DevelopmentCorsMiddlewareTests(unittest.IsolatedAsyncioTestCase):
     async def test_adds_cors_headers_to_http_errors(self) -> None:
         request = Mock(method="GET", headers={"Origin": "http://localhost:8188"})

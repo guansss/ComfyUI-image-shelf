@@ -10,11 +10,11 @@ class FileConflictError(Exception):
         super().__init__(f"A file named {suggested_name} already exists.")
 
 
-def transfer_to_favorites(
+def transfer_file(
     source: Path, destination_folder: Path, mode: str, filename: str | None = None
 ) -> Path:
     if mode not in {"copy", "move"}:
-        raise ValueError("Favorites transfer mode must be copy or move.")
+        raise ValueError("Transfer mode must be copy or move.")
     if not source.is_file():
         raise FileNotFoundError("Indexed image file no longer exists.")
     destination_folder.mkdir(parents=True, exist_ok=True)
@@ -32,7 +32,7 @@ def transfer_to_favorites(
 def _safe_filename(value: str) -> str:
     filename = Path(value).name
     if not filename or filename != value:
-        raise ValueError("Favorites filename must not contain a path.")
+        raise ValueError("Transfer filename must not contain a path.")
     return filename
 
 

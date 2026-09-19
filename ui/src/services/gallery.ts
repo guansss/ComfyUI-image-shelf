@@ -86,9 +86,9 @@ interface PathStep {
 
 type PromptRole = "positive" | "negative" | "unknown"
 
-export class FavoriteConflictError extends Error {
+export class TransferConflictError extends Error {
   constructor(public readonly suggestedFilename: string) {
-    super("A file with that name already exists in Favorites.")
+    super("A file with that name already exists in the target folder.")
   }
 }
 
@@ -257,18 +257,22 @@ export function fetchImageDetails(imageId: string): Promise<ImageDetails> {
   return api<ImageDetails>(`images/${encodeURIComponent(imageId)}`, "GET")
 }
 
-export async function sendToFavorites(
+export type TransferMode = "copy" | "move"
+
+export async function transferImage(
   imageId: string,
+  folder: string,
+  mode: TransferMode,
   filename?: string,
-): Promise<{ filename: string; mode: string }> {
+): Promise<{ folder: string; filename: string; mode: TransferMode }> {
   return await api(
-    `images/${encodeURIComponent(imageId)}/favorite`,
+    `images/${encodeURIComponent(imageId)}/transfer`,
     "POST",
-    { mode: "copy", filename },
+    { folder, mode, filename },
     async (res, defaultHandler) => {
       if (res.status === 409) {
         const payload: { suggested_filename: string } = await res.json()
-        throw new FavoriteConflictError(payload.suggested_filename)
+        throw new TransferConflictError(payload.suggested_filename)
       }
       return defaultHandler("json")
     },

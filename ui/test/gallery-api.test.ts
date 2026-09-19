@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
 
-import { fetchImages } from "../src/services/gallery"
+import { fetchImages, transferImage } from "../src/services/gallery"
 
 describe("gallery API client", () => {
   test("sends server-side gallery controls as query parameters", async () => {
@@ -44,6 +44,26 @@ describe("gallery API client", () => {
     expect(url.searchParams.get("tab")).toBeNull()
     expect(url.searchParams.get("page")).toBe("2")
     expect(url.searchParams.get("page_size")).toBe("36")
+    fetchMock.mockRestore()
+  })
+
+  test("transfers an image to a selected folder", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ folder: "custom", filename: "image.png", mode: "move" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+
+    await transferImage("image/id", "custom", "move")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("images/image%2Fid/transfer"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ folder: "custom", mode: "move", filename: undefined }),
+      }),
+    )
     fetchMock.mockRestore()
   })
 })

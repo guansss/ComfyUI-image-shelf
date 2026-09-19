@@ -1,5 +1,12 @@
 import { useAtom, useAtomValue } from "jotai"
-import { ChevronLeftIcon, ChevronRightIcon, FolderOpenIcon, InfoIcon, StarIcon } from "lucide-react"
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CopyPlusIcon,
+  FileInputIcon,
+  FolderOpenIcon,
+  InfoIcon,
+} from "lucide-react"
 import { Fragment, ReactNode, useEffect, useMemo, useRef } from "react"
 import { noop } from "swr/_internal"
 
@@ -18,9 +25,20 @@ import { useTranslation } from "../../i18n/i18n"
 import { configAtom } from "../../lib/config"
 import { copyToClipboard } from "../../lib/dom"
 import { replaceTags } from "../../lib/metadata"
-import { GalleryImage, ImageDetails, PromptParseResult } from "../../services/gallery"
+import {
+  GalleryFolder,
+  GalleryImage,
+  ImageDetails,
+  PromptParseResult,
+} from "../../services/gallery"
 import { joinJSX } from "../../utils/react"
 import { Badge } from "../ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
 import { ScrollArea } from "../ui/scroll-area"
 import {
@@ -32,7 +50,7 @@ import {
   SelectValue,
 } from "../ui/select"
 import { useImageDetails } from "./api"
-import { revealSelectedImage, sendImageToFavorites } from "./helpers"
+import { revealSelectedImage, transferSelectedImage } from "./helpers"
 
 const ROLE_COLORS: Record<string, string> = {
   positive: "bg-sky-50 text-sky-700 dark:bg-sky-900 dark:text-sky-200",
@@ -46,6 +64,7 @@ interface ImageViewerProps extends Pick<MetadataProps, "onTagClick" | "onOpenCha
   index?: number
   total?: number
   image?: GalleryImage
+  folders?: GalleryFolder[]
   isOpen: boolean
   onNavigate?: (offset: number) => void
 }
@@ -58,6 +77,7 @@ export function ImageViewer({
   index,
   total,
   onTagClick,
+  folders,
 }: ImageViewerProps) {
   const t = useTranslation()
   const { data: imageDetails } = useImageDetails({ imageId: image?.id })
@@ -92,10 +112,20 @@ export function ImageViewer({
               )}
             </DialogHeader>
             <div className="flex flex-wrap gap-2 p-4 border-b">
-              <Button onClick={() => image && sendImageToFavorites(image).catch(noop)} size="sm">
-                <StarIcon data-icon="inline-start" />
-                {t.gallery.sendToFavorites}
-              </Button>
+              <TransferMenu
+                folders={folders}
+                image={image}
+                mode="copy"
+                label={t.gallery.copyTo}
+                icon={<CopyPlusIcon data-icon="inline-start" />}
+              />
+              <TransferMenu
+                folders={folders}
+                image={image}
+                mode="move"
+                label={t.gallery.moveTo}
+                icon={<FileInputIcon data-icon="inline-start" />}
+              />
               <Button
                 onClick={() => image && revealSelectedImage(image.id).catch(noop)}
                 size="sm"
@@ -178,6 +208,41 @@ export function ImageViewer({
         </main>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function TransferMenu({
+  folders,
+  image,
+  mode,
+  label,
+  icon,
+}: {
+  folders?: GalleryFolder[]
+  image?: GalleryImage
+  mode: "copy" | "move"
+  label: string
+  icon: ReactNode
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm">
+          {icon}
+          {label}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        {folders?.map((folder) => (
+          <DropdownMenuItem
+            key={folder.id}
+            onSelect={() => image && transferSelectedImage(image, folder, mode)}
+          >
+            {folder.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

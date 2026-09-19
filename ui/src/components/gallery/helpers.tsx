@@ -2,10 +2,12 @@ import { i18n } from "../../i18n/i18n"
 import { errorToast, formatError } from "../../lib/error"
 import { toast } from "../../lib/toast"
 import {
-  FavoriteConflictError,
+  GalleryFolder,
   GalleryImage,
   revealImage,
-  sendToFavorites,
+  TransferConflictError,
+  TransferMode,
+  transferImage,
 } from "../../services/gallery"
 import { askInput } from "../ask"
 
@@ -20,20 +22,25 @@ export async function revealSelectedImage(imageId: string) {
   }
 }
 
-export async function sendImageToFavorites(image: GalleryImage, filename?: string) {
+export async function transferSelectedImage(
+  image: GalleryImage,
+  folder: GalleryFolder,
+  mode: TransferMode,
+  filename?: string,
+) {
   try {
-    const result = await sendToFavorites(image.id, filename)
+    const result = await transferImage(image.id, folder.id, mode, filename)
     toast({
       type: "success",
-      title: i18n.gallery.favoriteSent,
+      title: mode === "copy" ? i18n.gallery.copied : i18n.gallery.moved,
       message: result.filename,
     })
   } catch (error: unknown) {
-    if (error instanceof FavoriteConflictError) {
+    if (error instanceof TransferConflictError) {
       const replacement = await askInput(
         {
-          title: i18n.gallery.favoriteConflict,
-          message: i18n.gallery.favoriteConflictMessage,
+          title: i18n.gallery.transferConflict,
+          message: i18n.gallery.transferConflictMessage,
           initialValue: error.suggestedFilename,
         },
         {
@@ -48,11 +55,11 @@ export async function sendImageToFavorites(image: GalleryImage, filename?: strin
           },
         },
       )
-      if (replacement) await sendImageToFavorites(image, replacement)
+      if (replacement) await transferSelectedImage(image, folder, mode, replacement)
       return
     }
     errorToast({
-      title: i18n.gallery.favoriteFailed,
+      title: i18n.gallery.transferFailed,
       message: formatError(error),
     })
   }

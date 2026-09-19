@@ -20,21 +20,19 @@ import {
 
 import { useTranslation } from "../../i18n/i18n"
 import { configAtom } from "../../lib/config"
-import { errorToast, formatError } from "../../lib/error"
+import { formatError } from "../../lib/error"
 import { emptyQuery, SearchQuery, SearchTerm } from "../../lib/search"
-import { toast } from "../../lib/toast"
-import { FavoriteConflictError, GalleryImage, sendToFavorites } from "../../services/gallery"
+import { GalleryImage } from "../../services/gallery"
 import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"
-import { askInput } from "../ask"
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert"
 import { Field, FieldLabel } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { ScrollArea } from "../ui/scroll-area"
 import { useFolderList, useImageQuery } from "./api"
+import { FolderList } from "./folder"
 import { ImageViewer } from "./ImageViewer"
 import { Searchbar } from "./Searchbar"
-import { FolderList } from "./folder"
 
 interface GalleryControlProps {
   openEvent: string
@@ -120,44 +118,6 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     setSort(nextSort)
     setDirection(nextDirection)
     setPage(1)
-  }
-
-  const sendImageToFavorites = async (image: GalleryImage, filename?: string) => {
-    try {
-      const result = await sendToFavorites(image.id, filename)
-      toast({
-        type: "success",
-        title: t.gallery.favoriteSent,
-        message: result.filename,
-      })
-    } catch (error: unknown) {
-      if (error instanceof FavoriteConflictError) {
-        const replacement = await askInput(
-          {
-            title: t.gallery.favoriteConflict,
-            message: t.gallery.favoriteConflictMessage,
-            initialValue: error.suggestedFilename,
-          },
-          {
-            validate: (value) => {
-              if (!value.trim()) {
-                errorToast({
-                  message: t.error.required({ field: t.gallery.filename }),
-                })
-                return false
-              }
-              return true
-            },
-          },
-        )
-        if (replacement) await sendImageToFavorites(image, replacement)
-        return
-      }
-      errorToast({
-        title: t.gallery.favoriteFailed,
-        message: formatError(error),
-      })
-    }
   }
 
   const selectedFolder = folders?.find((folder) => folder.id === selectedFolderId)
@@ -396,6 +356,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
         <PopoverControl trigger={imageViewerTrigger}>
           {({ isOpen, setOpenState }) => (
             <ImageViewer
+              folders={folders}
               isOpen={isOpen}
               onOpenChange={setOpenState}
               index={selectedImageIndexInAllPages}

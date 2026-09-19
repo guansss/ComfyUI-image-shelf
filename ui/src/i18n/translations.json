@@ -290,23 +290,31 @@
       "en": "Page {{page}} of {{total}}",
       "cn": "第 {{page}} 页，共 {{total}} 页"
     },
-    "sendToFavorites": {
-      "en": "Send to Favorites",
-      "cn": "发送到收藏夹"
+    "copyTo": {
+      "en": "Copy to...",
+      "cn": "复制到..."
     },
-    "favoriteSent": {
-      "en": "Sent to Favorites",
-      "cn": "已发送到收藏夹"
+    "moveTo": {
+      "en": "Move to...",
+      "cn": "移动到..."
     },
-    "favoriteFailed": {
-      "en": "Could not send to Favorites",
-      "cn": "无法发送到收藏夹"
+    "copied": {
+      "en": "Copied to folder",
+      "cn": "已复制到文件夹"
     },
-    "favoriteConflict": {
+    "moved": {
+      "en": "Moved to folder",
+      "cn": "已移动到文件夹"
+    },
+    "transferFailed": {
+      "en": "Could not transfer image",
+      "cn": "无法传输图像"
+    },
+    "transferConflict": {
       "en": "File already exists",
       "cn": "文件已存在"
     },
-    "favoriteConflictMessage": {
+    "transferConflictMessage": {
       "en": "Choose a new filename or cancel.",
       "cn": "请选择新文件名或取消。"
     },

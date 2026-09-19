@@ -18,10 +18,10 @@ class CustomFolderSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     id: str
-    name: str | None = None
+    name: str
     path: str
 
-    @field_validator("id", "path")
+    @field_validator("id", "name", "path")
     @classmethod
     def require_non_empty(cls, value: str) -> str:
         if not value.strip():
@@ -89,7 +89,7 @@ class ShelfSettings:
 _settings: ShelfSettings | None = None
 
 
-def settings() -> ShelfSettings | None:
+def get_settings() -> ShelfSettings | None:
     return _settings
 
 
