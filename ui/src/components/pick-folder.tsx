@@ -3,8 +3,8 @@ import { useEffect, useState } from "react"
 
 import { i18n, useTranslation } from "../i18n/i18n"
 import { errorToast, formatError, withErrorToast } from "../lib/error"
-import { GalleryMessage, pickFolder as pickFolderApi, socket } from "../services/gallery"
-import { askCustom, AskCustomParam, AskDialog, AskDialogProps } from "./ask"
+import { GalleryMessage, pickFolder, socket } from "../services/gallery"
+import { ask, AskDialog, AskRenderProps, AskRequest } from "./ask"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 
@@ -29,7 +29,7 @@ export function usePickFolder({ onChange }: useFolderPickerOptions) {
   }, [onChange])
 
   const requestPickFolder = async () => {
-    await withErrorToast(pickFolderApi(), i18n.filePicker.pickError).catch(noop)
+    await withErrorToast(pickFolder(), i18n.filePicker.pickError).catch(noop)
   }
   return { requestPickFolder }
 }
@@ -38,18 +38,15 @@ interface PickFolderDialogValue {
   folder: string
 }
 
-export async function pickFolder(req: Omit<AskCustomParam<PickFolderDialogValue>, "component">) {
-  return await askCustom({
-    ...req,
-    component: PickFolderDialog,
-  })
+export async function askPickFolder(req: Omit<AskRequest<PickFolderDialogValue>, "render">) {
+  return await ask({ ...req, render: PickFolderDialog })
 }
 
 function PickFolderDialog({
   initialValue,
   onConfirm,
   ...props
-}: AskDialogProps<PickFolderDialogValue>) {
+}: AskRenderProps<PickFolderDialogValue>) {
   const t = useTranslation()
   const [value, setValue] = useState(initialValue?.folder ?? "")
   const { requestPickFolder } = usePickFolder({

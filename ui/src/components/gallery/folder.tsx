@@ -28,7 +28,7 @@ import {
   socket,
 } from "../../services/gallery"
 import { uuidv4 } from "../../utils/lang"
-import { ask, askCustom, AskCustomParam, AskDialog, AskDialogProps } from "../ask"
+import { ask, AskDialog, AskRenderProps, CustomAskOptions } from "../ask"
 import { usePickFolder } from "../pick-folder"
 import { Button } from "../ui/button"
 import {
@@ -73,6 +73,7 @@ export function FolderList({
 
   const removeFolder = async (folder: GalleryFolder) => {
     const confirmed = await ask({
+      type: "confirm",
       title: i18n.gallery.removeFolder,
       message: i18n.gallery.removeFolderMessage({ name: folder.name }),
     })
@@ -310,40 +311,36 @@ function newFolder(): GalleryFolder {
   }
 }
 
-export async function askCreateFolder(
-  req: Omit<AskCustomParam<EditFolderDialogValue>, "component" | "title" | "initialValue" | "meta">,
-) {
+export async function askCreateFolder(req: Omit<CustomAskOptions<EditFolderDialogValue>, "title">) {
   const folder = newFolder()
-  return await askCustom({
+  return await ask({
+    type: "custom",
     title: i18n.gallery.addFolder,
-    meta: { mode: "create" },
     initialValue: { folder },
     ...req,
-    component: EditFolderDialog,
+    render: (props) => <EditFolderDialog {...props} mode="create" />,
   })
 }
 
 export async function askEditFolder(
-  req: Omit<
-    AskCustomParam<EditFolderDialogValue, EditFolderDialogMeta>,
-    "component" | "title" | "initialValue" | "meta"
-  >,
+  req: Omit<CustomAskOptions<EditFolderDialogValue>, "title">,
   folder: GalleryFolder,
 ) {
-  return await askCustom({
+  return await ask({
+    type: "custom",
     title: i18n.gallery.editFolder,
-    meta: { mode: "edit" },
     initialValue: { folder },
     ...req,
-    component: EditFolderDialog,
+    render: (props) => <EditFolderDialog {...props} mode="edit" />,
   })
 }
 
 function EditFolderDialog({
   initialValue,
   onConfirm,
+  mode,
   ...props
-}: AskDialogProps<EditFolderDialogValue, EditFolderDialogMeta>) {
+}: AskRenderProps<EditFolderDialogValue> & EditFolderDialogMeta) {
   const t = useTranslation()
   const initialFolder = initialValue?.folder
   const [name, setName] = useState(initialFolder?.name ?? "")
@@ -360,14 +357,14 @@ function EditFolderDialog({
   const handleConfirm = () => {
     if (!name.trim()) {
       errorToast({
-        title: props.meta.mode === "create" ? t.gallery.addFolder : t.gallery.editFolder,
+        title: mode === "create" ? t.gallery.addFolder : t.gallery.editFolder,
         message: t.error.required({ field: t.gallery.folderName }),
       })
       return false
     }
     if (!path.trim()) {
       errorToast({
-        title: props.meta.mode === "create" ? t.gallery.addFolder : t.gallery.editFolder,
+        title: mode === "create" ? t.gallery.addFolder : t.gallery.editFolder,
         message: t.error.required({ field: t.filePicker.folderPath }),
       })
       return false
