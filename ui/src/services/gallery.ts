@@ -284,6 +284,18 @@ export interface BatchTransferResult {
   items: { image_id: string; filename: string }[]
 }
 
+export interface AssetTransferItem {
+  filename: string
+  subfolder?: string
+  type?: string
+}
+
+export interface AssetTransferResult {
+  folder: string
+  mode: TransferMode
+  items: { item: AssetTransferItem; filename: string }[]
+}
+
 export async function transferImage(
   imageId: string,
   folder: string,
@@ -324,6 +336,41 @@ export async function transferImages(
         } = await res.json()
         if (payload.conflicts) {
           throw new TransferConflictsError(payload.conflicts)
+        }
+      }
+      return defaultHandler("json")
+    },
+  )
+}
+
+export async function transferAssets(
+  items: AssetTransferItem[],
+  folder: string,
+  mode: TransferMode,
+  conflict: TransferConflictMode = "suggest",
+): Promise<AssetTransferResult> {
+  return await api(
+    "assets/transfer",
+    "POST",
+    { items, folder, mode, conflict },
+    async (res, defaultHandler) => {
+      if (res.status === 409) {
+        const payload: {
+          error: string
+          conflicts?: {
+            item: AssetTransferItem
+            filename: string
+            suggested_filename: string
+          }[]
+        } = await res.json()
+        if (payload.conflicts) {
+          throw new TransferConflictsError(
+            payload.conflicts.map((conflict) => ({
+              image_id: JSON.stringify(conflict.item),
+              filename: conflict.filename,
+              suggested_filename: conflict.suggested_filename,
+            })),
+          )
         }
       }
       return defaultHandler("json")

@@ -1,6 +1,11 @@
 import { describe, expect, test, vi } from "vitest"
 
-import { fetchImages, transferImage, transferImages } from "../src/services/gallery"
+import {
+  fetchImages,
+  transferAssets,
+  transferImage,
+  transferImages,
+} from "../src/services/gallery"
 
 describe("gallery API client", () => {
   test("sends server-side gallery controls as query parameters", async () => {
@@ -99,6 +104,36 @@ describe("gallery API client", () => {
           mode: "copy",
           conflict: "suggest",
           filenames: undefined,
+        }),
+      }),
+    )
+    fetchMock.mockRestore()
+  })
+
+  test("transfers ComfyUI assets through the assets endpoint", async () => {
+    const items = [{ filename: "image.png", subfolder: "nested", type: "output" }]
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          folder: "custom",
+          mode: "move",
+          items: [{ item: items[0], filename: "image.png" }],
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      ),
+    )
+
+    await transferAssets(items, "custom", "move")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("assets/transfer"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          items,
+          folder: "custom",
+          mode: "move",
+          conflict: "suggest",
         }),
       }),
     )

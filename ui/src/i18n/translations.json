@@ -41,6 +41,10 @@
     "copy": {
       "en": "Copy",
       "cn": "复制"
+    },
+    "unknownValue": {
+      "en": "Unknown value: {{value}}",
+      "cn": "未知值：{{value}}"
     }
   },
   "error": {
@@ -363,6 +367,44 @@
       "both": {
         "en": "Prompt text + Tags",
         "cn": "提示词+标签"
+      }
+    }
+  },
+  "node": {
+    "sendToFolder": {
+      "name": {
+        "en": "Send to Folder",
+        "cn": "发送到文件夹"
+      },
+      "send": {
+        "en": "Send",
+        "cn": "发送"
+      },
+      "copied": {
+        "en": {
+          "1": "Copied 1 image to {{folder}}",
+          "other": "Copied {{count}} images to {{folder}}"
+        },
+        "cn": "已复制 {{count}} 张图像到 {{folder}}"
+      },
+      "moved": {
+        "en": {
+          "1": "Moved 1 image to {{folder}}",
+          "other": "Moved {{count}} images to {{folder}}"
+        },
+        "cn": "已移动 {{count}} 张图像到 {{folder}}"
+      },
+      "noInputNode": {
+        "en": "No input node connected",
+        "cn": "未连接输入节点"
+      },
+      "noNodeOutput": {
+        "en": "No output from connected input node",
+        "cn": "连接的输入节点没有输出"
+      },
+      "noNodeOutputImages": {
+        "en": "No images in the output of the connected input node",
+        "cn": "连接的输入节点的输出中没有图像"
       }
     }
   }

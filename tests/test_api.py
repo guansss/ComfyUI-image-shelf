@@ -1,8 +1,10 @@
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
 
 from aiohttp import web
 
@@ -283,6 +285,77 @@ class GalleryApiTransferTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertTrue(first.exists())
             self.assertTrue(second.exists())
+
+    async def test_transfers_comfy_assets_using_output_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            output = root / "output"
+            target = root / "target"
+            output.mkdir()
+            target.mkdir()
+            source = output / "nested" / "image.png"
+            source.parent.mkdir()
+            source.write_bytes(b"image")
+            folder_paths = SimpleNamespace(
+                annotated_filepath=Mock(return_value=("image.png", None)),
+                get_directory_by_type=Mock(return_value=str(output)),
+            )
+            api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (GalleryFolder("target", "Target", target),)
+            request = Mock()
+            request.json = AsyncMock(
+                return_value={
+                    "items": [{"filename": "image.png", "subfolder": "nested"}],
+                    "folder": "target",
+                }
+            )
+
+            with patch.dict(sys.modules, {"folder_paths": folder_paths}):
+                response = await api.transfer_assets(request)
+
+            self.assertEqual(response.status, 201)
+            self.assertEqual(
+                json.loads(response.text or ""),
+                {
+                    "folder": "target",
+                    "mode": "copy",
+                    "items": [
+                        {
+                            "item": {"filename": "image.png", "subfolder": "nested"},
+                            "filename": "image.png",
+                        }
+                    ],
+                },
+            )
+            self.assertTrue(source.is_file())
+            self.assertTrue((target / "image.png").is_file())
+            folder_paths.annotated_filepath.assert_called_once_with("image.png")
+            folder_paths.get_directory_by_type.assert_called_once_with("output")
+
+    async def test_rejects_comfy_asset_path_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            output = root / "output"
+            target = root / "target"
+            output.mkdir()
+            target.mkdir()
+            folder_paths = SimpleNamespace(
+                annotated_filepath=Mock(return_value=("image.png", None)),
+                get_directory_by_type=Mock(return_value=str(output)),
+            )
+            api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (GalleryFolder("target", "Target", target),)
+            request = Mock()
+            request.json = AsyncMock(
+                return_value={
+                    "items": [{"filename": "image.png", "subfolder": ".."}],
+                    "folder": "target",
+                }
+            )
+
+            with patch.dict(sys.modules, {"folder_paths": folder_paths}):
+                with self.assertRaises(web.HTTPBadRequest):
+                    await api.transfer_assets(request)
 
 class DevelopmentCorsMiddlewareTests(unittest.IsolatedAsyncioTestCase):
     async def test_adds_cors_headers_to_http_errors(self) -> None:

@@ -17,7 +17,7 @@ from .indexer import FolderIndexer, IndexingResult
 from .log import logger
 from .metadata.metadata import get_image_metadata
 from .models import GalleryFolder
-from .paths import is_within_directory, normalize_path
+from .paths import is_within_directory, normalize_path, resolve_comfy_asset
 from .search import SearchTerm
 from .transfer import (
     BatchFileConflictError,
@@ -174,6 +174,10 @@ class GalleryApi:
                 web.post(
                     "/api/image-shelf/v1/batch/images/transfer",
                     self.transfer_images,
+                ),
+                web.post(
+                    "/api/image-shelf/v1/assets/transfer",
+                    self.transfer_assets,
                 ),
                 web.post(
                     "/api/image-shelf/v1/images/{image_id}/reveal",
@@ -470,6 +474,81 @@ class GalleryApi:
                 "items": [
                     {"image_id": image_id, "filename": destination.name}
                     for (image_id, _, _), destination in zip(sources, destinations)
+                ],
+            },
+            status=201,
+        )
+
+    async def transfer_assets(self, request: web.Request) -> web.Response:
+        sources: list[tuple[dict[str, Any], Path]] = []
+        try:
+            body = await request.json()
+            if not isinstance(body, dict):
+                raise TypeError("Transfer request must be an object.")
+            items = body.get("items")
+            if not isinstance(items, list) or not items:
+                raise TypeError("Transfer items must be a non-empty array.")
+            if not all(isinstance(item, dict) for item in items):
+                raise TypeError("Transfer items must contain objects.")
+            folder_id = body.get("folder")
+            if not isinstance(folder_id, str):
+                raise TypeError("Transfer folder must be a string.")
+            destination_folder = next(
+                (folder.path for folder in self.folders if folder.id == folder_id),
+                None,
+            )
+            if destination_folder is None:
+                raise web.HTTPNotFound(text="Unknown Image Shelf folder")
+            if not destination_folder.is_dir():
+                raise web.HTTPNotFound(text="Target folder does not exist")
+            mode = body.get("mode", "copy")
+            conflict = body.get("conflict", "suggest")
+            if not isinstance(mode, str):
+                raise TypeError("Transfer mode must be a string.")
+            if not isinstance(conflict, str):
+                raise TypeError("Transfer conflict must be a string.")
+
+            for item in items:
+                source = resolve_comfy_asset(item)
+                if not source.is_file():
+                    raise FileNotFoundError("ComfyUI asset file does not exist.")
+                if is_within_directory(source, destination_folder):
+                    raise web.HTTPBadRequest(
+                        text="Asset is already in the target folder"
+                    )
+                sources.append((item, source))
+
+            destinations = await asyncio.to_thread(
+                transfer_files,
+                [(source, None) for _, source in sources],
+                destination_folder,
+                mode,
+                conflict,
+            )
+        except BatchFileConflictError as error:
+            return web.json_response(
+                {
+                    "error": "filename_conflicts",
+                    "conflicts": [
+                        {
+                            "item": sources[int(item["index"])][0],
+                            "filename": item["filename"],
+                            "suggested_filename": item["suggested_filename"],
+                        }
+                        for item in error.conflicts
+                    ],
+                },
+                status=409,
+            )
+        except (FileNotFoundError, TypeError, ValueError) as error:
+            raise web.HTTPBadRequest(text=str(error)) from error
+        return web.json_response(
+            {
+                "folder": folder_id,
+                "mode": mode,
+                "items": [
+                    {"item": item, "filename": destination.name}
+                    for (item, _), destination in zip(sources, destinations)
                 ],
             },
             status=201,
