@@ -9,6 +9,69 @@ from image_shelf.thumbnails import ThumbnailService
 
 
 class ThumbnailServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_background_workers_are_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source.png"
+            Image.new("RGB", (20, 20), "red").save(source)
+            service = ThumbnailService(root / "thumbnails")
+            active = 0
+            maximum_active = 0
+            completed = 0
+
+            async def generate(source_path: str | Path, destination: Path) -> Path:
+                nonlocal active, completed, maximum_active
+                active += 1
+                maximum_active = max(maximum_active, active)
+                await asyncio.sleep(0.01)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.touch()
+                active -= 1
+                completed += 1
+                return destination
+
+            service._generate = generate  # type: ignore[method-assign]
+            generation = service.new_generation()
+            for index in range(5):
+                cache_key = service.cache_key(source, f"image-{index}")
+                service.schedule(source, f"image-{index}", cache_key, generation=generation)
+            await service.start()
+
+            while completed < 5:
+                await asyncio.sleep(0.01)
+            await service.close()
+
+            self.assertLessEqual(maximum_active, service.WORKER_COUNT)
+
+    async def test_new_generation_skips_stale_queued_work(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source.png"
+            Image.new("RGB", (20, 20), "red").save(source)
+            service = ThumbnailService(root / "thumbnails")
+            generated: list[str] = []
+
+            async def generate(source_path: str | Path, destination: Path) -> Path:
+                generated.append(destination.name)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.touch()
+                return destination
+
+            service._generate = generate  # type: ignore[method-assign]
+            stale_generation = service.new_generation()
+            stale_key = service.cache_key(source, "stale")
+            service.schedule(source, "stale", stale_key, generation=stale_generation)
+            current_generation = service.new_generation()
+            current_key = service.cache_key(source, "current")
+            service.schedule(source, "current", current_key, generation=current_generation)
+            await service.start()
+
+            while not generated:
+                await asyncio.sleep(0.01)
+            await service.close()
+
+            self.assertEqual(generated, [f"{current_key}.webp"])
+
     async def test_generates_webp_with_preserved_aspect_ratio_and_reuses_cache(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

@@ -42,6 +42,7 @@ class GalleryApi:
         self.indexer = FolderIndexer(repository)
         self.indexing_tasks: dict[Path, asyncio.Task[IndexingResult]] = {}
         self.indexing_errors: dict[Path, BaseException] = {}
+        self.thumbnail_prefetch_tasks: set[asyncio.Task[None]] = set()
         self.folder_picker_tasks: set[asyncio.Task[None]] = set()
         self.websocket_clients: set[web.WebSocketResponse] = set()
         self.watcher: FolderWatcher | None = None
@@ -122,6 +123,7 @@ class GalleryApi:
 
     async def start(self, loop: asyncio.AbstractEventLoop) -> None:
         logger.info("Starting Image Shelf API")
+        await self.thumbnails.start()
         if self.watcher is None:
             self.watcher = FolderWatcher(self._index_folder_and_broadcast, loop)
             self.watcher.start()
@@ -152,6 +154,14 @@ class GalleryApi:
             task.cancel()
         if active_tasks:
             await asyncio.gather(*active_tasks, return_exceptions=True)
+
+        for task in self.thumbnail_prefetch_tasks:
+            task.cancel()
+        if self.thumbnail_prefetch_tasks:
+            await asyncio.gather(
+                *self.thumbnail_prefetch_tasks, return_exceptions=True
+            )
+        self.thumbnail_prefetch_tasks.clear()
 
         await self.thumbnails.close()
 
@@ -237,6 +247,24 @@ class GalleryApi:
         except (TypeError, ValueError) as error:
             raise web.HTTPBadRequest(text=str(error)) from error
 
+        thumbnail_generation = self.thumbnails.new_generation()
+        self._schedule_thumbnails(page.items, thumbnail_generation, priority=0)
+        if page.page * page.page_size < page.total:
+            prefetch_task = asyncio.create_task(
+                self._prefetch_next_page(
+                    folder=folder,
+                    terms=self._terms_from_request(request),
+                    dimensions=dimensions,
+                    sort_by=request.query.get("sort", "created_at"),
+                    direction=request.query.get("direction", "desc"),
+                    page=page.page + 1,
+                    page_size=page.page_size,
+                    generation=thumbnail_generation,
+                )
+            )
+            self.thumbnail_prefetch_tasks.add(prefetch_task)
+            prefetch_task.add_done_callback(self._handle_thumbnail_prefetch_done)
+
         return web.json_response(
             {
                 "items": [
@@ -258,6 +286,55 @@ class GalleryApi:
                 "elapsed": time.perf_counter() - started_at,
             }
         )
+
+    def _schedule_thumbnails(
+        self, images: tuple[Any, ...] | list[Any], generation: int, priority: int
+    ) -> None:
+        for image in images:
+            path = self.repository.path_for_public_id(image.id)
+            if path is None or not self._is_tracked_file(path):
+                continue
+            try:
+                cache_key = self.thumbnails.cache_key(path, image.id)
+            except OSError:
+                continue
+            self.thumbnails.schedule(
+                path,
+                image.id,
+                cache_key,
+                priority=priority,
+                generation=generation,
+            )
+
+    async def _prefetch_next_page(
+        self,
+        *,
+        folder: GalleryFolder,
+        terms: tuple[SearchTerm, ...],
+        dimensions: tuple[tuple[int, int], ...],
+        sort_by: str,
+        direction: str,
+        page: int,
+        page_size: int,
+        generation: int,
+    ) -> None:
+        result = await asyncio.to_thread(
+            self.repository.list_images,
+            self._paths_for_folder(folder),
+            terms=terms,
+            dimensions=dimensions,
+            sort_by=sort_by,
+            direction=direction,
+            page=page,
+            page_size=page_size,
+        )
+        if self.thumbnails.is_current_generation(generation):
+            self._schedule_thumbnails(result.items, generation, priority=1)
+
+    def _handle_thumbnail_prefetch_done(self, task: asyncio.Task[None]) -> None:
+        self.thumbnail_prefetch_tasks.discard(task)
+        if not task.cancelled() and (error := task.exception()) is not None:
+            logger.warning("Thumbnail prefetch failed: %s", error)
 
     async def image_file(self, request: web.Request) -> web.StreamResponse:
         path = self.repository.path_for_public_id(request.match_info["image_id"])
