@@ -14,7 +14,6 @@ import {
 } from "lucide-react"
 import { ReactNode, useEffect, useState } from "react"
 import { useDebounce } from "react-use"
-import { useSWRConfig } from "swr"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -77,7 +76,6 @@ export function GalleryControl({ openEvent }: GalleryControlProps) {
 
 export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const t = useTranslation()
-  const { unload } = useSWRConfig()
   const [config, setConfig] = useAtom(galleryConfigAtom)
   const [query, setQuery] = useState<SearchQuery>(() => parseSearchValue(config.query, -1))
   const [debouncedQuery, setDebouncedQuery] = useState<SearchQuery>(query)
@@ -107,11 +105,6 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const dimensions = imageList?.dimensions ?? EMPTY_ARRAY
   const activeImage = images.find((image) => image.id === activeImageId)
   const selectedImages = images.filter((image) => selectedImageIds.includes(image.id))
-
-  // Clear SWR cache when the gallery is opened to ensure fresh data is fetched
-  useEffect(() => {
-    if (isOpen) unload()
-  }, [isOpen, unload])
 
   useDebounce(
     () => {
