@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest"
 
 import {
+  fetchAppInfo,
   fetchImages,
   transferAssets,
   transferImage,
@@ -8,6 +9,30 @@ import {
 } from "../src/services/gallery"
 
 describe("gallery API client", () => {
+  test("fetches application file information", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          database_path: "C:/data/image-shelf.sqlite3",
+          database_size: 1024,
+          settings_path: "C:/data/settings.json",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    )
+
+    await expect(fetchAppInfo()).resolves.toEqual({
+      database_path: "C:/data/image-shelf.sqlite3",
+      database_size: 1024,
+      settings_path: "C:/data/settings.json",
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("info"),
+      expect.objectContaining({ method: "GET" }),
+    )
+    fetchMock.mockRestore()
+  })
+
   test("sends server-side gallery controls as query parameters", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

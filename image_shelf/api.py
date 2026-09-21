@@ -193,6 +193,7 @@ class GalleryApi:
                 web.get("/api/image-shelf/v1/tags", self.tags),
                 web.get("/api/image-shelf/v1/settings", self.get_settings),
                 web.post("/api/image-shelf/v1/settings", self.update_settings),
+                web.get("/api/image-shelf/v1/info", self.app_info),
                 web.post("/api/image-shelf/v1/reindex", self.reindex),
                 web.get("/api/image-shelf/v1/status", self.folders_status),
             ]
@@ -582,6 +583,15 @@ class GalleryApi:
 
     async def get_settings(self, request: web.Request) -> web.Response:
         return web.json_response(self.settings.as_dict())
+
+    async def app_info(self, request: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "database_path": str(self.repository.database_path),
+                "database_size": self.repository.database_path.stat().st_size,
+                "settings_path": str(self.settings.settings_path),
+            }
+        )
 
     async def update_settings(self, request: web.Request) -> web.Response:
         try:

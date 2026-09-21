@@ -10,6 +10,7 @@ from aiohttp import web
 
 from image_shelf.api import GalleryApi, _development_cors_middleware
 from image_shelf.configuration import ShelfSettings
+from image_shelf.database import ImageRepository
 from image_shelf.indexer import IndexingResult
 from image_shelf.models import GalleryFolder
 
@@ -372,6 +373,28 @@ class DevelopmentCorsMiddlewareTests(unittest.IsolatedAsyncioTestCase):
 
 
 class GalleryApiSettingsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_app_info_returns_database_and_settings_file_details(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            database_path = root / "image-shelf.sqlite3"
+            settings_path = root / "settings.json"
+            settings = ShelfSettings(root, settings_path)
+            repository = ImageRepository(database_path)
+            api = GalleryApi(repository, settings)
+
+            response = await api.app_info(Mock())
+
+            self.assertEqual(response.status, 200)
+            self.assertEqual(
+                json.loads(response.body),
+                {
+                    "database_path": str(database_path),
+                    "database_size": database_path.stat().st_size,
+                    "settings_path": str(settings_path),
+                },
+            )
+            repository.close()
+
     async def test_settings_are_read_and_updated_through_the_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

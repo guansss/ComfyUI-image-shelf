@@ -374,6 +374,22 @@
     "dark": {
       "en": "Dark",
       "cn": "深色"
+    },
+    "appInfo": {
+      "en": "App Info",
+      "cn": "应用信息"
+    },
+    "databasePath": {
+      "en": "Database path",
+      "cn": "数据库路径"
+    },
+    "databaseSize": {
+      "en": "Database size",
+      "cn": "数据库大小"
+    },
+    "settingsPath": {
+      "en": "Settings path",
+      "cn": "设置文件路径"
     }
   },
   "transfer": {

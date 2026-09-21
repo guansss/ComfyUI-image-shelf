@@ -16,6 +16,12 @@ export interface GalleryFolder {
   error: string | null
 }
 
+export interface AppInfo {
+  database_path: string
+  database_size: number
+  settings_path: string
+}
+
 export interface GalleryImage {
   id: string
   filename: string
@@ -401,6 +407,10 @@ export async function pickFolder(): Promise<void> {
  */
 export async function fetchSettings(): Promise<ImageShelfSettings> {
   return await api<ImageShelfSettings>(`settings`, "GET")
+}
+
+export async function fetchAppInfo(): Promise<AppInfo> {
+  return await api<AppInfo>(`info`, "GET")
 }
 
 export async function updateSettings(

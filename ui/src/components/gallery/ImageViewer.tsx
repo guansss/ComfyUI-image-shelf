@@ -26,6 +26,7 @@ import { useTranslation } from "../../i18n/i18n"
 import { configAtom } from "../../lib/config"
 import { copyToClipboard } from "../../lib/dom"
 import { replaceTags } from "../../lib/metadata"
+import { formatFileSize } from "../../lib/utils"
 import {
   GalleryFolder,
   GalleryImage,
@@ -154,7 +155,7 @@ export function ImageViewer({
                     {new Date(imageDetails.created_at * 1000).toLocaleString()}
                   </dd>
                   <dt className="text-muted-foreground">{t.gallery.fileSize}</dt>
-                  <dd className="wrap-break-word">{Math.ceil(imageDetails.file_size / 1024)} KB</dd>
+                  <dd className="wrap-break-word">{formatFileSize(imageDetails.file_size)}</dd>
                 </dl>
                 {imageDetails.parse_error && (
                   <dl className="flex flex-col gap-2 px-4 py-2 border-b">

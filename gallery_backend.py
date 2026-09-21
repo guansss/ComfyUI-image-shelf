@@ -38,7 +38,7 @@ def main() -> None:
     )
     set_settings(settings)
     app = create_gallery_app(
-        args.database,
+        args.database.resolve(),
         settings=settings,
         allow_development_cors=True,
     )

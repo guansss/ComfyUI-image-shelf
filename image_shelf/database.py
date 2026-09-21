@@ -26,7 +26,8 @@ _WORKFLOW_COLUMNS = 1
 
 class ImageRepository:
     def __init__(self, database_path: str | Path) -> None:
-        self.connection = sqlite3.connect(database_path, check_same_thread=False)
+        self.database_path = Path(database_path)
+        self.connection = sqlite3.connect(self.database_path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._lock = RLock()
         self._image_insert_batch_size = max(
