@@ -380,17 +380,24 @@ class GalleryApiSettingsTests(unittest.IsolatedAsyncioTestCase):
             settings_path = root / "settings.json"
             settings = ShelfSettings(root, settings_path)
             repository = ImageRepository(database_path)
-            api = GalleryApi(repository, settings)
+            api = GalleryApi(repository, settings, root / "cache")
 
             response = await api.app_info(Mock())
 
             self.assertEqual(response.status, 200)
+            body = response.body
+            self.assertIsInstance(body, (str, bytes, bytearray))
             self.assertEqual(
-                json.loads(response.body),
+                json.loads(body),
                 {
                     "database_path": str(database_path),
                     "database_size": database_path.stat().st_size,
                     "settings_path": str(settings_path),
+                    "thumbnail_cache": {
+                        "bytes": 0,
+                        "files": 0,
+                        "max_bytes": 2 * 1024 * 1024 * 1024,
+                    },
                 },
             )
             repository.close()
@@ -416,8 +423,29 @@ class GalleryApiSettingsTests(unittest.IsolatedAsyncioTestCase):
             api.apply_settings.assert_awaited_once()
             self.assertEqual(
                 json.loads((Path(temporary_directory) / "settings.json").read_text()),
-                new_settings,
+                {
+                    **new_settings,
+                    "thumbnail_cache_max_bytes": 2 * 1024 * 1024 * 1024,
+                },
             )
+
+    async def test_clear_thumbnail_cache_does_not_touch_the_database(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            settings = ShelfSettings(root, root / "settings.json")
+            repository = ImageRepository(root / "image-shelf.sqlite3")
+            cache = root / "cache"
+            cache_file = cache / "v1" / "aa" / ("a" * 64 + ".webp")
+            cache_file.parent.mkdir(parents=True)
+            cache_file.write_bytes(b"thumbnail")
+            api = GalleryApi(repository, settings, cache)
+
+            response = await api.clear_thumbnail_cache(Mock())
+
+            self.assertEqual(response.status, 200)
+            self.assertFalse(cache_file.exists())
+            self.assertTrue(repository.database_path.exists())
+            repository.close()
 
 
 if __name__ == "__main__":

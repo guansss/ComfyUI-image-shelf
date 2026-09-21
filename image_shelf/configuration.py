@@ -35,6 +35,7 @@ class ImageShelfSettingsModel(BaseModel):
     custom_folders: list[CustomFolderSettings] = Field(
         default_factory=list, alias="custom_folders"
     )
+    thumbnail_cache_max_bytes: int = Field(default=2 * 1024 * 1024 * 1024, gt=0)
 
 
 class ShelfSettings:

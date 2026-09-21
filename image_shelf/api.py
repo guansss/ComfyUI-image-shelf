@@ -51,8 +51,16 @@ class GalleryApi:
             if thumbnail_cache_path is not None
             else Path(__file__).resolve().parent.parent / "thumbnails"
         )
+        if self.settings is not None:
+            self.thumbnails.set_max_cache_bytes(
+                self.settings.settings.thumbnail_cache_max_bytes
+            )
 
     async def apply_settings(self) -> None:
+        if self.settings is not None:
+            self.thumbnails.set_max_cache_bytes(
+                self.settings.settings.thumbnail_cache_max_bytes
+            )
         await self._replace_and_reindex(self.settings.get_folders())
 
     async def _replace_and_reindex(self, folders: list[GalleryFolder]) -> None:
@@ -218,6 +226,10 @@ class GalleryApi:
                 web.get("/api/image-shelf/v1/settings", self.get_settings),
                 web.post("/api/image-shelf/v1/settings", self.update_settings),
                 web.get("/api/image-shelf/v1/info", self.app_info),
+                web.post(
+                    "/api/image-shelf/v1/thumbnail-cache/clear",
+                    self.clear_thumbnail_cache,
+                ),
                 web.post("/api/image-shelf/v1/reindex", self.reindex),
                 web.get("/api/image-shelf/v1/status", self.folders_status),
             ]
@@ -691,13 +703,22 @@ class GalleryApi:
         return web.json_response(self.settings.as_dict())
 
     async def app_info(self, request: web.Request) -> web.Response:
+        thumbnail_cache = await self.thumbnails.cache_statistics()
         return web.json_response(
             {
                 "database_path": str(self.repository.database_path),
                 "database_size": self.repository.database_path.stat().st_size,
                 "settings_path": str(self.settings.settings_path),
+                "thumbnail_cache": thumbnail_cache,
             }
         )
+
+    async def clear_thumbnail_cache(self, request: web.Request) -> web.Response:
+        try:
+            await self.thumbnails.clear_cache()
+        except OSError as error:
+            raise web.HTTPInternalServerError(text=str(error)) from error
+        return web.json_response({"cleared": True})
 
     async def update_settings(self, request: web.Request) -> web.Response:
         try:

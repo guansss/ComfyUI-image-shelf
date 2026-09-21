@@ -20,6 +20,11 @@ export interface AppInfo {
   database_path: string
   database_size: number
   settings_path: string
+  thumbnail_cache: {
+    bytes: number
+    files: number
+    max_bytes: number
+  }
 }
 
 export interface GalleryImage {
@@ -412,6 +417,10 @@ export async function fetchSettings(): Promise<ImageShelfSettings> {
 
 export async function fetchAppInfo(): Promise<AppInfo> {
   return await api<AppInfo>(`info`, "GET")
+}
+
+export async function clearThumbnailCache(): Promise<void> {
+  await api(`thumbnail-cache/clear`, "POST", undefined, "ignore")
 }
 
 export async function updateSettings(

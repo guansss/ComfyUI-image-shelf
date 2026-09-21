@@ -5,6 +5,7 @@ import hashlib
 import os
 import tempfile
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -20,9 +21,17 @@ class ThumbnailService:
     WORKER_COUNT = 2
     RETRY_BASE_DELAY = 1.0
     RETRY_MAX_DELAY = 60.0
+    DEFAULT_MAX_CACHE_BYTES = 2 * 1024 * 1024 * 1024
+    MAINTENANCE_INTERVAL = 60.0
+    TEMPORARY_FILE_GRACE_PERIOD = 3600.0
 
-    def __init__(self, cache_root: str | Path) -> None:
+    def __init__(
+        self,
+        cache_root: str | Path,
+        max_cache_bytes: int = DEFAULT_MAX_CACHE_BYTES,
+    ) -> None:
         self.cache_root = normalize_path(cache_root)
+        self.max_cache_bytes = self._validate_max_cache_bytes(max_cache_bytes)
         self._tasks: dict[str, asyncio.Task[Path]] = {}
         self._queue: asyncio.PriorityQueue[
             tuple[int, int, int, str, Path, str]
@@ -32,6 +41,11 @@ class ThumbnailService:
         self._sequence = 0
         self._generation = 0
         self._failures: dict[str, tuple[float, float, BaseException]] = {}
+        self._maintenance_task: asyncio.Task[None] | None = None
+        self._maintenance_steps: list[Callable[[], Awaitable[None]]] = [
+            self.cleanup_stale_files,
+            self.enforce_cache_limit
+        ]
 
     async def start(self) -> None:
         if self._workers:
@@ -39,6 +53,26 @@ class ThumbnailService:
         self._workers = [
             asyncio.create_task(self._worker()) for _ in range(self.WORKER_COUNT)
         ]
+        self._maintenance_task = asyncio.create_task(self._maintenance_worker())
+
+    def set_max_cache_bytes(self, value: int) -> None:
+        self.max_cache_bytes = self._validate_max_cache_bytes(value)
+
+    def add_maintenance_step(self, step: Callable[[], Awaitable[None]]) -> None:
+        self._maintenance_steps.append(step)
+
+    async def cache_statistics(self) -> dict[str, int]:
+        return await asyncio.to_thread(self._cache_statistics_sync)
+
+    async def clear_cache(self) -> None:
+        await asyncio.to_thread(self._clear_cache_sync)
+        self._failures.clear()
+
+    async def enforce_cache_limit(self) -> None:
+        await asyncio.to_thread(self._enforce_cache_limit_sync)
+
+    async def cleanup_stale_files(self) -> None:
+        await asyncio.to_thread(self._cleanup_stale_files_sync)
 
     def new_generation(self) -> int:
         self._generation += 1
@@ -103,6 +137,7 @@ class ThumbnailService:
             raise ValueError("Thumbnail cache key is stale")
         destination = self.path_for_key(cache_key)
         if destination.is_file():
+            self._touch(destination)
             return destination
 
         task = self._tasks.get(cache_key)
@@ -120,15 +155,34 @@ class ThumbnailService:
     async def close(self) -> None:
         tasks = tuple(task for task in self._tasks.values() if not task.done())
         workers = tuple(self._workers)
-        for task in (*tasks, *workers):
-            task.cancel()
-        if tasks or workers:
-            await asyncio.gather(*tasks, *workers, return_exceptions=True)
+        maintenance_task = self._maintenance_task
+        self._maintenance_task = None
+        for task in (*tasks, *workers, maintenance_task):
+            if task is not None:
+                task.cancel()
+        if tasks or workers or maintenance_task:
+            await asyncio.gather(
+                *tasks,
+                *workers,
+                *(task for task in (maintenance_task,) if task is not None),
+                return_exceptions=True,
+            )
         self._tasks.clear()
         self._workers.clear()
         self._queued_keys.clear()
         while not self._queue.empty():
             self._queue.get_nowait()
+
+    async def _maintenance_worker(self) -> None:
+        while True:
+            await asyncio.sleep(self.MAINTENANCE_INTERVAL)
+            for step in tuple(self._maintenance_steps):
+                try:
+                    await step()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    continue
 
     async def _worker(self) -> None:
         while True:
@@ -180,8 +234,96 @@ class ThumbnailService:
                 temporary_path = Path(temporary_name)
                 image.save(temporary_path, "WEBP", quality=self.QUALITY, method=4)
             os.replace(temporary_path, destination)
+            self._touch(destination)
             temporary_path = None
             return destination
         finally:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
+
+    @classmethod
+    def _validate_max_cache_bytes(cls, value: int) -> int:
+        if not isinstance(value, int) or value <= 0:
+            raise ValueError("Thumbnail cache size must be a positive integer")
+        return value
+
+    def _cache_files(self) -> list[Path]:
+        version_root = self.cache_root / self.VERSION
+        if not version_root.is_dir():
+            return []
+        return [
+            path
+            for path in version_root.rglob("*.webp")
+            if path.is_file() and len(path.stem) == 64
+        ]
+
+    def _cache_statistics_sync(self) -> dict[str, int]:
+        files = self._cache_files()
+        total_bytes = 0
+        valid_files = 0
+        for path in files:
+            try:
+                total_bytes += path.stat().st_size
+                valid_files += 1
+            except OSError:
+                continue
+        return {
+            "bytes": total_bytes,
+            "files": valid_files,
+            "max_bytes": self.max_cache_bytes,
+        }
+
+    def _enforce_cache_limit_sync(self) -> None:
+        files: list[tuple[float, int, Path]] = []
+        total_bytes = 0
+        for path in self._cache_files():
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            total_bytes += stat.st_size
+            files.append((stat.st_atime_ns or stat.st_mtime_ns, stat.st_size, path))
+        if total_bytes <= self.max_cache_bytes:
+            return
+        for _, size, path in sorted(files):
+            if total_bytes <= self.max_cache_bytes:
+                break
+            try:
+                path.unlink()
+            except OSError:
+                continue
+            total_bytes -= size
+
+    def _clear_cache_sync(self) -> None:
+        if not self.cache_root.is_dir():
+            return
+        for path in self.cache_root.rglob("*"):
+            if path.is_file():
+                try:
+                    path.unlink()
+                except OSError:
+                    continue
+
+    def _cleanup_stale_files_sync(self) -> None:
+        cutoff = time.time() - self.TEMPORARY_FILE_GRACE_PERIOD
+        if not self.cache_root.is_dir():
+            return
+        active_root = self.cache_root / self.VERSION
+        for path in self.cache_root.rglob("*"):
+            try:
+                if (
+                    path.is_file()
+                    and path.stat().st_mtime < cutoff
+                    and (path.name.startswith(".") or not path.is_relative_to(active_root))
+                ):
+                    path.unlink()
+            except OSError:
+                continue
+
+    @staticmethod
+    def _touch(path: Path) -> None:
+        try:
+            current_time = time.time_ns()
+            os.utime(path, ns=(current_time, current_time))
+        except OSError:
+            pass

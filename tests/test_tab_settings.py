@@ -66,7 +66,8 @@ class FolderSettingsTests(unittest.TestCase):
                 {
                     "custom_folders": [
                         {"id": "folder-1", "name": "Custom", "path": str(root / "custom")}
-                    ]
+                    ],
+                    "thumbnail_cache_max_bytes": 2 * 1024 * 1024 * 1024,
                 },
             )
 
@@ -90,7 +91,13 @@ class FolderSettingsTests(unittest.TestCase):
             )
             settings.load()
 
-            self.assertEqual(settings.as_dict(), {"custom_folders": []})
+            self.assertEqual(
+                settings.as_dict(),
+                {
+                    "custom_folders": [],
+                    "thumbnail_cache_max_bytes": 2 * 1024 * 1024 * 1024,
+                },
+            )
 
     def test_load_settings_path_reads_the_selected_env_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

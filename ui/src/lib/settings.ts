@@ -10,6 +10,7 @@ export interface CustomFolderSetting {
 
 export interface ImageShelfSettings {
   custom_folders?: CustomFolderSetting[]
+  thumbnail_cache_max_bytes?: number
 }
 
 const internalSettingsAtom = atom<ImageShelfSettings>({})

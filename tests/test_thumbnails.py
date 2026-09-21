@@ -1,4 +1,5 @@
 import asyncio
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -136,6 +137,57 @@ class ThumbnailServiceTests(unittest.IsolatedAsyncioTestCase):
 
             with self.assertRaisesRegex(ValueError, "stale"):
                 await service.get_or_create(source, "image-id", "0" * 64)
+
+    async def test_enforces_cache_limit_using_least_recently_used_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            service = ThumbnailService(root / "thumbnails", max_cache_bytes=5)
+            oldest = service.path_for_key("a" * 64)
+            newest = service.path_for_key("b" * 64)
+            oldest.parent.mkdir(parents=True)
+            oldest.write_bytes(b"old")
+            newest.parent.mkdir(parents=True)
+            newest.write_bytes(b"new")
+            os.utime(oldest, ns=(1, 1))
+            os.utime(newest, ns=(2, 2))
+
+            await service.enforce_cache_limit()
+
+            self.assertFalse(oldest.exists())
+            self.assertTrue(newest.exists())
+            self.assertEqual(
+                await service.cache_statistics(),
+                {"bytes": 3, "files": 1, "max_bytes": 5},
+            )
+
+    async def test_clear_cache_removes_only_cache_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source.png"
+            source.write_bytes(b"source")
+            service = ThumbnailService(root / "thumbnails")
+            cache_file = service.path_for_key("a" * 64)
+            cache_file.parent.mkdir(parents=True)
+            cache_file.write_bytes(b"thumbnail")
+
+            await service.clear_cache()
+
+            self.assertFalse(cache_file.exists())
+            self.assertEqual(source.read_bytes(), b"source")
+
+    async def test_maintenance_worker_runs_registered_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            service = ThumbnailService(Path(temporary_directory) / "thumbnails")
+            service.MAINTENANCE_INTERVAL = 0.01
+            completed = asyncio.Event()
+
+            async def maintenance_step() -> None:
+                completed.set()
+
+            service.add_maintenance_step(maintenance_step)
+            await service.start()
+            await asyncio.wait_for(completed.wait(), timeout=1)
+            await service.close()
 
 
 if __name__ == "__main__":

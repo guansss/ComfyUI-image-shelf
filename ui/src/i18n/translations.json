@@ -355,9 +355,9 @@
       "en": "Settings",
       "cn": "设置"
     },
-    "open": {
-      "en": "Open settings",
-      "cn": "打开设置"
+    "ui": {
+      "en": "User Interface",
+      "cn": "用户界面"
     },
     "language": {
       "en": "Language",
@@ -390,6 +390,34 @@
     "settingsPath": {
       "en": "Settings path",
       "cn": "设置文件路径"
+    },
+    "thumbnailCache": {
+      "en": "Thumbnail cache",
+      "cn": "缩略图缓存"
+    },
+    "cacheSize": {
+      "en": "Cache size",
+      "cn": "缓存大小"
+    },
+    "cacheFiles": {
+      "en": "Cached thumbnails",
+      "cn": "缓存缩略图"
+    },
+    "cacheLimit": {
+      "en": "Cache limit (bytes)",
+      "cn": "缓存上限（字节）"
+    },
+    "clearCache": {
+      "en": "Clear thumbnail cache",
+      "cn": "清除缩略图缓存"
+    },
+    "cacheCleared": {
+      "en": "Thumbnail cache cleared",
+      "cn": "缩略图缓存已清除"
+    },
+    "clearCacheFailed": {
+      "en": "Failed to clear thumbnail cache",
+      "cn": "清除缩略图缓存失败"
     }
   },
   "transfer": {
