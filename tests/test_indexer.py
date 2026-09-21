@@ -298,10 +298,8 @@ class FolderIndexerTests(unittest.TestCase):
             page = repository.list_images([images])
             self.assertEqual(result.indexed, 1)
             self.assertEqual(result.removed, 0)
-            self.assertEqual(page.total, 2)
-            self.assertEqual(
-                {item.filename for item in page.items}, {"direct.png", "nested.png"}
-            )
+            self.assertEqual(page.total, 1)
+            self.assertEqual({item.filename for item in page.items}, {"direct.png"})
             repository.close()
 
     def test_force_reindexes_unchanged_files(self) -> None:

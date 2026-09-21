@@ -617,13 +617,19 @@ class ImageRepository:
         if not normalized_folders:
             return "0", ()
         clauses = " OR ".join(
-            "images.path = ? OR images.path LIKE ? ESCAPE '\\'"
+            "images.path = ? OR ("
+            "images.path LIKE ? ESCAPE '\\' AND "
+            "images.path NOT LIKE ? ESCAPE '\\')"
             for _ in normalized_folders
         )
         parameters = tuple(
             parameter
             for folder in normalized_folders
-            for parameter in (folder, _directory_like_pattern(folder))
+            for parameter in (
+                folder,
+                _directory_like_pattern(folder),
+                _nested_directory_like_pattern(folder),
+            )
         )
         return clauses, parameters
 
@@ -634,6 +640,10 @@ def _escape_like(value: str) -> str:
 
 def _directory_like_pattern(folder: str) -> str:
     return f"{_escape_like(folder)}{_escape_like(sep)}%"
+
+
+def _nested_directory_like_pattern(folder: str) -> str:
+    return f"{_escape_like(folder)}{_escape_like(sep)}%{_escape_like(sep)}%"
 
 
 def _tag_match_score(query: str, tag: str) -> float:
