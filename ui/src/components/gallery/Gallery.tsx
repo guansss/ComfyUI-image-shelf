@@ -35,6 +35,7 @@ import { formatError } from "../../lib/error"
 import { emptyQuery, SearchQuery, SearchTerm } from "../../lib/search"
 import { cn } from "../../lib/utils"
 import { GalleryFolder, GalleryImage } from "../../services/gallery"
+import { EMPTY_ARRAY } from "../../utils/lang"
 import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert"
 import {
@@ -86,8 +87,8 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const [direction, setDirection] = useState<"asc" | "desc">("desc")
   const [page, setPage] = useState(1)
   const [config, setConfig] = useAtom(configAtom)
-  const [activeImage, setActiveImage] = useState<GalleryImage | undefined>(undefined)
-  const [selectedImages, setSelectedImages] = useState<GalleryImage[]>([])
+  const [activeImageId, setActiveImageId] = useState<string | undefined>(undefined)
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([])
   const imageViewerTrigger = usePopoverTrigger()
   const [groupByDay, setGroupByDay] = useState(true)
 
@@ -106,9 +107,11 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     page,
     pageSize: config.pageSize,
   })
-  const images = imageList?.items ?? []
+  const images = imageList?.items ?? EMPTY_ARRAY
   const imageListTotal = imageList?.total ?? 0
-  const dimensions = imageList?.dimensions ?? []
+  const dimensions = imageList?.dimensions ?? EMPTY_ARRAY
+  const activeImage = images.find((image) => image.id === activeImageId)
+  const selectedImages = images.filter((image) => selectedImageIds.includes(image.id))
 
   // Clear SWR cache when the gallery is opened to ensure fresh data is fetched
   useEffect(() => {
@@ -150,8 +153,8 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
         }, {}),
       ) as [string, GalleryImage[]][])
     : [[t.gallery.allImages, images]]
-  const activeImageIndexInCurrentPage = activeImage
-    ? images.findIndex((image) => image.id === activeImage.id)
+  const activeImageIndexInCurrentPage = activeImageId
+    ? images.findIndex((image) => image.id === activeImageId)
     : -1
   const activeImageIndexInAllPages =
     activeImageIndexInCurrentPage !== -1
@@ -159,9 +162,9 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
       : -1
 
   const handleNavigate = (offset: number) => {
-    const currentIndex = images.findIndex((image) => image.id === activeImage?.id)
+    const currentIndex = images.findIndex((image) => image.id === activeImageId)
     const nextIndex = clamp(currentIndex + offset, 0, images.length - 1)
-    setActiveImage(images[nextIndex])
+    setActiveImageId(images[nextIndex]?.id)
   }
 
   return (
@@ -276,14 +279,13 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                         key={image.id}
                         className={cn(
                           "relative group h-auto min-w-0 flex flex-col",
-                          selectedImages.some((img) => img.id === image.id) &&
-                            "ring-inset ring-2 ring-blue-500",
+                          selectedImageIds.includes(image.id) && "ring-inset ring-2 ring-blue-500",
                         )}
                       >
                         <Button
                           className="h-full flex-col items-stretch gap-2 overflow-hidden border p-2 font-normal shadow-xs"
                           onClick={() => {
-                            setActiveImage(image)
+                            setActiveImageId(image.id)
                             imageViewerTrigger.toggle(true)
                           }}
                           type="button"
@@ -312,7 +314,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                         <div
                           className={cn(
                             "absolute top-2 left-2 right-2 flex items-center group-hover:opacity-100 opacity-0 bg-linear-180 from-black/50 to-transparent transition-opacity",
-                            selectedImages.some((img) => img.id === image.id) && "opacity-100",
+                            selectedImageIds.includes(image.id) && "opacity-100",
                           )}
                         >
                           <Button
@@ -320,16 +322,16 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                             variant="flat"
                             size={null}
                             onClick={() => {
-                              if (selectedImages.some((img) => img.id === image.id)) {
-                                setSelectedImages(
-                                  selectedImages.filter((img) => img.id !== image.id),
+                              if (selectedImageIds.includes(image.id)) {
+                                setSelectedImageIds(
+                                  selectedImageIds.filter((id) => id !== image.id),
                                 )
                               } else {
-                                setSelectedImages([...selectedImages, image])
+                                setSelectedImageIds([...selectedImageIds, image.id])
                               }
                             }}
                           >
-                            {selectedImages.some((img) => img.id === image.id) ? (
+                            {selectedImageIds.includes(image.id) ? (
                               <SquareCheckBigIcon className="size-6" />
                             ) : (
                               <SquareIcon className="size-6" />
@@ -352,22 +354,22 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                 {t.gallery.searchTime({ elapsed: Math.round(imageList.elapsed * 1000) })}
               </div>
             )}
-            {selectedImages.length > 0 ? (
+            {selectedImageIds.length > 0 ? (
               <>
                 <div className="ml-auto text-muted-foreground">
-                  {t.gallery.selectedImages({ count: selectedImages.length })}
+                  {t.gallery.selectedImages({ count: selectedImageIds.length })}
                 </div>
                 <Button
                   className="min-w-18"
                   variant="outline"
-                  onClick={() => setSelectedImages([])}
+                  onClick={() => setSelectedImageIds([])}
                 >
                   {t.common.cancel}
                 </Button>
                 <Button
                   className="min-w-18"
                   variant="outline"
-                  onClick={() => setSelectedImages(images)}
+                  onClick={() => setSelectedImageIds(images.map((image) => image.id))}
                 >
                   {t.gallery.selectAll}
                 </Button>
@@ -378,7 +380,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                   mode="copy"
                   label={t.gallery.copyTo}
                   icon={<CopyPlusIcon data-icon="inline-start" />}
-                  onComplete={() => setSelectedImages([])}
+                  onComplete={() => setSelectedImageIds([])}
                 />
                 <TransferMenu
                   folders={folders}
@@ -387,7 +389,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                   mode="move"
                   label={t.gallery.moveTo}
                   icon={<FileInputIcon data-icon="inline-start" />}
-                  onComplete={() => setSelectedImages([])}
+                  onComplete={() => setSelectedImageIds([])}
                 />
               </>
             ) : (

@@ -1,3 +1,5 @@
+export const EMPTY_ARRAY = Object.freeze([]) as unknown as any[]
+
 export function arraysEqual<T>(a: ArrayLike<T>, b: ArrayLike<T>): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) {
