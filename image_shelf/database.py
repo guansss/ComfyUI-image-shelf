@@ -259,7 +259,7 @@ class ImageRepository:
     def suggest_tags(
         self, folders: Iterable[str | Path] | None, prefix: str, limit: int = 10
     ) -> tuple[TagSuggestion, ...]:
-        if not prefix.strip() or limit <= 0:
+        if (not prefix.strip() and prefix != "") or limit <= 0:
             return ()
         limit = min(limit, 1000)
         folder_where, folder_parameters = (
