@@ -143,7 +143,7 @@ export function ImageViewer({
                 {t.gallery.reveal}
               </Button>
             </div>
-            {imageDetails ? (
+            {imageDetails && (
               <div className="flex flex-col text-sm">
                 <dl className="grid grid-cols-1 md:grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4 py-2 border-b">
                   <dt className="text-muted-foreground">{t.gallery.dimensions}</dt>
@@ -171,8 +171,6 @@ export function ImageViewer({
                   }}
                 />
               </div>
-            ) : (
-              <p className="mt-5 text-sm text-muted-foreground">{t.gallery.loading}</p>
             )}
           </ScrollArea>
         </aside>

@@ -136,10 +136,6 @@
         "cn": "搜索生成信息*中包含 \"illustrious-xl\" 的图像"
       }
     },
-    "loadingSuggestions": {
-      "en": "Finding tag suggestions...",
-      "cn": "正在寻找标签..."
-    },
     "noSuggestions": {
       "en": "No tag suggestions",
       "cn": "没有符合的标签"
@@ -316,10 +312,6 @@
     "currentFolder": {
       "en": "(Current)",
       "cn": "(当前)"
-    },
-    "loading": {
-      "en": "Loading images...",
-      "cn": "正在加载图像..."
     },
     "error": {
       "en": "Could not load the image shelf.",

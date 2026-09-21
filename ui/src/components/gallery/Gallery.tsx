@@ -265,16 +265,11 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               <AlertDescription>{formatError(activeFolder.error)}</AlertDescription>
             </Alert>
           )}
-          {!images.length &&
-            (imageListIsLoading ? (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                {t.gallery.loading}
-              </div>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                {t.gallery.empty}
-              </div>
-            ))}
+          {!images.length && !imageListIsLoading && (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+              {t.gallery.empty}
+            </div>
+          )}
           {images.length > 0 && (
             <ScrollArea className="min-h-0 flex-1">
               {imageGroups.map(([day, group]) => (
