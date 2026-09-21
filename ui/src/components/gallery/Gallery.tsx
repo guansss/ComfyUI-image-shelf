@@ -30,9 +30,9 @@ import {
 } from "@/components/ui/select"
 
 import { useTranslation } from "../../i18n/i18n"
-import { configAtom } from "../../lib/config"
+import { galleryConfigAtom } from "../../lib/config"
 import { formatError } from "../../lib/error"
-import { emptyQuery, SearchQuery, SearchTerm } from "../../lib/search"
+import { queryToString, SearchQuery, SearchTerm } from "../../lib/search"
 import { cn } from "../../lib/utils"
 import { GalleryFolder, GalleryImage } from "../../services/gallery"
 import { EMPTY_ARRAY } from "../../utils/lang"
@@ -52,7 +52,7 @@ import { useFolderList, useImageQuery } from "./api"
 import { FolderList } from "./folder"
 import { transferSelectedImages } from "./helpers"
 import { ImageViewer } from "./ImageViewer"
-import { Searchbar } from "./Searchbar"
+import { parseSearchValue, Searchbar } from "./Searchbar"
 
 interface GalleryControlProps {
   openEvent: string
@@ -78,19 +78,14 @@ export function GalleryControl({ openEvent }: GalleryControlProps) {
 export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const t = useTranslation()
   const { unload } = useSWRConfig()
-  const [selectedFolderId, setSelectedFolderId] = useState("outputs")
-  const [query, setQuery] = useState<SearchQuery>(emptyQuery())
+  const [config, setConfig] = useAtom(galleryConfigAtom)
+  const [query, setQuery] = useState<SearchQuery>(() => parseSearchValue(config.query, -1))
   const [debouncedQuery, setDebouncedQuery] = useState<SearchQuery>(query)
-  useDebounce(() => setDebouncedQuery(query), 500, [query])
   const [selectedDimensions, setSelectedDimensions] = useState<string[]>([])
-  const [sort, setSort] = useState<"created_at" | "filename">("created_at")
-  const [direction, setDirection] = useState<"asc" | "desc">("desc")
   const [page, setPage] = useState(1)
-  const [config, setConfig] = useAtom(configAtom)
   const [activeImageId, setActiveImageId] = useState<string | undefined>(undefined)
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([])
   const imageViewerTrigger = usePopoverTrigger()
-  const [groupByDay, setGroupByDay] = useState(true)
 
   const { data: folders, mutate: mutateFolders } = useFolderList()
 
@@ -99,11 +94,11 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     error: imageListError,
     isLoading: imageListIsLoading,
   } = useImageQuery({
-    folder: selectedFolderId,
+    folder: config.activeFolder,
     query: debouncedQuery,
     dimensions: selectedDimensions,
-    sort,
-    direction,
+    sort: config.sort,
+    direction: config.direction,
     page,
     pageSize: config.pageSize,
   })
@@ -118,8 +113,17 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     if (isOpen) unload()
   }, [isOpen, unload])
 
+  useDebounce(
+    () => {
+      setDebouncedQuery(query)
+      setConfig({ query: queryToString(query) })
+    },
+    500,
+    [query],
+  )
+
   const selectFolder = (folderId: string) => {
-    setSelectedFolderId(folderId)
+    setConfig({ activeFolder: folderId })
     setSelectedDimensions([])
     setPage(1)
   }
@@ -138,13 +142,12 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
       "created_at" | "filename",
       "asc" | "desc",
     ]
-    setSort(nextSort)
-    setDirection(nextDirection)
+    setConfig({ sort: nextSort, direction: nextDirection })
     setPage(1)
   }
 
-  const selectedFolder = folders?.find((folder) => folder.id === selectedFolderId)
-  const imageGroups: [string, GalleryImage[]][] = groupByDay
+  const activeFolder = folders?.find((folder) => folder.id === config.activeFolder)
+  const imageGroups: [string, GalleryImage[]][] = config.groupByDay
     ? (Object.entries(
         images.reduce<Record<string, GalleryImage[]>>((groups, image) => {
           const day = new Date(image.created_at * 1000).toLocaleDateString()
@@ -183,13 +186,13 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
             </DialogHeader>
             <FolderList
               folders={folders}
-              selectedFolderId={selectedFolderId}
+              selectedFolderId={config.activeFolder}
               onFolderSelect={selectFolder}
               updateTabs={mutateFolders}
             />
             <div className="flex flex-col gap-4 p-4 border-t">
               <h3 className="text-sm font-semibold">{t.gallery.sort}</h3>
-              <Select onValueChange={updateSort} value={`${sort}:${direction}`}>
+              <Select onValueChange={updateSort} value={`${config.sort}:${config.direction}`}>
                 <SelectTrigger aria-label={t.gallery.sort} className="max-w-full sm:w-52">
                   <SelectValue />
                 </SelectTrigger>
@@ -204,9 +207,9 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               </Select>
               <Field orientation="horizontal">
                 <Checkbox
-                  checked={groupByDay}
+                  checked={config.groupByDay}
                   id="group-by-day"
-                  onCheckedChange={(checked) => setGroupByDay(checked === true)}
+                  onCheckedChange={(checked) => setConfig({ groupByDay: checked === true })}
                 />
                 <Label className="cursor-pointer" htmlFor="group-by-day">
                   {t.gallery.groupByDay}
@@ -249,11 +252,11 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               <AlertDescription>{formatError(imageListError)}</AlertDescription>
             </Alert>
           )}
-          {selectedFolder?.error && (
+          {activeFolder?.error && (
             <Alert variant="destructive" className="mx-4 w-fit self-start">
               <AlertCircleIcon />
-              <AlertTitle>{t.gallery.folderError({ name: selectedFolder.name })}</AlertTitle>
-              <AlertDescription>{formatError(selectedFolder.error)}</AlertDescription>
+              <AlertTitle>{t.gallery.folderError({ name: activeFolder.name })}</AlertTitle>
+              <AlertDescription>{formatError(activeFolder.error)}</AlertDescription>
             </Alert>
           )}
           {!images.length &&
@@ -270,7 +273,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
             <ScrollArea className="min-h-0 flex-1">
               {imageGroups.map(([day, group]) => (
                 <section className="border-b px-4 py-4 first:pt-2 last:border-b-0" key={day}>
-                  {groupByDay && (
+                  {config.groupByDay && (
                     <h2 className="mb-2 px-2 text-sm font-semibold text-muted-foreground">{day}</h2>
                   )}
                   <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -375,7 +378,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                 </Button>
                 <TransferMenu
                   folders={folders}
-                  currentFolderId={selectedFolderId}
+                  currentFolderId={config.activeFolder}
                   images={selectedImages}
                   mode="copy"
                   label={t.gallery.copyTo}
@@ -384,7 +387,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                 />
                 <TransferMenu
                   folders={folders}
-                  currentFolderId={selectedFolderId}
+                  currentFolderId={config.activeFolder}
                   images={selectedImages}
                   mode="move"
                   label={t.gallery.moveTo}
@@ -459,7 +462,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
           {({ isOpen, setOpenState }) => (
             <ImageViewer
               folders={folders}
-              currentFolderId={selectedFolderId}
+              currentFolderId={config.activeFolder}
               isOpen={isOpen}
               onOpenChange={setOpenState}
               index={activeImageIndexInAllPages}
