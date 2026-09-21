@@ -46,7 +46,7 @@ export async function api<T>(
     }
   }
   const defaultErrorHandler = async (error?: unknown): Promise<Error> => {
-    if (error !== undefined || error !== null) {
+    if (error !== undefined && error !== null) {
       if (error instanceof Error) {
         return error
       }
