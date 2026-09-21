@@ -2,10 +2,10 @@
 
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete"
 import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "cn"
 import { ChevronsUpDownIcon, XIcon } from "lucide-react"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { cn } from "@/lib/utils"
 
 import { portalRoot, Z_POPOVER } from "../../lib/dom"
 

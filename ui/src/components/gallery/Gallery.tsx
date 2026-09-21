@@ -1,3 +1,4 @@
+import { cn } from "cn"
 import { useAtom } from "jotai"
 import { clamp } from "lodash-es"
 import {
@@ -33,7 +34,6 @@ import { useTranslation } from "../../i18n/i18n"
 import { galleryConfigAtom } from "../../lib/config"
 import { formatError } from "../../lib/error"
 import { queryToString, SearchQuery, SearchTerm } from "../../lib/search"
-import { cn } from "../../lib/utils"
 import { GalleryFolder, GalleryImage } from "../../services/gallery"
 import { EMPTY_ARRAY } from "../../utils/lang"
 import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"

@@ -1,3 +1,4 @@
+import { cn } from "cn"
 import { isBoolean } from "lodash-es"
 import { AlertCircleIcon, CircleQuestionMarkIcon, LoaderCircleIcon, SearchIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -6,7 +7,6 @@ import { useDebounce } from "react-use"
 import { useTranslation } from "../../i18n/i18n"
 import { formatError } from "../../lib/error"
 import { parseSearchValue, queryToString, SearchQuery, SearchTerm } from "../../lib/search"
-import { cn } from "../../lib/utils"
 import { TagSuggestion } from "../../services/gallery"
 import {
   Autocomplete,

@@ -1,10 +1,9 @@
 "use client"
 
-import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
+import { cn } from "cn"
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import { Select as SelectPrimitive } from "radix-ui"
 import * as React from "react"
-
-import { cn } from "@/lib/utils"
 
 import { portalRoot, Z_POPOVER } from "../../lib/dom"
 

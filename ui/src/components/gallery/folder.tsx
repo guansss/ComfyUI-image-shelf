@@ -1,3 +1,4 @@
+import { cn } from "cn"
 import { useAtom } from "jotai"
 import { isEqual } from "lodash-es"
 import {
@@ -20,7 +21,6 @@ import { i18n, useTranslation } from "../../i18n/i18n"
 import { errorToast, formatError } from "../../lib/error"
 import { moveCustomFolder, toStoredCustomFolder } from "../../lib/folder"
 import { settingsAtom } from "../../lib/settings"
-import { cn } from "../../lib/utils"
 import {
   GalleryFolder,
   GalleryMessage,
@@ -232,7 +232,8 @@ export function FolderList({
                   variant="flat"
                   size="icon"
                   className={cn(
-                    folder === selectedFolder && "text-white hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
+                    folder === selectedFolder &&
+                      "text-white hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
                   )}
                 >
                   <EllipsisVerticalIcon />
