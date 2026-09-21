@@ -9,6 +9,7 @@ import {
   FileInputIcon,
   FolderIcon,
   ImageIcon,
+  SettingsIcon,
   SquareCheckBigIcon,
   SquareIcon,
 } from "lucide-react"
@@ -36,6 +37,7 @@ import { cn } from "../../lib/utils"
 import { GalleryFolder, GalleryImage } from "../../services/gallery"
 import { EMPTY_ARRAY } from "../../utils/lang"
 import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"
+import { SettingsDialog } from "../settings"
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert"
 import {
   DropdownMenu,
@@ -83,6 +85,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const [page, setPage] = useState(1)
   const [activeImageId, setActiveImageId] = useState<string | undefined>(undefined)
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([])
+  const settingsTrigger = usePopoverTrigger()
   const imageViewerTrigger = usePopoverTrigger()
 
   const { data: folders, mutate: mutateFolders } = useFolderList()
@@ -172,7 +175,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <aside className="md:w-80 w-40 shrink-0 flex flex-col border-r">
-          <ScrollArea className="h-full">
+          <ScrollArea className="min-h-0 flex-1">
             <DialogHeader className="flex-row items-center gap-3 border-b p-4">
               <ImageIcon className="size-8" />
               <DialogTitle className="text-xl">{t.gallery.title}</DialogTitle>
@@ -232,6 +235,16 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               </div>
             )}
           </ScrollArea>
+          <div className="border-t p-4 flex flex-col">
+            <Button
+              variant="flat"
+              className="justify-start"
+              onClick={() => settingsTrigger.toggle(true)}
+            >
+              <SettingsIcon data-icon="inline-start" />
+              {t.settings.title}
+            </Button>
+          </div>
         </aside>
 
         <main className="grow flex flex-col">
@@ -477,6 +490,11 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                 })
               }}
             />
+          )}
+        </PopoverControl>
+        <PopoverControl trigger={settingsTrigger}>
+          {({ isOpen, setOpenState }) => (
+            <SettingsDialog open={isOpen} onOpenChange={setOpenState} />
           )}
         </PopoverControl>
       </DialogContent>

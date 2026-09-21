@@ -198,7 +198,7 @@ export function FolderList({
             key={folder.id}
             className={cn(
               "flex flex-wrap rounded-md",
-              folder === selectedFolder && "bg-(--chart-3)",
+              folder === selectedFolder && "text-white bg-(--chart-3)",
             )}
           >
             <Button
@@ -232,7 +232,7 @@ export function FolderList({
                   variant="flat"
                   size="icon"
                   className={cn(
-                    folder === selectedFolder && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
+                    folder === selectedFolder && "text-white hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
                   )}
                 >
                   <EllipsisVerticalIcon />

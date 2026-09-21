@@ -6,6 +6,7 @@ import { PartialDeep } from "type-fest"
 interface Config {
   gallery: GalleryConfig
   promptDisplayMode: "tags" | "raw" | "both"
+  theme: "light" | "dark"
 }
 
 interface GalleryConfig {
@@ -27,6 +28,7 @@ const defaultConfig: Config = {
     groupByDay: true,
   },
   promptDisplayMode: "both",
+  theme: "dark",
 }
 
 const localConfigAtom = atomWithStorage<PartialDeep<Config>>("image-shelf.config", {}, undefined, {

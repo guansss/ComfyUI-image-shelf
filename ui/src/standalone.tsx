@@ -6,6 +6,7 @@ import ReactDOM from "react-dom/client"
 import bgUrl from "../../tests/assets/a1111.jpg?url"
 import { AskProvider } from "./components/ask"
 import { GalleryControl } from "./components/gallery/Gallery"
+import { ThemeSync } from "./components/settings"
 import { Button } from "./components/ui/button"
 import { Toaster } from "./components/ui/sonner"
 import { TooltipProvider } from "./components/ui/tooltip"
@@ -19,11 +20,12 @@ function mountUI() {
   ReactDOM.createRoot(rootContainer).render(
     <React.StrictMode>
       <I18NProvider>
+        <ThemeSync />
         <TooltipProvider>
           <GalleryControl openEvent={OPEN_EVENT} />
         </TooltipProvider>
         <AskProvider />
-        <Toaster expand position="top-right"visibleToasts={10} />
+        <Toaster expand position="top-right" visibleToasts={10} />
         <div
           className="relative min-h-[150vh] bg-cover bg-center"
           style={{ backgroundImage: `url("${bgUrl}")` }}

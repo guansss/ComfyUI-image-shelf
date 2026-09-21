@@ -6,6 +6,7 @@ import ReactDOM from "react-dom/client"
 import { LGraphNode } from "./comfy-shims"
 import { AskProvider } from "./components/ask"
 import { GalleryControl } from "./components/gallery/Gallery"
+import { ThemeSync } from "./components/settings"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { getDriver } from "./driver/driver"
 import { EXTENSION_ID } from "./global"
@@ -22,6 +23,7 @@ function mountUI(): void {
   ReactDOM.createRoot(rootContainer).render(
     <React.StrictMode>
       <I18NProvider>
+        <ThemeSync />
         <TooltipProvider>
           <GalleryControl openEvent={OPEN_EVENT} />
         </TooltipProvider>

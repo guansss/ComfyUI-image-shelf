@@ -350,6 +350,32 @@
       }
     }
   },
+  "settings": {
+    "title": {
+      "en": "Settings",
+      "cn": "设置"
+    },
+    "open": {
+      "en": "Open settings",
+      "cn": "打开设置"
+    },
+    "language": {
+      "en": "Language",
+      "cn": "语言"
+    },
+    "theme": {
+      "en": "Theme",
+      "cn": "主题"
+    },
+    "light": {
+      "en": "Light",
+      "cn": "浅色"
+    },
+    "dark": {
+      "en": "Dark",
+      "cn": "深色"
+    }
+  },
   "transfer": {
     "failed": {
       "en": "Failed to transfer file",
