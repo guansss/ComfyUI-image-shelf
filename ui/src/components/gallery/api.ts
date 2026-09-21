@@ -2,9 +2,9 @@ import useSWRImmutable from "swr/immutable"
 
 import { SERVER_URL } from "../../global"
 import {
+  fetchFolders,
   fetchImageDetails,
   fetchImages,
-  fetchFolders,
   fetchTagSuggestions,
   ImageQuery,
 } from "../../services/gallery"
@@ -34,12 +34,12 @@ export function useFolderList() {
 
 export function useTagSuggestions({ query }: { query?: string }) {
   return useSWRImmutable(
-    query ? ["tagSuggestions", query] : null,
+    ["tagSuggestions", query],
     async ([, query]) => {
       const tagSuggestions = await fetchTagSuggestions(query, 100)
       return tagSuggestions.items
     },
-    { keepPreviousData: true },
+    { keepPreviousData: true, dedupingInterval: 5000 },
   )
 }
 

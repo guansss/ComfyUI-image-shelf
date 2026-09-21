@@ -258,10 +258,11 @@ export async function fetchImages(imageQuery: ImageQuery): Promise<ImageListResp
 }
 
 export async function fetchTagSuggestions(
-  query: string,
+  query: string | undefined,
   limit = 10,
 ): Promise<{ items: TagSuggestion[] }> {
-  const parameters = new URLSearchParams({ q: query, limit: String(limit) })
+  const parameters = new URLSearchParams({ limit: String(limit) })
+  if (query) parameters.append("q", query)
   return api<{ items: TagSuggestion[] }>(`tags?${parameters}`, "GET")
 }
 

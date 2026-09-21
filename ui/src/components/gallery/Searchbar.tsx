@@ -44,6 +44,7 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
   const t = useTranslation()
   const [text, setText] = useState(() => queryToString(query))
   const [cursorIndex, setCursorIndex] = useState(text.length)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const lastCommittedQuery = useRef(query)
 
   useEffect(() => {
@@ -64,7 +65,10 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
   )
 
   const { data: tagSuggestions, error: tagSuggestionsError } = useTagSuggestions({
-    query: query.activeTerm?.value,
+    query:
+      query.activeTerm?.type === "tag" || query.activeTerm?.type === "negativeTag"
+        ? query.activeTerm?.value
+        : undefined,
   })
 
   const applyTagSuggestion = (suggestion: TagSuggestion) => {
@@ -81,10 +85,10 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
         term.exclude = activeTerm.exclude
       }
       const newTerms = query.terms.map((t) => (t === activeTerm ? term : t))
-      return queryToString({ ...query, terms: newTerms })
+      return queryToString({ ...query, terms: newTerms }) + " "
     } else {
       const newTerms = [...query.terms, term]
-      return queryToString({ ...query, terms: newTerms })
+      return queryToString({ ...query, terms: newTerms }) + " "
     }
   }
 
@@ -100,9 +104,6 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
     setCursorIndex(newValue.length)
   }
 
-  const shouldRenderPopup =
-    query.activeTerm?.type === "tag" || query.activeTerm?.type === "negativeTag"
-
   return (
     <div className="flex-1 flex flex-col gap-2">
       <InputGroup>
@@ -111,6 +112,8 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
           value={text}
           onValueChange={handleChange}
           itemToStringValue={applyTagSuggestion}
+          open={dropdownOpen}
+          onOpenChange={setDropdownOpen}
           mode="none"
           filter={null}
         >
@@ -118,34 +121,34 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
             showClear
             className="flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
             placeholder={t.search.placeholder}
+            onFocus={() => setDropdownOpen(true)}
+            onClick={() => setDropdownOpen(true)}
             onSelect={(event) => setCursorIndex(event.currentTarget.selectionEnd ?? text.length)}
             onKeyUp={handleKeyUp}
           />
-          {shouldRenderPopup && (
-            <AutocompleteContent className="pointer-events-auto">
-              <AutocompleteList>
-                {(suggestion: TagSuggestion) => (
-                  <AutocompleteItem
-                    key={suggestion.type + suggestion.name}
-                    value={suggestion}
-                    className="rounded-lg"
-                  >
-                    {`tag:${suggestion.type === "negative" ? "-" : ""}${suggestion.name}`}
-                  </AutocompleteItem>
-                )}
-              </AutocompleteList>
-              <AutocompleteStatus>
-                {tagSuggestionsError ? (
-                  <div className="flex items-center gap-2">
-                    <AlertCircleIcon className="size-4" />
-                    {formatError(tagSuggestionsError)}
-                  </div>
-                ) : tagSuggestions?.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">{t.search.noSuggestions}</div>
-                ) : null}
-              </AutocompleteStatus>
-            </AutocompleteContent>
-          )}
+          <AutocompleteContent className="pointer-events-auto">
+            <AutocompleteList>
+              {(suggestion: TagSuggestion) => (
+                <AutocompleteItem
+                  key={suggestion.type + suggestion.name}
+                  value={suggestion}
+                  className="rounded-lg"
+                >
+                  {`tag:${suggestion.type === "negative" ? "-" : ""}${suggestion.name}`}
+                </AutocompleteItem>
+              )}
+            </AutocompleteList>
+            <AutocompleteStatus>
+              {tagSuggestionsError ? (
+                <div className="flex items-center gap-2">
+                  <AlertCircleIcon className="size-4" />
+                  {formatError(tagSuggestionsError)}
+                </div>
+              ) : tagSuggestions?.length === 0 ? (
+                <div className="text-sm text-muted-foreground">{t.search.noSuggestions}</div>
+              ) : null}
+            </AutocompleteStatus>
+          </AutocompleteContent>
         </Autocomplete>
 
         <InputGroupAddon>
