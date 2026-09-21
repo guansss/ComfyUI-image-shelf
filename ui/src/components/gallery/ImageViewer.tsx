@@ -31,6 +31,7 @@ import {
   GalleryImage,
   ImageDetails,
   PromptParseResult,
+  TagSuggestion,
 } from "../../services/gallery"
 import { joinJSX } from "../../utils/react"
 import { Badge } from "../ui/badge"
@@ -61,7 +62,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 const ROLE_ORDER: string[] = ["positive", "negative", "unknown"]
 
-interface ImageViewerProps extends Pick<MetadataProps, "onTagClick" | "onOpenChange"> {
+interface ImageViewerProps extends Pick<MetadataProps, "onTagClick"> {
   index?: number
   total?: number
   image?: GalleryImage
@@ -69,6 +70,7 @@ interface ImageViewerProps extends Pick<MetadataProps, "onTagClick" | "onOpenCha
   currentFolderId?: string
   isOpen: boolean
   onNavigate?: (offset: number) => void
+  onOpenChange: (isOpen: boolean) => void
 }
 
 export function ImageViewer({
@@ -162,8 +164,10 @@ export function ImageViewer({
                 )}
                 <Metadata
                   imageDetails={imageDetails}
-                  onOpenChange={onOpenChange}
-                  onTagClick={onTagClick}
+                  onTagClick={(tag) => {
+                    onTagClick?.(tag)
+                    onOpenChange(false)
+                  }}
                 />
               </div>
             ) : (
@@ -259,11 +263,10 @@ function TransferMenu({
 
 interface MetadataProps {
   imageDetails: ImageDetails
-  onTagClick?: (tag: string, type: "positive" | "negative") => void
-  onOpenChange: (open: boolean) => void
+  onTagClick?: (tag: TagSuggestion) => void
 }
 
-function Metadata({ imageDetails, onTagClick, onOpenChange }: MetadataProps) {
+function Metadata({ imageDetails, onTagClick }: MetadataProps) {
   const t = useTranslation()
   const [config, setConfig] = useAtom(configAtom)
 
@@ -310,7 +313,30 @@ function Metadata({ imageDetails, onTagClick, onOpenChange }: MetadataProps) {
           </SelectContent>
         </Select>
       </dt>
-      {type === "comfy" &&
+      {config.promptDisplayMode === "tags" && (
+        <>
+          <dt className="px-4">
+            <Badge className={ROLE_COLORS["positive"]}>positive</Badge>
+          </dt>
+          <dd className="px-4 wrap-break-word whitespace-pre-wrap">
+            <Tags
+              tags={imageDetails.tags.filter((tag) => tag.type === "positive")}
+              onTagClick={(tag) => onTagClick?.(tag)}
+            />
+          </dd>
+          <dt className="px-4">
+            <Badge className={ROLE_COLORS["negative"]}>negative</Badge>
+          </dt>
+          <dd className="px-4 wrap-break-word whitespace-pre-wrap">
+            <Tags
+              tags={imageDetails.tags.filter((tag) => tag.type === "negative")}
+              onTagClick={(tag) => onTagClick?.(tag)}
+            />
+          </dd>
+        </>
+      )}
+      {config.promptDisplayMode !== "tags" &&
+        type === "comfy" &&
         (prompt as PromptParseResult | null)?.matches
           .sort(
             (a, b) =>
@@ -350,20 +376,19 @@ ${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${g
                     </PopoverContent>
                   </Popover>
                 </dt>
-                <dd className="px-4">
+                <dd className="px-4 wrap-break-word whitespace-pre-wrap">
                   <PromptText
                     prompt={text}
-                    tags={role === "negative" ? imageDetails.negative_tags : imageDetails.tags}
-                    onTagClick={(tag) => {
-                      onTagClick?.(tag, role === "negative" ? "negative" : "positive")
-                      onOpenChange(false)
-                    }}
+                    tags={imageDetails.tags.filter(
+                      (tag) => tag.type === (role === "negative" ? "negative" : "positive"),
+                    )}
+                    onTagClick={onTagClick}
                   />
                 </dd>
               </Fragment>
             )
           })}
-      {type === "a1111" && (
+      {config.promptDisplayMode !== "tags" && type === "a1111" && (
         <>
           <dt className="px-4">
             <Badge className={ROLE_COLORS["positive"]}>positive</Badge>
@@ -371,11 +396,8 @@ ${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${g
           <dd className="px-4 wrap-break-word whitespace-pre-wrap">
             <PromptText
               prompt={(prompt as Record<string, string> | null)?.prompt}
-              tags={imageDetails.tags}
-              onTagClick={(tag) => {
-                onTagClick?.(tag, "positive")
-                onOpenChange(false)
-              }}
+              tags={imageDetails.tags.filter((tag) => tag.type === "positive")}
+              onTagClick={onTagClick}
             />
           </dd>
           <dt className="px-4">
@@ -384,11 +406,8 @@ ${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${g
           <dd className="px-4 wrap-break-word whitespace-pre-wrap">
             <PromptText
               prompt={(prompt as Record<string, string> | null)?.negative_prompt}
-              tags={imageDetails.negative_tags}
-              onTagClick={(tag) => {
-                onTagClick?.(tag, "negative")
-                onOpenChange(false)
-              }}
+              tags={imageDetails.tags.filter((tag) => tag.type === "negative")}
+              onTagClick={onTagClick}
             />
           </dd>
         </>
@@ -420,38 +439,43 @@ ${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${g
   )
 }
 
+function Tags({
+  tags,
+  onTagClick,
+}: {
+  tags: TagSuggestion[]
+  onTagClick?: (tag: TagSuggestion) => void
+}) {
+  return joinJSX(
+    [...tags]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((tag) => (
+        <Fragment key={tag.name}>
+          <TagLink key={tag.name} tag={tag} onClick={onTagClick}>
+            {tag.name}
+          </TagLink>
+          <span className="ml-2 text-muted-foreground text-xs">{tag.count}</span>
+        </Fragment>
+      )),
+    "\n",
+  )
+}
+
 function PromptText({
   prompt,
   tags,
   onTagClick,
 }: {
   prompt?: string
-  tags: string[]
-  onTagClick?: (tag: string) => void
+  tags: TagSuggestion[]
+  onTagClick?: (tag: TagSuggestion) => void
 }) {
   const t = useTranslation()
   const config = useAtomValue(configAtom)
-  const onClickRef = useRef(onTagClick)
-
-  useEffect(() => {
-    onClickRef.current = onTagClick
-  }, [onTagClick])
 
   const content = useMemo(() => {
-    if (config.promptDisplayMode === "raw") {
+    if (config.promptDisplayMode !== "both") {
       return prompt
-    }
-    if (config.promptDisplayMode === "tags") {
-      return joinJSX(
-        [...tags]
-          .sort((a, b) => a.localeCompare(b))
-          .map((tag) => (
-            <TagLink key={tag} tag={tag} onClick={(tag) => onClickRef.current?.(tag)}>
-              {tag}
-            </TagLink>
-          )),
-        "\n",
-      )
     }
     if (!prompt?.length) {
       return undefined
@@ -459,18 +483,22 @@ function PromptText({
 
     return (
       <div className="text-muted-foreground">
-        {replaceTags(prompt, tags, (tag, matchedText, occurrence) => (
-          <TagLink
-            key={`${tag}-${occurrence}`}
-            tag={tag}
-            onClick={(tag) => onClickRef.current?.(tag)}
-          >
-            {matchedText}
-          </TagLink>
-        ))}
+        {replaceTags(
+          prompt,
+          tags.map((tag) => tag.name),
+          (tag, matchedText, occurrence) => (
+            <TagLink
+              key={`${tag}-${occurrence}`}
+              tag={tags.find((t) => t.name === tag)!}
+              onClick={onTagClick}
+            >
+              {matchedText}
+            </TagLink>
+          ),
+        )}
       </div>
     )
-  }, [prompt, tags, config])
+  }, [prompt, tags, config, onTagClick])
 
   const isEmpty = !content || (Array.isArray(content) && content.length === 0)
   return isEmpty ? t.gallery.noInfo : content
@@ -481,9 +509,9 @@ function TagLink({
   children,
   onClick,
 }: {
-  tag: string
+  tag: TagSuggestion
   children: ReactNode
-  onClick?: (tag: string) => void
+  onClick?: (tag: TagSuggestion) => void
 }) {
   const onClickRef = useRef(onClick)
 
@@ -495,6 +523,7 @@ function TagLink({
     <a
       role="button"
       className="text-foreground cursor-pointer hover:underline"
+      title={`${tag.name} (${tag.count})`}
       onClick={(e) => {
         e.preventDefault()
         onClickRef.current?.(tag)

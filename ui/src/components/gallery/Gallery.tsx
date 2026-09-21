@@ -469,12 +469,12 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
               total={imageListTotal}
               image={activeImage}
               onNavigate={handleNavigate}
-              onTagClick={(tag, type) => {
+              onTagClick={(tag) => {
                 const term: SearchTerm = {
-                  type: type === "positive" ? "tag" : "negativeTag",
-                  value: tag,
-                  prefix: "",
-                  quoted: tag.includes(" "),
+                  type: tag.type === "positive" ? "tag" : "negativeTag",
+                  value: tag.name,
+                  prefix: "tag:",
+                  quoted: tag.name.includes(" "),
                   exclude: false,
                 }
                 setQuery({

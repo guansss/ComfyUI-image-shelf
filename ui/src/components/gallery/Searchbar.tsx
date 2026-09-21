@@ -135,6 +135,7 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
                   className="rounded-lg"
                 >
                   {`tag:${suggestion.type === "negative" ? "-" : ""}${suggestion.name}`}
+                  <span className="text-xs text-muted-foreground">{suggestion.count}</span>
                 </AutocompleteItem>
               )}
             </AutocompleteList>

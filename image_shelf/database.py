@@ -290,7 +290,7 @@ class ImageRepository:
             ),
             key=lambda item: (-item[0], -item[1]["count"], item[1]["name"]),
         )
-        return tuple(TagSuggestion(row["name"], row["type"]) for _, row in ranked_rows)[
+        return tuple(TagSuggestion(row["name"], row["type"], row["count"]) for _, row in ranked_rows)[
             :limit
         ]
 
@@ -315,10 +315,17 @@ class ImageRepository:
                 return None
             tags = self.connection.execute(
                 """
-                SELECT name, type FROM tags
-                INNER JOIN image_tags ON image_tags.tag_id = tags.id
-                INNER JOIN images ON images.id = image_tags.image_id
-                WHERE images.public_id = ?
+                SELECT current_tag.name, current_tag.type,
+                       COUNT(DISTINCT associated_image_tags.image_id) AS count
+                FROM tags AS current_tag
+                INNER JOIN image_tags AS current_image_tags
+                    ON current_image_tags.tag_id = current_tag.id
+                INNER JOIN images AS current_image
+                    ON current_image.id = current_image_tags.image_id
+                INNER JOIN image_tags AS associated_image_tags
+                    ON associated_image_tags.tag_id = current_tag.id
+                WHERE current_image.public_id = ?
+                GROUP BY current_tag.id
                 """,
                 (public_id,),
             ).fetchall()
@@ -332,9 +339,9 @@ class ImageRepository:
                 file_size=row["file_size"],
                 created_at=row["created_at"],
                 parse_error=row["parse_error"],
-                tags=tuple(tag["name"] for tag in tags if tag["type"] == "positive"),
-                negative_tags=tuple(
-                    tag["name"] for tag in tags if tag["type"] == "negative"
+                tags=tuple(
+                    TagSuggestion(tag["name"], tag["type"], tag["count"])
+                    for tag in tags
                 ),
             ),
             row["path"],

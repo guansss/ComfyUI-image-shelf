@@ -37,6 +37,7 @@ export interface DimensionFacet {
 export interface TagSuggestion {
   name: string
   type: "positive" | "negative"
+  count: number
 }
 
 export interface ImageDetails {
@@ -48,8 +49,7 @@ export interface ImageDetails {
   file_size: number
   created_at: number
   parse_error: string | null
-  tags: string[]
-  negative_tags: string[]
+  tags: TagSuggestion[]
   metadata: ImageMetadata | null
 }
 

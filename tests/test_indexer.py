@@ -95,7 +95,7 @@ class FolderIndexerTests(unittest.TestCase):
                 1.0,
                 None,
                 None,
-                ("Bird",),
+                ("Bird", "Cat"),
                 (),
             )
 
@@ -108,8 +108,14 @@ class FolderIndexerTests(unittest.TestCase):
             details = repository.image_details(public_id)
             self.assertIsNotNone(details)
             first_details, _ = details
-            self.assertEqual(first_details.tags, ("Cat", "Dog"))
-            self.assertEqual(first_details.negative_tags, ("CAT",))
+            self.assertEqual(
+                [(tag.name, tag.type, tag.count) for tag in first_details.tags],
+                [
+                    ("Cat", "positive", 2),
+                    ("Dog", "positive", 1),
+                    ("CAT", "negative", 1),
+                ],
+            )
 
             repository.upsert_image(
                 IndexedImage(
@@ -128,8 +134,10 @@ class FolderIndexerTests(unittest.TestCase):
             details = repository.image_details(public_id)
             self.assertIsNotNone(details)
             first_details, _ = details
-            self.assertEqual(first_details.tags, ("Fox",))
-            self.assertEqual(first_details.negative_tags, ())
+            self.assertEqual(
+                [(tag.name, tag.type, tag.count) for tag in first_details.tags],
+                [("Fox", "positive", 1)],
+            )
 
             tag_rows = repository.connection.execute(
                 "SELECT name, type FROM tags ORDER BY type, name"

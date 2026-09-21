@@ -50,8 +50,7 @@ class ImageDetails:
     file_size: int
     created_at: float
     parse_error: str | None
-    tags: tuple[str, ...]
-    negative_tags: tuple[str, ...]
+    tags: tuple[TagSuggestion, ...]
 
 
 @dataclass(frozen=True)
@@ -65,6 +64,7 @@ class DimensionFacet:
 class TagSuggestion:
     name: str
     type: str
+    count: int
 
 
 @dataclass(frozen=True)
