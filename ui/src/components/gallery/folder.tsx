@@ -4,6 +4,7 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   CircleAlertIcon,
+  EllipsisVerticalIcon,
   FolderIcon,
   FolderSyncIcon,
   LoaderCircleIcon,
@@ -11,7 +12,6 @@ import {
   RefreshCwIcon,
   RotateCcwClockIcon,
   Settings2Icon,
-  SettingsIcon,
   TrashIcon,
 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -230,11 +230,12 @@ export function FolderList({
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="flat"
+                  size="icon"
                   className={cn(
                     folder === selectedFolder && "hover:bg-(--chart-4) dark:hover:bg-(--chart-4)",
                   )}
                 >
-                  <SettingsIcon />
+                  <EllipsisVerticalIcon />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">

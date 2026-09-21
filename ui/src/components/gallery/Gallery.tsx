@@ -174,7 +174,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     <Dialog onOpenChange={onOpenChange} open={isOpen}>
       <DialogContent
         aria-describedby={undefined}
-        className="flex h-[calc(100vh-12rem)] w-375 gap-0 overflow-hidden rounded-xl bg-card p-0"
+        className="flex max-h-[calc(100vh-4rem)] h-250 w-375 gap-0 overflow-hidden rounded-xl bg-card p-0"
         closeButtonProps={{ size: "icon", className: "top-4 right-4" }}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
