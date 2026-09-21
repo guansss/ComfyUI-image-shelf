@@ -110,11 +110,11 @@ async function sendImages(node: LGraphNode, app: ComfyApp) {
       title: i18n.node.sendToFolder.name,
       message:
         mode === "copy"
-          ? i18n.node.sendToFolder.copied({
+          ? i18n.transfer.copied({
               count: assetItems.length,
               folder: folderName ?? folderId,
             })
-          : i18n.node.sendToFolder.moved({
+          : i18n.transfer.moved({
               count: assetItems.length,
               folder: folderName ?? folderId,
             }),

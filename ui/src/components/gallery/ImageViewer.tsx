@@ -4,6 +4,7 @@ import {
   ChevronRightIcon,
   CopyPlusIcon,
   FileInputIcon,
+  FolderIcon,
   FolderOpenIcon,
   InfoIcon,
 } from "lucide-react"
@@ -65,6 +66,7 @@ interface ImageViewerProps extends Pick<MetadataProps, "onTagClick" | "onOpenCha
   total?: number
   image?: GalleryImage
   folders?: GalleryFolder[]
+  currentFolderId?: string
   isOpen: boolean
   onNavigate?: (offset: number) => void
 }
@@ -78,6 +80,7 @@ export function ImageViewer({
   total,
   onTagClick,
   folders,
+  currentFolderId,
 }: ImageViewerProps) {
   const t = useTranslation()
   const { data: imageDetails } = useImageDetails({ imageId: image?.id })
@@ -114,6 +117,7 @@ export function ImageViewer({
             <div className="flex flex-wrap gap-2 p-4 border-b">
               <TransferMenu
                 folders={folders}
+                currentFolderId={currentFolderId}
                 image={image}
                 mode="copy"
                 label={t.gallery.copyTo}
@@ -121,6 +125,7 @@ export function ImageViewer({
               />
               <TransferMenu
                 folders={folders}
+                currentFolderId={currentFolderId}
                 image={image}
                 mode="move"
                 label={t.gallery.moveTo}
@@ -213,17 +218,20 @@ export function ImageViewer({
 
 function TransferMenu({
   folders,
+  currentFolderId,
   image,
   mode,
   label,
   icon,
 }: {
   folders?: GalleryFolder[]
+  currentFolderId?: string
   image?: GalleryImage
   mode: "copy" | "move"
   label: string
   icon: ReactNode
 }) {
+  const t = useTranslation()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -236,9 +244,12 @@ function TransferMenu({
         {folders?.map((folder) => (
           <DropdownMenuItem
             key={folder.id}
+            disabled={currentFolderId === folder.id}
             onSelect={() => image && transferSelectedImage(image, folder, mode)}
           >
+            <FolderIcon />
             {folder.name}
+            {currentFolderId === folder.id && ` ${t.gallery.currentFolder}`}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

@@ -15,17 +15,19 @@ import {
   DialogTitle,
 } from "./ui/dialog"
 import { Input } from "./ui/input"
+import { ScrollArea } from "./ui/scroll-area"
 
 export interface AskRequest<T> {
   type: "confirm" | "delete" | "custom"
-  title: string
-  message?: string
+  title?: React.ReactNode
+  message?: React.ReactNode
   form?: boolean
   content?: React.ReactNode
+  action?: React.ReactNode
   render?: IsNever<T> extends true ? never : (props: AskRenderProps<T>) => React.ReactNode
   initialValue?: T
-  confirmText?: string
-  cancelText?: string
+  confirmText?: string | null
+  cancelText?: string | null
   onCancel?: () => void
   /** Returns false to prevent closing the dialog. */
   onConfirm?: (...args: IsNever<T> extends true ? [] : [value: T]) => boolean | void
@@ -154,6 +156,7 @@ export const AskDialog = memo(
     message,
     form,
     content,
+    action,
     confirmText,
     cancelText,
     onCancel,
@@ -181,38 +184,44 @@ export const AskDialog = memo(
       >
         <DialogContent className="w-150">
           <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
+            {title && <DialogTitle>{title}</DialogTitle>}
             {message && <DialogDescription>{message}</DialogDescription>}
           </DialogHeader>
-          {form ? (
-            <form
-              id={uid}
-              onSubmit={(e) => {
-                e.preventDefault()
-                handleConfirm()
-              }}
-            >
-              {content}
-            </form>
-          ) : (
-            content
-          )}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">{cancelText ?? t.common.cancel}</Button>
-            </DialogClose>
+          <ScrollArea className="min-h-36 max-h-[80vh]">
             {form ? (
-              <Button type="submit" form={uid}>
-                {confirmText ?? t.common.confirm}
-              </Button>
-            ) : (
-              <Button
-                variant={type === "delete" ? "destructive" : undefined}
-                onClick={handleConfirm}
+              <form
+                id={uid}
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  handleConfirm()
+                }}
               >
-                {confirmText ?? t.common.confirm}
-              </Button>
+                {content}
+              </form>
+            ) : (
+              content
             )}
+          </ScrollArea>
+          <DialogFooter>
+            {cancelText !== null && (
+              <DialogClose asChild>
+                <Button variant="outline">{cancelText ?? t.common.cancel}</Button>
+              </DialogClose>
+            )}
+            {action}
+            {confirmText !== null &&
+              (form ? (
+                <Button type="submit" form={uid}>
+                  {confirmText ?? t.common.confirm}
+                </Button>
+              ) : (
+                <Button
+                  variant={type === "delete" ? "destructive" : undefined}
+                  onClick={handleConfirm}
+                >
+                  {confirmText ?? t.common.confirm}
+                </Button>
+              ))}
           </DialogFooter>
         </DialogContent>
       </Dialog>

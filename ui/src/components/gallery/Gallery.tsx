@@ -7,6 +7,7 @@ import {
   CopyPlusIcon,
   EllipsisVerticalIcon,
   FileInputIcon,
+  FolderIcon,
   ImageIcon,
   SquareCheckBigIcon,
   SquareIcon,
@@ -372,6 +373,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                 </Button>
                 <TransferMenu
                   folders={folders}
+                  currentFolderId={selectedFolderId}
                   images={selectedImages}
                   mode="copy"
                   label={t.gallery.copyTo}
@@ -380,6 +382,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                 />
                 <TransferMenu
                   folders={folders}
+                  currentFolderId={selectedFolderId}
                   images={selectedImages}
                   mode="move"
                   label={t.gallery.moveTo}
@@ -454,6 +457,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
           {({ isOpen, setOpenState }) => (
             <ImageViewer
               folders={folders}
+              currentFolderId={selectedFolderId}
               isOpen={isOpen}
               onOpenChange={setOpenState}
               index={activeImageIndexInAllPages}
@@ -484,6 +488,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
 
 function TransferMenu({
   folders,
+  currentFolderId,
   images,
   mode,
   label,
@@ -491,12 +496,14 @@ function TransferMenu({
   onComplete,
 }: {
   folders?: GalleryFolder[]
+  currentFolderId?: string
   images: GalleryImage[]
   mode: "copy" | "move"
   label: string
   icon: ReactNode
   onComplete: () => void
 }) {
+  const t = useTranslation()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -509,13 +516,19 @@ function TransferMenu({
         {folders?.map((folder) => (
           <DropdownMenuItem
             key={folder.id}
+            disabled={currentFolderId === folder.id}
             onSelect={async () => {
-              if (images.length > 0 && (await transferSelectedImages(images, folder, mode))) {
+              if (
+                images.length > 0 &&
+                (await transferSelectedImages(images, folder, mode, "suggest"))
+              ) {
                 onComplete()
               }
             }}
           >
+            <FolderIcon />
             {folder.name}
+            {currentFolderId === folder.id && ` ${t.gallery.currentFolder}`}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

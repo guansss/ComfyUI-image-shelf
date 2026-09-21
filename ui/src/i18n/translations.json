@@ -313,29 +313,9 @@
       "en": "Move to...",
       "cn": "移动到..."
     },
-    "copied": {
-      "en": "Copied to folder",
-      "cn": "已复制到文件夹"
-    },
-    "moved": {
-      "en": "Moved to folder",
-      "cn": "已移动到文件夹"
-    },
-    "transferFailed": {
-      "en": "Could not transfer image",
-      "cn": "无法传输图像"
-    },
-    "transferConflict": {
-      "en": "File already exists",
-      "cn": "文件已存在"
-    },
-    "transferConflictMessage": {
-      "en": "Choose a new filename or cancel.",
-      "cn": "请选择新文件名或取消。"
-    },
-    "filename": {
-      "en": "Filename",
-      "cn": "文件名"
+    "currentFolder": {
+      "en": "(Current)",
+      "cn": "(当前)"
     },
     "loading": {
       "en": "Loading images...",
@@ -370,6 +350,60 @@
       }
     }
   },
+  "transfer": {
+    "failed": {
+      "en": "Failed to transfer file",
+      "cn": "文件传输失败"
+    },
+    "conflict": {
+      "en": "File conflict",
+      "cn": "文件冲突"
+    },
+    "conflictDetails": {
+      "en": {
+        "1": "File already exists.",
+        "other": "{{count}} files already exist out of {{total}}."
+      },
+      "cn": {
+        "1": "文件已存在。",
+        "other": "{{total}} 个文件中的 {{count}} 个已存在。"
+      }
+    },
+    "conflictResolution": {
+      "en": "Choose one of the options to resolve the conflict and proceed.",
+      "cn": "选择其中一个选项以解决冲突并继续。"
+    },
+    "rename": {
+      "en": "Auto rename",
+      "cn": "自动重命名"
+    },
+    "customize": {
+      "en": "Customize filenames",
+      "cn": "自定义文件名"
+    },
+    "customizeMessage": {
+      "en": "Choose new filename for the conflicting file(s).",
+      "cn": "为冲突的文件选择新文件名。"
+    },
+    "filename": {
+      "en": "Filename",
+      "cn": "文件名"
+    },
+    "copied": {
+      "en": {
+        "1": "Copied 1 file to {{folder}}",
+        "other": "Copied {{count}} files to {{folder}}"
+      },
+      "cn": "已复制 {{count}} 个文件到 {{folder}}"
+    },
+    "moved": {
+      "en": {
+        "1": "Moved 1 file to {{folder}}",
+        "other": "Moved {{count}} files to {{folder}}"
+      },
+      "cn": "已移动 {{count}} 个文件到 {{folder}}"
+    }
+  },
   "node": {
     "sendToFolder": {
       "name": {
@@ -379,20 +413,6 @@
       "send": {
         "en": "Send",
         "cn": "发送"
-      },
-      "copied": {
-        "en": {
-          "1": "Copied 1 image to {{folder}}",
-          "other": "Copied {{count}} images to {{folder}}"
-        },
-        "cn": "已复制 {{count}} 张图像到 {{folder}}"
-      },
-      "moved": {
-        "en": {
-          "1": "Moved 1 image to {{folder}}",
-          "other": "Moved {{count}} images to {{folder}}"
-        },
-        "cn": "已移动 {{count}} 张图像到 {{folder}}"
       },
       "noInputNode": {
         "en": "No input node connected",

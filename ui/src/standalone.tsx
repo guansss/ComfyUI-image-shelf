@@ -23,7 +23,7 @@ function mountUI() {
           <GalleryControl openEvent={OPEN_EVENT} />
         </TooltipProvider>
         <AskProvider />
-        <Toaster />
+        <Toaster expand position="top-right"visibleToasts={10} />
         <div
           className="relative min-h-[150vh] bg-cover bg-center"
           style={{ backgroundImage: `url("${bgUrl}")` }}
