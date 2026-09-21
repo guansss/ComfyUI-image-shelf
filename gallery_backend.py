@@ -41,6 +41,7 @@ def main() -> None:
         args.database.resolve(),
         settings=settings,
         allow_development_cors=True,
+        thumbnail_cache_path=Path(__file__).resolve().parent / "thumbnails",
     )
     web.run_app(app, host=args.host, port=configuration.port, access_log=None)
 

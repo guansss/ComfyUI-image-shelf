@@ -19,6 +19,7 @@ from .metadata.metadata import get_image_metadata
 from .models import GalleryFolder
 from .paths import is_within_directory, normalize_path, resolve_comfy_asset
 from .search import SearchTerm
+from .thumbnails import ThumbnailService
 from .transfer import (
     BatchFileConflictError,
     FileConflictError,
@@ -33,6 +34,7 @@ class GalleryApi:
         self,
         repository: ImageRepository,
         settings: ShelfSettings,
+        thumbnail_cache_path: str | Path | None = None,
     ) -> None:
         self.repository = repository
         self.settings = settings
@@ -43,6 +45,11 @@ class GalleryApi:
         self.folder_picker_tasks: set[asyncio.Task[None]] = set()
         self.websocket_clients: set[web.WebSocketResponse] = set()
         self.watcher: FolderWatcher | None = None
+        self.thumbnails = ThumbnailService(
+            thumbnail_cache_path
+            if thumbnail_cache_path is not None
+            else Path(__file__).resolve().parent.parent / "thumbnails"
+        )
 
     async def apply_settings(self) -> None:
         await self._replace_and_reindex(self.settings.get_folders())
@@ -146,6 +153,8 @@ class GalleryApi:
         if active_tasks:
             await asyncio.gather(*active_tasks, return_exceptions=True)
 
+        await self.thumbnails.close()
+
         self.repository.close()
 
     @staticmethod
@@ -190,6 +199,11 @@ class GalleryApi:
                     self.image_file,
                     name="image-shelf-image-file",
                 ),
+                web.get(
+                    "/api/image-shelf/v1/thumbnails/{image_id}/{cache_key}.webp",
+                    self.thumbnail_file,
+                    name="image-shelf-thumbnail-file",
+                ),
                 web.get("/api/image-shelf/v1/tags", self.tags),
                 web.get("/api/image-shelf/v1/settings", self.get_settings),
                 web.post("/api/image-shelf/v1/settings", self.update_settings),
@@ -233,6 +247,7 @@ class GalleryApi:
                                 image_id=image.id
                             )
                         ),
+                        "thumbnail_url": self._thumbnail_url(request, image.id),
                     }
                     for image in page.items
                 ],
@@ -255,6 +270,20 @@ class GalleryApi:
         ):
             raise web.HTTPNotFound()
         return web.FileResponse(path)
+
+    async def thumbnail_file(self, request: web.Request) -> web.StreamResponse:
+        image_id = request.match_info["image_id"]
+        path = self.repository.path_for_public_id(image_id)
+        if path is None or not self._is_tracked_file(path):
+            raise web.HTTPNotFound()
+        try:
+            cache_key = request.match_info["cache_key"]
+            thumbnail = await self.thumbnails.get_or_create(path, image_id, cache_key)
+        except (OSError, ValueError) as error:
+            raise web.HTTPNotFound(text=str(error)) from error
+        response = web.FileResponse(thumbnail)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
 
     async def image_details(self, request: web.Request) -> web.Response:
         details, path = self.repository.image_details(
@@ -656,14 +685,36 @@ class GalleryApi:
     def _tracked_paths(self) -> set[Path]:
         return {folder.path for folder in self.folders}
 
+    def _is_tracked_file(self, path: Path | None) -> bool:
+        return bool(
+            path
+            and path.is_file()
+            and any(is_within_directory(path, folder) for folder in self._tracked_paths())
+        )
+
+    def _thumbnail_url(self, request: web.Request, image_id: str) -> str | None:
+        path = self.repository.path_for_public_id(image_id)
+        if path is None or not self._is_tracked_file(path):
+            return None
+        try:
+            cache_key = self.thumbnails.cache_key(path, image_id)
+        except OSError:
+            return None
+        return str(
+            request.app.router["image-shelf-thumbnail-file"].url_for(
+                image_id=image_id, cache_key=cache_key
+            )
+        )
+
 
 def create_gallery_app(
     database_path: str | Path,
     settings: ShelfSettings,
     allow_development_cors: bool = False,
+    thumbnail_cache_path: str | Path | None = None,
 ) -> web.Application:
     repository = ImageRepository(database_path)
-    api = GalleryApi(repository, settings)
+    api = GalleryApi(repository, settings, thumbnail_cache_path)
     app = web.Application(
         middlewares=[_development_cors_middleware] if allow_development_cors else ()
     )

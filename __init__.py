@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import folder_paths  # pyrefly: ignore [missing-import]
@@ -64,7 +65,7 @@ def launch_gallery() -> None:
     )
     settings.load()
     set_settings(settings)
-    api = GalleryApi(repository, settings)
+    api = GalleryApi(repository, settings, Path(workspace_path) / "thumbnails")
     app["image_shelf_api"] = api
     api.register(app)
 

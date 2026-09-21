@@ -32,6 +32,7 @@ export interface GalleryImage {
   created_at: number
   parse_error: string | null
   url: string
+  thumbnail_url: string | null
 }
 
 export interface DimensionFacet {

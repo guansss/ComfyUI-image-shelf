@@ -304,7 +304,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                             alt={image.filename}
                             className="aspect-square w-full rounded-sm object-cover"
                             loading="lazy"
-                            src={image.url}
+                            src={image.thumbnail_url ?? image.url}
                           />
                           <h4 className="flex min-w-0 items-center gap-1.5">
                             <span className="truncate">{image.filename}</span>

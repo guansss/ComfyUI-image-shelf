@@ -18,6 +18,9 @@ export function useImageQuery({ ...req }: ImageQueryOptions) {
       const imageList = await fetchImages(req)
       imageList.items.forEach((image) => {
         image.url = new URL(image.url, SERVER_URL).toString()
+        if (image.thumbnail_url) {
+          image.thumbnail_url = new URL(image.thumbnail_url, SERVER_URL).toString()
+        }
       })
       return imageList
     },
