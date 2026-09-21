@@ -49,7 +49,7 @@ class GalleryApi:
         self.thumbnails = ThumbnailService(
             thumbnail_cache_path
             if thumbnail_cache_path is not None
-            else Path(__file__).resolve().parent.parent / "thumbnails"
+            else Path(__file__).resolve().parent.parent / "data" / "thumbnails"
         )
         if self.settings is not None:
             self.thumbnails.set_max_cache_bytes(

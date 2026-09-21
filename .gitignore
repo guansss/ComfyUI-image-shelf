@@ -11,7 +11,5 @@ node.zip
 .claude/
 
 generated/
-/thumbnails/
-*.sqlite3
+/data/
 *.local
-settings.json

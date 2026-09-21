@@ -42,9 +42,10 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 
 workspace_path = os.path.dirname(__file__)
+data_path = os.path.join(workspace_path, "data")
 dist_path = os.path.join(workspace_path, "dist")
 dist_locales_path = os.path.join(workspace_path, "dist/locales")
-database_path = os.path.join(workspace_path, "image-shelf.sqlite3")
+database_path = os.path.join(data_path, "image-shelf.sqlite3")
 
 server_started = False
 
@@ -65,7 +66,7 @@ def launch_gallery() -> None:
     )
     settings.load()
     set_settings(settings)
-    api = GalleryApi(repository, settings, Path(workspace_path) / "thumbnails")
+    api = GalleryApi(repository, settings, Path(data_path) / "thumbnails")
     app["image_shelf_api"] = api
     api.register(app)
 

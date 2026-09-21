@@ -138,7 +138,9 @@ def load_settings_path(env_path: str | Path = ".env") -> Path:
     return normalize_path(
         _required_var(
             "IMAGE_SHELF_SETTINGS_PATH",
-            default=str(Path(__file__).resolve().parent.parent / "settings.json"),
+            default=str(
+                Path(__file__).resolve().parent.parent / "data" / "settings.json"
+            ),
         )
     )
 

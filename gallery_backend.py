@@ -17,7 +17,10 @@ from image_shelf.log import debug_logger
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the Image Shelf development API.")
-    parser.add_argument("--database", type=Path, default=Path("image-shelf.sqlite3"))
+    data_path = Path(__file__).resolve().parent / "data"
+    parser.add_argument(
+        "--database", type=Path, default=data_path / "image-shelf.sqlite3"
+    )
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--host", default="127.0.0.1")
     return parser.parse_args()
@@ -41,7 +44,7 @@ def main() -> None:
         args.database.resolve(),
         settings=settings,
         allow_development_cors=True,
-        thumbnail_cache_path=Path(__file__).resolve().parent / "thumbnails",
+        thumbnail_cache_path=Path(__file__).resolve().parent / "data" / "thumbnails",
     )
     web.run_app(app, host=args.host, port=configuration.port, access_log=None)
 
