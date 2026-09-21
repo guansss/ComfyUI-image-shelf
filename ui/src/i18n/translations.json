@@ -391,21 +391,21 @@
       "en": "Settings path",
       "cn": "设置文件路径"
     },
-    "thumbnailCache": {
-      "en": "Thumbnail cache",
-      "cn": "缩略图缓存"
-    },
     "cacheSize": {
-      "en": "Cache size",
+      "en": "Thumbnail cache size",
       "cn": "缓存大小"
     },
     "cacheFiles": {
       "en": "Cached thumbnails",
-      "cn": "缓存缩略图"
+      "cn": "已缓存的缩略图"
     },
     "cacheLimit": {
-      "en": "Cache limit (bytes)",
-      "cn": "缓存上限（字节）"
+      "en": "Thumbnail cache limit",
+      "cn": "缩略图缓存上限"
+    },
+    "cacheLimitSaved": {
+      "en": "Thumbnail cache limit saved",
+      "cn": "缩略图缓存上限已保存"
     },
     "clearCache": {
       "en": "Clear thumbnail cache",

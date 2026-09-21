@@ -1,9 +1,16 @@
 import { useAtom, useAtomValue } from "jotai"
+import { AlertCircleIcon, InfoIcon, MonitorIcon, Trash2Icon } from "lucide-react"
 import { useEffect, useState } from "react"
+import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -16,11 +23,18 @@ import {
 import { allEssentials, languageAtom, languages, useTranslation } from "../i18n/i18n"
 import { configAtom } from "../lib/config"
 import { rootContainer } from "../lib/dom"
+import { errorToast, formatError } from "../lib/error"
 import { settingsAtom } from "../lib/settings"
+import { toast } from "../lib/toast"
 import { formatFileSize } from "../lib/utils"
-import { clearThumbnailCache, fetchAppInfo, type AppInfo } from "../services/gallery"
-import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet } from "./ui/field"
+import { clearThumbnailCache, fetchAppInfo } from "../services/gallery"
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert"
+import { Field, FieldGroup, FieldLabel } from "./ui/field"
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "./ui/input-group"
 import { ScrollArea } from "./ui/scroll-area"
+import { Separator } from "./ui/separator"
+import { Spinner } from "./ui/spinner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 
 const languageOptions = languages
   .map((lang) => ({
@@ -28,6 +42,8 @@ const languageOptions = languages
     value: lang,
   }))
   .sort((a, b) => a.title.localeCompare(b.title))
+
+const BYTES_PER_MB = 1024 * 1024
 
 export function ThemeSync() {
   const theme = useAtomValue(configAtom).theme
@@ -50,48 +66,62 @@ export function SettingsDialog({
   const [language, setLanguage] = useAtom(languageAtom)
   const [config, setConfig] = useAtom(configAtom)
   const [, setSettings] = useAtom(settingsAtom)
-  const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheLimit, setCacheLimit] = useState("")
+  const [isSettingCacheLimit, setIsSettingCacheLimit] = useState(false)
   const [isClearingCache, setIsClearingCache] = useState(false)
-  const [cacheMessage, setCacheMessage] = useState<string>()
 
-  useEffect(() => {
-    if (!open) return
+  const {
+    data: appInfo,
+    isLoading: appInfoLoading,
+    error: appInfoError,
+    mutate: mutateAppInfo,
+  } = useSWR("appInfo", fetchAppInfo, {
+    onSuccess: (data) => {
+      setCacheLimit(String(data.thumbnail_cache.max_bytes / BYTES_PER_MB))
+    },
+  })
 
-    let active = true
-    fetchAppInfo()
-      .then((info) => {
-        if (active) {
-          setAppInfo(info)
-          setCacheLimit(String(info.thumbnail_cache.max_bytes))
-        }
-      })
-      .catch(() => {
-        if (active) setAppInfo(undefined)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [open])
-
-  const saveCacheLimit = () => {
+  const saveCacheLimit = async () => {
     const value = Number(cacheLimit)
-    if (!Number.isInteger(value) || value <= 0) return
-    void setSettings({ thumbnail_cache_max_bytes: value })
+    if (!Number.isInteger(value) || value <= 0) {
+      if (appInfo) {
+        setCacheLimit(String(appInfo.thumbnail_cache.max_bytes / BYTES_PER_MB))
+      }
+      return
+    }
+    try {
+      setIsSettingCacheLimit(true)
+      await setSettings({ thumbnail_cache_max_bytes: value * BYTES_PER_MB })
+      toast({
+        type: "success",
+        title: t.settings.cacheLimitSaved,
+      })
+    } catch (e) {
+      console.error(e)
+      errorToast({
+        title: t.settings.cacheLimit,
+        message: formatError(e),
+      })
+    } finally {
+      setIsSettingCacheLimit(false)
+    }
   }
 
   const handleClearCache = async () => {
     setIsClearingCache(true)
-    setCacheMessage(undefined)
     try {
       await clearThumbnailCache()
-      setCacheMessage(t.settings.cacheCleared)
-      const info = await fetchAppInfo()
-      setAppInfo(info)
-      setCacheLimit(String(info.thumbnail_cache.max_bytes))
-    } catch {
-      setCacheMessage(t.settings.clearCacheFailed)
+      mutateAppInfo()
+      toast({
+        type: "success",
+        title: t.settings.cacheCleared,
+      })
+    } catch (e) {
+      console.error(e)
+      errorToast({
+        title: t.settings.clearCacheFailed,
+        message: formatError(e),
+      })
     } finally {
       setIsClearingCache(false)
     }
@@ -99,16 +129,26 @@ export function SettingsDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="w-100 gap-4">
+      <DialogContent className="w-120">
         <DialogHeader>
           <DialogTitle>{t.settings.title}</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="max-h-[80vh]">
-          <div className="flex flex-col gap-4">
-            <FieldSet>
-              <FieldLegend>{t.settings.ui}</FieldLegend>
+        <Tabs defaultValue="ui">
+          <TabsList className="bg-current/10">
+            <TabsTrigger value="ui">
+              <MonitorIcon />
+              {t.settings.ui}
+            </TabsTrigger>
+            <TabsTrigger value="info">
+              <InfoIcon />
+              {t.settings.appInfo}
+            </TabsTrigger>
+          </TabsList>
+          <Separator />
+          <TabsContent value="ui" className="basis-auto h-100">
+            <ScrollArea className="h-full">
               <FieldGroup>
-                <Field orientation="horizontal">
+                <Field>
                   <FieldLabel htmlFor="settings-language">{t.settings.language}</FieldLabel>
                   <Select
                     value={language}
@@ -128,7 +168,7 @@ export function SettingsDialog({
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field orientation="horizontal">
+                <Field>
                   <FieldLabel htmlFor="settings-theme">{t.settings.theme}</FieldLabel>
                   <Select
                     value={config.theme}
@@ -146,53 +186,84 @@ export function SettingsDialog({
                   </Select>
                 </Field>
               </FieldGroup>
-            </FieldSet>
-            <FieldSeparator />
-            {appInfo && (
-              <section className="flex flex-col gap-2 pt-4 text-sm">
-                <FieldLegend>{t.settings.appInfo}</FieldLegend>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">{t.settings.databasePath}</span>
-                  <span className="break-all text-muted-foreground">{appInfo.database_path}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">{t.settings.databaseSize}</span>
-                  <span className="text-muted-foreground">
-                    {formatFileSize(appInfo.database_size)}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">{t.settings.settingsPath}</span>
-                  <span className="break-all text-muted-foreground">{appInfo.settings_path}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">{t.settings.thumbnailCache}</span>
-                  <span className="text-muted-foreground">
-                    {t.settings.cacheSize}: {formatFileSize(appInfo.thumbnail_cache.bytes)}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {t.settings.cacheFiles}: {appInfo.thumbnail_cache.files}
-                  </span>
-                  <label className="flex flex-col gap-1" htmlFor="settings-cache-limit">
-                    <span>{t.settings.cacheLimit}</span>
-                    <Input
-                      id="settings-cache-limit"
-                      min={1}
-                      onBlur={saveCacheLimit}
-                      onChange={(event) => setCacheLimit(event.target.value)}
-                      type="number"
-                      value={cacheLimit}
-                    />
-                  </label>
+            </ScrollArea>
+          </TabsContent>
+          <TabsContent value="info" className="basis-auto h-100 flex flex-col">
+            {appInfoLoading ? (
+              <Spinner className="self-center my-auto size-10" />
+            ) : !appInfo ? (
+              <Alert variant="destructive">
+                <AlertCircleIcon />
+                <AlertTitle>{t.error.error}</AlertTitle>
+                <AlertDescription>{formatError(appInfoError)}</AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <ScrollArea className="grow min-h-0">
+                  <FieldGroup className="mb-4">
+                    <Field>
+                      <FieldLabel>{t.settings.settingsPath}</FieldLabel>
+                      <span className="text-muted-foreground break-all">
+                        {appInfo.settings_path}
+                      </span>
+                    </Field>
+                    <Field>
+                      <FieldLabel>{t.settings.databasePath}</FieldLabel>
+                      <span className="text-muted-foreground break-all">
+                        {appInfo.database_path}
+                      </span>
+                    </Field>
+                    <Field>
+                      <FieldLabel>{t.settings.databaseSize}</FieldLabel>
+                      <span className="text-muted-foreground">
+                        {formatFileSize(appInfo.database_size)}
+                      </span>
+                    </Field>
+                    <Field>
+                      <FieldLabel>{t.settings.cacheFiles}</FieldLabel>
+                      <span className="text-muted-foreground">{appInfo.thumbnail_cache.files}</span>
+                    </Field>
+                    <Field>
+                      <FieldLabel>{t.settings.cacheSize}</FieldLabel>
+                      <span className="text-muted-foreground">
+                        {formatFileSize(appInfo.thumbnail_cache.bytes)}
+                      </span>
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="settings-cache-limit">
+                        {t.settings.cacheLimit}
+                      </FieldLabel>
+                      <InputGroup className="self-start w-auto!">
+                        <InputGroupInput
+                          id="settings-cache-limit"
+                          min={1}
+                          onBlur={saveCacheLimit}
+                          onChange={(event) => setCacheLimit(event.target.value)}
+                          type="number"
+                          value={cacheLimit}
+                          disabled={isSettingCacheLimit}
+                        />
+                        <InputGroupAddon align="inline-end">
+                          <InputGroupText>MB</InputGroupText>
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </Field>
+                  </FieldGroup>
+                </ScrollArea>
+                <DialogFooter>
                   <Button disabled={isClearingCache} onClick={handleClearCache} type="button">
+                    {isClearingCache ? (
+                      <Spinner data-icon="inline-start" />
+                    ) : (
+                      <Trash2Icon data-icon="inline-start" />
+                    )}
                     {t.settings.clearCache}
                   </Button>
-                  {cacheMessage && <span className="text-muted-foreground">{cacheMessage}</span>}
-                </div>
-              </section>
+                </DialogFooter>
+              </>
             )}
-          </div>
-        </ScrollArea>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   )
