@@ -53,7 +53,7 @@ import {
   SelectValue,
 } from "../ui/select"
 import { useImageDetails } from "./api"
-import { revealSelectedImage, transferSelectedImage } from "./helpers"
+import { revealSelectedImage, transferSelectedImage } from "./image-actions"
 
 const ROLE_COLORS: Record<string, string> = {
   positive: "bg-sky-50 text-sky-700 dark:bg-sky-900 dark:text-sky-200",

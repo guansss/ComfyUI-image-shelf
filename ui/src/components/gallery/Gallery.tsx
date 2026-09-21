@@ -9,6 +9,7 @@ import {
   EllipsisVerticalIcon,
   FileInputIcon,
   FolderIcon,
+  FolderOpenIcon,
   ImageIcon,
   SettingsIcon,
   SquareCheckBigIcon,
@@ -43,6 +44,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu"
 import { Field, FieldLabel } from "../ui/field"
@@ -51,7 +56,7 @@ import { Label } from "../ui/label"
 import { ScrollArea } from "../ui/scroll-area"
 import { useFolderList, useImageQuery } from "./api"
 import { FolderList } from "./folder"
-import { transferSelectedImages } from "./helpers"
+import { revealSelectedImage, transferSelectedImage, transferSelectedImages } from "./image-actions"
 import { ImageViewer } from "./ImageViewer"
 import { parseSearchValue, Searchbar } from "./Searchbar"
 
@@ -383,9 +388,39 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
                               <SquareIcon className="size-6" />
                             )}
                           </Button>
-                          <Button className="-mr-3 -mt-2 ml-auto p-2" variant="flat" size={null}>
-                            <EllipsisVerticalIcon className="size-6" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                className="-mr-3 -mt-2 ml-auto p-2"
+                                variant="flat"
+                                size={null}
+                              >
+                                <EllipsisVerticalIcon className="size-6" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <TransferSubMenu
+                                image={image}
+                                currentFolderId={config.activeFolder}
+                                folders={folders}
+                                mode="copy"
+                                label={t.gallery.copyTo}
+                                icon={<CopyPlusIcon />}
+                              />
+                              <TransferSubMenu
+                                image={image}
+                                currentFolderId={config.activeFolder}
+                                folders={folders}
+                                mode="move"
+                                label={t.gallery.moveTo}
+                                icon={<FileInputIcon />}
+                              />
+                              <DropdownMenuItem onSelect={() => revealSelectedImage(image.id)}>
+                                <FolderOpenIcon />
+                                {t.gallery.reveal}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </figure>
                     ))}
@@ -536,6 +571,47 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
         </PopoverControl>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function TransferSubMenu({
+  folders,
+  currentFolderId,
+  image,
+  mode,
+  icon,
+  label,
+}: {
+  folders?: GalleryFolder[]
+  currentFolderId?: string
+  image: GalleryImage
+  mode: "copy" | "move"
+  label: string
+  icon: ReactNode
+}) {
+  const t = useTranslation()
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        {icon}
+        {label}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuSubContent>
+          {folders?.map((folder) => (
+            <DropdownMenuItem
+              key={folder.id}
+              disabled={currentFolderId === folder.id}
+              onSelect={() => transferSelectedImage(image, folder, mode)}
+            >
+              <FolderIcon />
+              {folder.name}
+              {currentFolderId === folder.id && ` ${t.gallery.currentFolder}`}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuPortal>
+    </DropdownMenuSub>
   )
 }
 
