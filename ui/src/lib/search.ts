@@ -6,12 +6,12 @@ export interface SearchQuery {
 export type SearchTerm = {
   value: string
   quoted: boolean
-  prefix: "" | "tag:" | "name:" | "prompt:"
+  prefix: "" | "tag:" | "name:" | "info:"
 } & (
   | { type: "tag"; exclude: boolean }
   | { type: "negativeTag"; exclude: boolean }
   | { type: "filename" }
-  | { type: "prompt" }
+  | { type: "info" }
   | { type: "invalid" }
 )
 
@@ -36,7 +36,7 @@ export function parseSearchValue(value: string, cursorIndex: number): SearchQuer
     while (endIndex < value.length && !/\s/.test(value[endIndex])) endIndex++
 
     const firstToken = value.slice(startIndex, endIndex)
-    const prefixMatch = firstToken.match(/^-?(?:tag:|name:|prompt:)/)
+    const prefixMatch = firstToken.match(/^-?(?:tag:|name:|info:)/)
     const quoteIndex = firstToken.indexOf('"')
 
     if ((prefixMatch || firstToken.startsWith('"')) && quoteIndex !== -1 && !firstToken.slice(quoteIndex + 1).includes('"')) {
@@ -86,9 +86,9 @@ function parseTerm(rawTerm: string): SearchTerm {
   else if (token.startsWith("name:")) {
     prefix = "name:"
     type = "filename"
-  } else if (token.startsWith("prompt:")) {
-    prefix = "prompt:"
-    type = "prompt"
+  } else if (token.startsWith("info:")) {
+    prefix = "info:"
+    type = "info"
   } else if (token.includes(":")) return invalid()
 
   if (prefix) value = token.slice(prefix.length)
@@ -131,7 +131,7 @@ function termToString(term: SearchTerm): string {
 }
 
 export type BackendSearchTerm = {
-  field: "name" | "prompt" | "tag"
+  field: "name" | "info" | "tag"
   value: string
   excluded: boolean
   tag_type: "negative" | "positive"
@@ -146,8 +146,8 @@ export function toBackendSearchTerms(terms: SearchTerm[]): BackendSearchTerm[] {
       searchTerms.push({ field: "name", value, excluded: false, tag_type: "positive" })
       return
     }
-    if (term.type === "prompt") {
-      searchTerms.push({ field: "prompt", value, excluded: false, tag_type: "positive" })
+    if (term.type === "info") {
+      searchTerms.push({ field: "info", value, excluded: false, tag_type: "positive" })
       return
     }
     searchTerms.push({

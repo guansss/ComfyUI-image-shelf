@@ -231,15 +231,15 @@ The search functionality will be implemented using SQLite. The full-text search 
 
 The search query will be broken down into keywords with the following syntax:
 
-| Syntax       | Meaning                                      |
-| ------------ | -------------------------------------------- |
-| `cat`        | positive prompt tag `cat`                    |
-| `tag:cat`    | positive prompt tag `cat`                    |
-| `tag:-cat`   | negative-prompt tag `cat`                    |
-| `-tag:cat`   | exclude images containing positive tag `cat` |
-| `-tag:-cat`  | exclude images containing negative tag `cat` |
-| `name:foo`   | filename contains `foo`                      |
-| `prompt:foo` | prompt/negative prompt full-text search      |
+| Syntax      | Meaning                                      |
+| ----------- | -------------------------------------------- |
+| `cat`       | positive prompt tag `cat`                    |
+| `tag:cat`   | positive prompt tag `cat`                    |
+| `tag:-cat`  | negative-prompt tag `cat`                    |
+| `-tag:cat`  | exclude images containing positive tag `cat` |
+| `-tag:-cat` | exclude images containing negative tag `cat` |
+| `name:foo`  | filename contains `foo`                      |
+| `info:foo`  | generation info full-text search             |
 
 The search will support combining multiple search terms with spaces, which will be treated as an AND operation. For example, `tag:cat tag:outdoor` will search for both the "cat" and "outdoor" tags.
 

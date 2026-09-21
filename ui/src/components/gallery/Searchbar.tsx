@@ -36,7 +36,7 @@ const TERM_COLORS = {
   tag: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
   negativeTag: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
   filename: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300",
-  prompt: "bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
+  info: "bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
   invalid: "bg-muted text-muted-foreground",
 } satisfies Record<SearchTerm["type"], string>
 
@@ -189,12 +189,11 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto max-w-screen">
+            <PopoverContent className="w-auto max-w-screen p-4 gap-4">
               <PopoverHeader>
                 <PopoverTitle>{t.search.searchHelp}</PopoverTitle>
               </PopoverHeader>
-              <p className="text-sm wrap-break-word">{t.search.searchNote}</p>
-              <Table>
+              <Table className="bg-current/10">
                 <TableBody>
                   {Object.entries(t.search.syntaxTable).map(([term, desc]) => (
                     <TableRow key={term}>
@@ -204,6 +203,11 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
                   ))}
                 </TableBody>
               </Table>
+              <div className="flex">
+                <p className="w-0 grow text-sm whitespace-pre-wrap wrap-break-word">
+                  {t.search.searchNote}
+                </p>
+              </div>
             </PopoverContent>
           </Popover>
         }

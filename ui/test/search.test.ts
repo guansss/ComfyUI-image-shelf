@@ -63,13 +63,13 @@ describe("parseSearchValue", () => {
     check("tag:orange |cat", "tag:orange cat", { value: "cat" })
 
     check(
-      '  tag:cat   name:"sunset |beach"  prompt:workflow ',
-      'tag:cat name:"sunset beach" prompt:workflow',
+      '  tag:cat   name:"sunset |beach"  info:workflow ',
+      'tag:cat name:"sunset beach" info:workflow',
       { value: "sunset beach" },
     )
     check(
-      '  tag:cat   name:"sunset  |  beach"  prompt:workflow ',
-      'tag:cat name:"sunset    beach" prompt:workflow',
+      '  tag:cat   name:"sunset  |  beach"  info:workflow ',
+      'tag:cat name:"sunset    beach" info:workflow',
       { value: "sunset    beach" },
     )
 

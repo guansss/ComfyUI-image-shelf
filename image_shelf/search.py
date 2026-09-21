@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-SearchField = Literal["name", "prompt", "tag"]
+SearchField = Literal["name", "info", "tag"]
 TagType = Literal["negative", "positive"]
 
 

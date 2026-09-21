@@ -222,7 +222,7 @@ class FolderIndexerTests(unittest.TestCase):
             )
             self.assertEqual(
                 repository.list_images(
-                    [root], (SearchTerm("prompt", "KSampler"),)
+                    [root], (SearchTerm("info", "KSampler"),)
                 ).total,
                 2,
             )

@@ -678,11 +678,12 @@ def _term_filter(term: SearchTerm) -> tuple[str, tuple[object, ...]]:
         )
     if term.field == "name":
         return "images.filename LIKE ? ESCAPE '\\'", (f"%{_escape_like(term.value)}%",)
-    return (
-        (
-            "images.workflow_id IN ("
-            "SELECT id FROM workflows WHERE content LIKE ? ESCAPE '\\'"
-            ")"
-        ),
-        (f"%{_escape_like(term.value)}%",),
-    )
+    if term.field == "info":
+        return (
+            (
+                "images.workflow_id IN ("
+                "SELECT id FROM workflows WHERE content LIKE ? ESCAPE '\\'"
+                ")"
+            ),
+            (f"%{_escape_like(term.value)}%",),
+        )
