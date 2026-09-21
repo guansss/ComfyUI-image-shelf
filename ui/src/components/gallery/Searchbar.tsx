@@ -104,6 +104,12 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
     setCursorIndex(newValue.length)
   }
 
+  const actualDropdownOpen =
+    dropdownOpen &&
+    (!query.activeTerm ||
+      query.activeTerm?.type === "tag" ||
+      query.activeTerm?.type === "negativeTag")
+
   return (
     <div className="flex-1 flex flex-col gap-2">
       <InputGroup>
@@ -112,7 +118,7 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
           value={text}
           onValueChange={handleChange}
           itemToStringValue={applyTagSuggestion}
-          open={dropdownOpen}
+          open={actualDropdownOpen}
           onOpenChange={setDropdownOpen}
           mode="none"
           filter={null}
