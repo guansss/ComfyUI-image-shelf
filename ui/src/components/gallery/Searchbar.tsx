@@ -122,7 +122,7 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
             onKeyUp={handleKeyUp}
           />
           {shouldRenderPopup && (
-            <AutocompleteContent>
+            <AutocompleteContent className="pointer-events-auto">
               <AutocompleteList>
                 {(suggestion: TagSuggestion) => (
                   <AutocompleteItem
