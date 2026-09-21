@@ -1,6 +1,6 @@
 import { cn } from "cn"
 import { useAtom } from "jotai"
-import { clamp } from "lodash-es"
+import { clamp, isEqual } from "lodash-es"
 import {
   AlertCircleIcon,
   ChevronLeftIcon,
@@ -14,7 +14,7 @@ import {
   SquareCheckBigIcon,
   SquareIcon,
 } from "lucide-react"
-import { ReactNode, useEffect, useState } from "react"
+import { ReactNode, useEffect, useRef, useState } from "react"
 import { useDebounce } from "react-use"
 
 import { Badge } from "@/components/ui/badge"
@@ -85,6 +85,9 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const [page, setPage] = useState(1)
   const [activeImageId, setActiveImageId] = useState<string | undefined>(undefined)
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([])
+  const activeImageCrossPageLocator = useRef<{ page: number; index: number } | undefined>(undefined)
+  const prevImageIds = useRef<string[]>([])
+  const listScrollAreaRef = useRef<HTMLDivElement | null>(null)
   const settingsTrigger = usePopoverTrigger()
   const imageViewerTrigger = usePopoverTrigger()
 
@@ -103,9 +106,10 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     page,
     pageSize: config.pageSize,
   })
-  const images = imageList?.items ?? EMPTY_ARRAY
+  type ImageListResult = NonNullable<typeof imageList>
+  const images = imageList?.items ?? (EMPTY_ARRAY as ImageListResult["items"])
   const imageListTotal = imageList?.total ?? 0
-  const dimensions = imageList?.dimensions ?? EMPTY_ARRAY
+  const dimensions = imageList?.dimensions ?? (EMPTY_ARRAY as ImageListResult["dimensions"])
   const activeImage = images.find((image) => image.id === activeImageId)
   const selectedImages = images.filter((image) => selectedImageIds.includes(image.id))
 
@@ -117,6 +121,50 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     500,
     [query],
   )
+
+  useEffect(() => {
+    if (!images || !listScrollAreaRef.current) return
+    const currentImageIds = images.map((image) => image.id)
+    if (!isEqual(currentImageIds, prevImageIds.current)) {
+      listScrollAreaRef.current.scroll({ top: 0, behavior: "smooth" })
+    }
+    prevImageIds.current = currentImageIds
+  }, [images])
+
+  useEffect(() => {
+    if (!imageList || !activeImageCrossPageLocator.current) return
+    const { page, index } = activeImageCrossPageLocator.current
+    if (imageList.page === page) {
+      setActiveImageId(imageList.items[index]?.id)
+      activeImageCrossPageLocator.current = undefined
+    }
+  }, [imageList])
+
+  const handleNavigate = async (offset: number) => {
+    if (offset === 0) return
+    let currentIndex = images.findIndex((image) => image.id === activeImageId)
+    if (currentIndex === -1) currentIndex = 0
+    const nextIndex = clamp(
+      currentIndex + offset,
+      -config.pageSize,
+      images.length + config.pageSize,
+    )
+    if (nextIndex < 0) {
+      if (activeImageCrossPageLocator.current) return
+      if (page === 1) return
+      activeImageCrossPageLocator.current = { page: page - 1, index: images.length + nextIndex }
+      setPage((prev) => prev - 1)
+      return
+    } else if (nextIndex >= images.length) {
+      if (activeImageCrossPageLocator.current) return
+      if (page === Math.ceil(imageListTotal / config.pageSize)) return
+      activeImageCrossPageLocator.current = { page: page + 1, index: nextIndex - images.length }
+      setPage((prev) => prev + 1)
+      return
+    }
+    activeImageCrossPageLocator.current = undefined
+    setActiveImageId(images[nextIndex]?.id)
+  }
 
   const selectFolder = (folderId: string) => {
     setConfig({ activeFolder: folderId })
@@ -159,12 +207,6 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     activeImageIndexInCurrentPage !== -1
       ? (page - 1) * config.pageSize + activeImageIndexInCurrentPage
       : -1
-
-  const handleNavigate = (offset: number) => {
-    const currentIndex = images.findIndex((image) => image.id === activeImageId)
-    const nextIndex = clamp(currentIndex + offset, 0, images.length - 1)
-    setActiveImageId(images[nextIndex]?.id)
-  }
 
   return (
     <Dialog onOpenChange={onOpenChange} open={isOpen}>
@@ -271,7 +313,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
             </div>
           )}
           {images.length > 0 && (
-            <ScrollArea className="min-h-0 flex-1">
+            <ScrollArea className="min-h-0 flex-1" viewportRef={listScrollAreaRef}>
               {imageGroups.map(([day, group]) => (
                 <section className="border-b px-4 py-4 first:pt-2 last:border-b-0" key={day}>
                   {config.groupByDay && (
