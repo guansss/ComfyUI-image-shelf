@@ -157,28 +157,36 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
         </InputGroupAddon>
       </InputGroup>
       <div className="flex flex-wrap gap-1 min-h-6">
-        {query.terms.length ? (
-          query.terms
-            .filter((term) => !("invalid" in term && term.invalid))
-            .map((term, index) => (
-              <Badge
-                key={index}
-                className={cn(
-                  "cursor-default",
-                  TERM_COLORS[term.type],
-                  "exclude" in term && term.exclude ? "line-through" : "",
-                )}
-              >
-                {term.prefix}
-                {term.value}
-              </Badge>
-            ))
-        ) : (
+        {
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="flat" size="xs" className="opacity-70" title={t.search.searchHelp}>
-                <CircleQuestionMarkIcon data-icon="inline-start" />
-                {t.search.example}
+              <Button
+                variant="flat"
+                size="xs"
+                className={cn(query.terms.length ? "p-0" : "opacity-70")}
+                title={t.search.searchHelp}
+              >
+                {query.terms.length ? (
+                  query.terms
+                    .filter((term) => !("invalid" in term && term.invalid))
+                    .map((term, index) => (
+                      <Badge
+                        key={index}
+                        className={cn(
+                          TERM_COLORS[term.type],
+                          "exclude" in term && term.exclude ? "line-through" : "",
+                        )}
+                      >
+                        {term.prefix}
+                        {term.value}
+                      </Badge>
+                    ))
+                ) : (
+                  <>
+                    <CircleQuestionMarkIcon data-icon="inline-start" />
+                    {t.search.example}
+                  </>
+                )}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto max-w-screen">
@@ -198,7 +206,7 @@ export function Searchbar({ loading, query, onQueryChange, onSubmit }: Searchbar
               </Table>
             </PopoverContent>
           </Popover>
-        )}
+        }
       </div>
     </div>
   )
