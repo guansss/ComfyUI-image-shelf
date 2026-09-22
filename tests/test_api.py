@@ -413,7 +413,17 @@ class GalleryApiSettingsTests(unittest.IsolatedAsyncioTestCase):
             new_settings = {
                 "custom_folders": [
                     {"id": "folder-1", "name": "Custom", "path": str(root / "custom")}
-                ]
+                ],
+                "prompt_hints": [
+                    {
+                        "id": "custom-text",
+                        "class_type": "CustomPrompt",
+                        "kind": "text",
+                        "input_name": "prompt",
+                        "role": "positive",
+                        "ignore": False,
+                    }
+                ],
             }
             request = Mock()
             request.json = AsyncMock(return_value=new_settings)

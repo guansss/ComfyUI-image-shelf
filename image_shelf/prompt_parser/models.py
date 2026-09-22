@@ -214,7 +214,6 @@ class PromptHint:
     class_type: str
     kind: HintKind = "text"
     input_name: str | None = None
-    output_index: int | None = None
     role: PromptRole = "unknown"
     ignore: bool = False
 

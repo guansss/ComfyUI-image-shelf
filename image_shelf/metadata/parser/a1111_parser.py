@@ -1,7 +1,7 @@
 # pyrefly: ignore-errors[unsupported-operation]
 
 import re
-from typing import Any, cast
+from typing import Any, cast, override
 
 from ...tag.tag_parser import (
     escape_important,
@@ -22,13 +22,13 @@ _PARAMETERS_RE = re.compile(
 
 
 class A1111Parser(Parser):
-    @staticmethod
-    def can_handle(metadata: dict[str, Any]) -> bool:
+    @override
+    def can_handle(self, metadata):
         infotext = metadata.get("parameters") or metadata.get("usercomment")
         return bool(isinstance(infotext, str) and _PARAMETERS_RE.search(infotext))
 
-    @staticmethod
-    def parse(metadata: dict[str, Any]) -> ParsedMetadata:
+    @override
+    def parse(self, metadata, options):
         try:
             return _parse(metadata)
         except Exception as e:

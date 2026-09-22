@@ -9,6 +9,61 @@ from image_shelf.configuration import ShelfSettings, load_settings_path
 
 
 class FolderSettingsTests(unittest.TestCase):
+    def test_prompt_hints_are_validated_and_persisted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            settings_file = Path(temporary_directory) / "settings.json"
+            settings = ShelfSettings(Path(temporary_directory), settings_file)
+            settings.load()
+
+            settings.update(
+                {
+                    "prompt_hints": [
+                        {
+                            "id": "custom-text",
+                            "class_type": "CustomPrompt",
+                            "input_name": "prompt",
+                            "kind": "text",
+                            "role": "positive",
+                            "ignore": False,
+                            "unknown": True,
+                        }
+                    ]
+                }
+            )
+
+            self.assertEqual(
+                settings.as_dict()["prompt_hints"],
+                [
+                    {
+                        "id": "custom-text",
+                        "class_type": "CustomPrompt",
+                        "kind": "text",
+                        "input_name": "prompt",
+                        "role": "positive",
+                        "ignore": False,
+                    }
+                ],
+            )
+            self.assertEqual(settings.get_prompt_hints()[0].input_name, "prompt")
+
+    def test_invalid_prompt_hints_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            settings_file = Path(temporary_directory) / "settings.json"
+            settings = ShelfSettings(Path(temporary_directory), settings_file)
+            settings.load()
+
+            with self.assertRaises(ValueError):
+                settings.update(
+                    {
+                        "prompt_hints": [
+                            {
+                                "id": "hint",
+                                "class_type": "CustomPrompt",
+                                "input_name": "",
+                            }
+                        ]
+                    }
+                )
     def test_loads_custom_folders_and_drops_unknown_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -67,6 +122,7 @@ class FolderSettingsTests(unittest.TestCase):
                     "custom_folders": [
                         {"id": "folder-1", "name": "Custom", "path": str(root / "custom")}
                     ],
+                        "prompt_hints": [],
                     "thumbnail_cache_max_bytes": 2 * 1024 * 1024 * 1024,
                 },
             )
@@ -95,6 +151,7 @@ class FolderSettingsTests(unittest.TestCase):
                 settings.as_dict(),
                 {
                     "custom_folders": [],
+                    "prompt_hints": [],
                     "thumbnail_cache_max_bytes": 2 * 1024 * 1024 * 1024,
                 },
             )

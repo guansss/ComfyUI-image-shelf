@@ -2,8 +2,13 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from ..prompt_parser.models import PromptParseResult
+from ..prompt_parser.models import PromptHint, PromptParseResult
 from ..utils.timing import Timings
+
+
+@dataclass(frozen=True)
+class MetadataParseOptions:
+    hints: tuple[PromptHint, ...] | None
 
 
 @dataclass(frozen=True)
@@ -19,12 +24,12 @@ class ParsedMetadata:
 
 
 class Parser(ABC):
-    @staticmethod
     @abstractmethod
-    def can_handle(metadata: dict[str, Any]) -> bool:
+    def can_handle(self, metadata: dict[str, Any]) -> bool:
         pass
 
-    @staticmethod
     @abstractmethod
-    def parse(metadata: dict[str, Any]) -> ParsedMetadata:
+    def parse(
+        self, metadata: dict[str, Any], options: MetadataParseOptions | None
+    ) -> ParsedMetadata:
         pass

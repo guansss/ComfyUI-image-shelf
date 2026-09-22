@@ -1,22 +1,22 @@
 import json
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any, cast, override
 
 from ...prompt_parser import parse_workflow
 from ...tag.tag_parser import parse_tags, unique_tags
 from ...utils.timing import Timings
-from ..models import ParsedMetadata, Parser
+from ..models import MetadataParseOptions, ParsedMetadata, Parser
 
 
 class ComfyParser(Parser):
-    @staticmethod
-    def can_handle(metadata: dict[str, Any]) -> bool:
+    @override
+    def can_handle(self, metadata):
         return bool(metadata.get("prompt"))
 
-    @staticmethod
-    def parse(metadata: dict[str, Any]) -> ParsedMetadata:
+    @override
+    def parse(self, metadata, options):
         try:
-            return _parse(metadata)
+            return _parse(metadata, options)
         except Exception as e:
             return ParsedMetadata(
                 type="comfy",
@@ -24,7 +24,9 @@ class ComfyParser(Parser):
             )
 
 
-def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
+def _parse(
+    metadata: dict[str, Any], options: MetadataParseOptions | None
+) -> ParsedMetadata:
     timings = Timings()
 
     api_workflow = metadata.get("prompt")
@@ -38,7 +40,11 @@ def _parse(metadata: dict[str, Any]) -> ParsedMetadata:
         with timings.measure("parse_json"):
             ui_workflow = json.loads(ui_workflow)
 
-    prompt_result = parse_workflow(api_workflow, ui_workflow)
+    prompt_result = parse_workflow(
+        api_workflow,
+        ui_workflow,
+        hints=options.hints if options else None,
+    )
     timings.merge("prompt", prompt_result.timings)
 
     with timings.measure("parse_tags"):

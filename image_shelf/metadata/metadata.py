@@ -8,15 +8,17 @@ from PIL import Image
 from ..error import NotRecognizedError
 from ..utils.jpeg import decode_usercomment, get_usercomment, read_jpeg_metadata
 from ..utils.timing import Timings
-from .models import ParsedMetadata, Parser
+from .models import MetadataParseOptions, ParsedMetadata, Parser
 from .parser.a1111_parser import A1111Parser
 from .parser.comfy_parser import ComfyParser
 
-metadata_parsers: list[type[Parser]] = [ComfyParser, A1111Parser]
+metadata_parsers: list[Parser] = [ComfyParser(), A1111Parser()]
 
 
 def get_image_metadata(
-    image_bytes: bytes, image: Image.Image | None = None
+    image_bytes: bytes,
+    image: Image.Image | None = None,
+    options: MetadataParseOptions | None = None,
 ) -> ParsedMetadata:
     timings = Timings()
     try:
@@ -29,7 +31,7 @@ def get_image_metadata(
             if not metadata:
                 raise ValueError("No metadata found in image.")
 
-        parsed_metadata = parse_metadata(metadata)
+        parsed_metadata = parse_metadata(metadata, options)
         if parsed_metadata.timings:
             parsed_metadata.timings.merge(None, timings)
 
@@ -63,10 +65,12 @@ def _read_image_metadata(
     return None
 
 
-def parse_metadata(metadata: dict[str, Any]) -> ParsedMetadata:
+def parse_metadata(
+    metadata: dict[str, Any], options: MetadataParseOptions | None = None
+) -> ParsedMetadata:
     for parser in metadata_parsers:
         if parser.can_handle(metadata):
-            return parser.parse(metadata)
+            return parser.parse(metadata, options)
 
     return ParsedMetadata(
         type="unknown",

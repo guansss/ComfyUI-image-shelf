@@ -9,10 +9,12 @@ from typing import TypeVar
 
 from PIL import Image
 
+from .configuration import ShelfSettings
 from .database import ImageRepository
 from .error import ERROR_INVALID_DIR, CustomError
 from .log import debug_logger
 from .metadata.metadata import get_image_metadata
+from .metadata.models import MetadataParseOptions
 from .models import IndexedImage
 from .paths import normalize_path
 from .utils.timing import Timings
@@ -33,8 +35,10 @@ class FolderIndexer:
     def __init__(
         self,
         repository: ImageRepository,
+        settings: ShelfSettings | None = None,
     ) -> None:
         self.repository = repository
+        self.settings = settings
         self._folder_locks: dict[Path, asyncio.Lock] = {}
 
     async def index_folder(
@@ -66,6 +70,9 @@ class FolderIndexer:
         skipped = 0
         errors = 0
         pending_images: list[IndexedImage] = []
+        parse_options = MetadataParseOptions(
+            hints=self.settings.get_prompt_hints() if self.settings else ()
+        )
 
         for path in folder.iterdir():
             if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
@@ -79,7 +86,7 @@ class FolderIndexer:
                 if existing_state == (stat.st_mtime, stat.st_size):
                     skipped += 1
                     continue
-                image = self._read_image(normalized_path, stat, timings)
+                image = self._read_image(normalized_path, stat, timings, parse_options)
                 pending_images.append(image)
                 indexed += 1
             except (OSError, ValueError):
@@ -109,7 +116,11 @@ class FolderIndexer:
         return IndexingResult(indexed, skipped, len(stale_paths), errors)
 
     def _read_image(
-        self, path: Path, stat_result: stat_result, timings: Timings
+        self,
+        path: Path,
+        stat_result: stat_result,
+        timings: Timings,
+        parse_options: MetadataParseOptions | None,
     ) -> IndexedImage:
         with open(path, "rb") as f:
             with timings.measure("file_read"):
@@ -117,7 +128,7 @@ class FolderIndexer:
             with Image.open(io.BytesIO(file)) as image:
                 width, height = image.size
                 with timings.measure("metadata"):
-                    metadata = get_image_metadata(file, image)
+                    metadata = get_image_metadata(file, image, parse_options)
                 if metadata.timings:
                     timings.merge("metadata", metadata.timings)
         return IndexedImage(

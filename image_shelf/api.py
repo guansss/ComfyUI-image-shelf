@@ -16,6 +16,7 @@ from .database import ImageRepository
 from .indexer import FolderIndexer, IndexingResult
 from .log import logger
 from .metadata.metadata import get_image_metadata
+from .metadata.models import MetadataParseOptions
 from .models import GalleryFolder
 from .paths import is_within_directory, normalize_path, resolve_comfy_asset
 from .search import SearchTerm
@@ -39,7 +40,7 @@ class GalleryApi:
         self.repository = repository
         self.settings = settings
         self.folders: tuple[GalleryFolder, ...] = ()
-        self.indexer = FolderIndexer(repository)
+        self.indexer = FolderIndexer(repository, settings)
         self.indexing_tasks: dict[Path, asyncio.Task[IndexingResult]] = {}
         self.indexing_errors: dict[Path, BaseException] = {}
         self.thumbnail_prefetch_tasks: set[asyncio.Task[None]] = set()
@@ -166,9 +167,7 @@ class GalleryApi:
         for task in self.thumbnail_prefetch_tasks:
             task.cancel()
         if self.thumbnail_prefetch_tasks:
-            await asyncio.gather(
-                *self.thumbnail_prefetch_tasks, return_exceptions=True
-            )
+            await asyncio.gather(*self.thumbnail_prefetch_tasks, return_exceptions=True)
         self.thumbnail_prefetch_tasks.clear()
 
         await self.thumbnails.close()
@@ -389,7 +388,9 @@ class GalleryApi:
         parse_error = details.parse_error
         metadata = None
         try:
-            metadata = await asyncio.to_thread(_get_image_metadata, path)
+            metadata = await asyncio.to_thread(
+                _get_image_metadata, path, self.settings.get_prompt_hints()
+            )
         except Exception as error:
             parse_error = f"{parse_error} ||| {error}" if parse_error else str(error)
         return web.json_response(
@@ -787,7 +788,9 @@ class GalleryApi:
         return bool(
             path
             and path.is_file()
-            and any(is_within_directory(path, folder) for folder in self._tracked_paths())
+            and any(
+                is_within_directory(path, folder) for folder in self._tracked_paths()
+            )
         )
 
     def _thumbnail_url(self, request: web.Request, image_id: str) -> str | None:
@@ -863,9 +866,11 @@ def _reveal_in_file_explorer(path: Path) -> None:
         subprocess.run(["xdg-open", str(path.parent)], check=True)
 
 
-def _get_image_metadata(path: Path | str):
+def _get_image_metadata(path: Path | str, hints=()):
     with open(path, "rb") as file:
-        return get_image_metadata(file.read())
+        return get_image_metadata(
+            file.read(), options=MetadataParseOptions(hints=hints)
+        )
 
 
 def _pick_folder() -> str:

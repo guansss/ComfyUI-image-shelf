@@ -76,7 +76,7 @@ class PromptParserTests(unittest.TestCase):
                 '"value": "best quality"', '"value": "best quality", "unknown": "kept"'
             )
         )
-        result = parse_workflow(api_workflow)
+        result = parse_workflow(api_workflow, None)
         self.assertIn("kept", {match.text for match in result.matches})
 
 

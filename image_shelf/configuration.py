@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from .log import logger
 from .models import GalleryFolder
 from .paths import normalize_path
+from .prompt_parser.models import PromptHint
 
 
 class CustomFolderSettings(BaseModel):
@@ -29,6 +30,24 @@ class CustomFolderSettings(BaseModel):
         return value
 
 
+class PromptHintSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    class_type: str
+    kind: Literal["text", "conditioning"] = "text"
+    input_name: str
+    role: Literal["positive", "negative", "unknown"] = "unknown"
+    ignore: bool = False
+
+    @field_validator("id", "class_type", "input_name")
+    @classmethod
+    def require_non_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+
 class ImageShelfSettingsModel(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -36,6 +55,7 @@ class ImageShelfSettingsModel(BaseModel):
         default_factory=list, alias="custom_folders"
     )
     thumbnail_cache_max_bytes: int = Field(default=2 * 1024 * 1024 * 1024, gt=0)
+    prompt_hints: list[PromptHintSettings] = Field(default_factory=list)
 
 
 class ShelfSettings:
@@ -85,6 +105,9 @@ class ShelfSettings:
             ),
             *custom_folders,
         ]
+
+    def get_prompt_hints(self) -> tuple[PromptHint, ...]:
+        return tuple(PromptHint(**hint.model_dump()) for hint in self.settings.prompt_hints)
 
 
 _settings: ShelfSettings | None = None

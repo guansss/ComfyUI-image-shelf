@@ -23,8 +23,8 @@ from .models import (
 
 def parse_workflow(
     api_workflow: Mapping[str, Any],
-    ui_workflow: Mapping[str, Any] | None = None,
-    hints: Iterable[PromptHint] = (),
+    ui_workflow: Mapping[str, Any] | None,
+    hints: Iterable[PromptHint] | None = None,
 ) -> PromptParseResult:
     timings = Timings()
 
@@ -33,9 +33,10 @@ def parse_workflow(
 
     adapters: list[NodeAdapter] = [
         BuiltinNodesAdapter(),
-        HintAdapter(hints),
         HeuristicAdapter(ui_workflow),
     ]
+    if hints:
+        adapters.append(HintAdapter(hints))
 
     semantics = NodeSemantics()
     context = AnalysisContext(semantics=semantics, timings=timings)
