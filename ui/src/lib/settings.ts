@@ -1,6 +1,8 @@
 import { atom, getDefaultStore } from "jotai"
+import { z } from "zod"
 
 import { fetchSettings, updateSettings } from "../services/gallery"
+import { uuidv4 } from "../utils/lang"
 
 export interface CustomFolderSetting {
   id: string
@@ -8,9 +10,40 @@ export interface CustomFolderSetting {
   path: string
 }
 
+const promptHintKindSchema = z.enum(["text", "conditioning"])
+const promptHintRoleSchema = z.enum(["positive", "negative", "unknown"])
+
+export type PromptHintKind = z.infer<typeof promptHintKindSchema>
+export type PromptHintRole = z.infer<typeof promptHintRoleSchema>
+
+export const promptHintSchema = z.object({
+  class_type: z.string().trim().min(1),
+  input_name: z.string().trim().min(1),
+  kind: promptHintKindSchema,
+  role: promptHintRoleSchema,
+  ignore: z.boolean(),
+  id: z.string(),
+})
+
+export const promptHintsSchema = z.array(promptHintSchema)
+
+export type PromptHintSetting = z.infer<typeof promptHintSchema>
+
+export function createPromptHint(): PromptHintSetting {
+  return {
+    id: `hint-${uuidv4()}`,
+    class_type: "",
+    kind: "text",
+    input_name: "",
+    role: "unknown",
+    ignore: false,
+  }
+}
+
 export interface ImageShelfSettings {
   custom_folders?: CustomFolderSetting[]
   thumbnail_cache_max_bytes?: number
+  prompt_hints?: PromptHintSetting[]
 }
 
 const internalSettingsAtom = atom<ImageShelfSettings>({})

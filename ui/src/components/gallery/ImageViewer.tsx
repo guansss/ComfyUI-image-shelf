@@ -1,4 +1,4 @@
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom } from "jotai"
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -378,9 +378,13 @@ ${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${g
                 <dd className="px-4 wrap-break-word whitespace-pre-wrap">
                   <PromptText
                     prompt={text}
-                    tags={imageDetails.tags.filter(
-                      (tag) => tag.type === (role === "negative" ? "negative" : "positive"),
-                    )}
+                    tags={
+                      config.promptDisplayMode === "both"
+                        ? imageDetails.tags.filter(
+                            (tag) => tag.type === (role === "negative" ? "negative" : "positive"),
+                          )
+                        : undefined
+                    }
                     onTagClick={onTagClick}
                   />
                 </dd>
@@ -395,7 +399,11 @@ ${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${g
           <dd className="px-4 wrap-break-word whitespace-pre-wrap">
             <PromptText
               prompt={(prompt as Record<string, string> | null)?.prompt}
-              tags={imageDetails.tags.filter((tag) => tag.type === "positive")}
+              tags={
+                config.promptDisplayMode === "both"
+                  ? imageDetails.tags.filter((tag) => tag.type === "positive")
+                  : undefined
+              }
               onTagClick={onTagClick}
             />
           </dd>
@@ -405,7 +413,11 @@ ${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${g
           <dd className="px-4 wrap-break-word whitespace-pre-wrap">
             <PromptText
               prompt={(prompt as Record<string, string> | null)?.negative_prompt}
-              tags={imageDetails.tags.filter((tag) => tag.type === "negative")}
+              tags={
+                config.promptDisplayMode === "both"
+                  ? imageDetails.tags.filter((tag) => tag.type === "negative")
+                  : undefined
+              }
               onTagClick={onTagClick}
             />
           </dd>
@@ -460,25 +472,84 @@ function Tags({
   )
 }
 
+export function ComfyPrompts({
+  prompt,
+  tags,
+  apiWorkflow,
+  onTagClick,
+}: {
+  prompt?: PromptParseResult | null
+  tags?: TagSuggestion[]
+  apiWorkflow?: ComfyApiWorkflow
+  onTagClick?: (tag: TagSuggestion) => void
+}) {
+  return prompt?.matches
+    .sort(
+      (a, b) =>
+        (ROLE_ORDER.indexOf(a.role) + 1 || 999) - (ROLE_ORDER.indexOf(b.role) + 1 || 999) ||
+        b.score - a.score ||
+        b.text.length - a.text.length,
+    )
+    .map(({ node_id, input_name, role, text, score, path, reason }) => {
+      const getNode = (id: string) => apiWorkflow?.[id]
+      const getDisplayName = (id: string) => getNode(id)?._meta.title || id
+      const node = getNode(node_id)
+      path = path.slice().reverse()
+
+      return (
+        <Fragment key={node_id + input_name + role + text}>
+          <dt className="flex gap-2 items-center px-4 text-muted-foreground">
+            <Badge className={ROLE_COLORS[role] || ROLE_COLORS.unknown}>{role}</Badge>
+            <span className="truncate">{getDisplayName(node_id)}</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="flat" size="icon-sm" className="ml-auto">
+                  <InfoIcon />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto max-w-screen whitespace-pre-wrap font-mono">
+                {`Node ID: ${node_id}
+Node Name: ${getDisplayName(node_id)}
+Node Class: ${node?.class_type ?? "N/A"}
+Input Name: ${input_name}
+Role: ${role}
+Match Reason: ${reason}
+Score: ${score}
+---
+Path:
+${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${getDisplayName(p.node_id)}]${p.output_index ?? ""}`, "  ")}
+`}
+              </PopoverContent>
+            </Popover>
+          </dt>
+          <dd className="px-4 wrap-break-word whitespace-pre-wrap">
+            <PromptText
+              prompt={text}
+              tags={tags?.filter(
+                (tag) => tag.type === (role === "negative" ? "negative" : "positive"),
+              )}
+              onTagClick={onTagClick}
+            />
+          </dd>
+        </Fragment>
+      )
+    })
+}
+
 function PromptText({
   prompt,
   tags,
   onTagClick,
 }: {
   prompt?: string
-  tags: TagSuggestion[]
+  tags?: TagSuggestion[]
   onTagClick?: (tag: TagSuggestion) => void
 }) {
   const t = useTranslation()
-  const config = useAtomValue(configAtom)
 
   const content = useMemo(() => {
-    if (config.promptDisplayMode !== "both") {
-      return prompt
-    }
-    if (!prompt?.length) {
-      return undefined
-    }
+    if (!prompt?.length) return undefined
+    if (!tags) return prompt
 
     return (
       <div className="text-muted-foreground">
@@ -497,7 +568,7 @@ function PromptText({
         )}
       </div>
     )
-  }, [prompt, tags, config, onTagClick])
+  }, [prompt, tags, onTagClick])
 
   const isEmpty = !content || (Array.isArray(content) && content.length === 0)
   return isEmpty ? t.gallery.noInfo : content

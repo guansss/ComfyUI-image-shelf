@@ -11,14 +11,15 @@ from typing import Any
 
 from aiohttp import typedefs, web
 
-from .configuration import ShelfSettings
+from .configuration import PromptHintSettings, ShelfSettings
 from .database import ImageRepository
 from .indexer import FolderIndexer, IndexingResult
 from .log import logger
-from .metadata.metadata import get_image_metadata
+from .metadata.metadata import get_image_metadata, parse_metadata
 from .metadata.models import MetadataParseOptions
 from .models import GalleryFolder
 from .paths import is_within_directory, normalize_path, resolve_comfy_asset
+from .prompt_parser.models import PromptHint
 from .search import SearchTerm
 from .thumbnails import ThumbnailService
 from .transfer import (
@@ -193,6 +194,10 @@ class GalleryApi:
                 web.get("/api/image-shelf/v1/folders", self.folders_status),
                 web.get("/api/image-shelf/v1/images", self.list_images),
                 web.get("/api/image-shelf/v1/images/{image_id}", self.image_details),
+                web.post(
+                    "/api/image-shelf/v1/metadata/parse-workflow",
+                    self.parse_workflow_metadata,
+                ),
                 web.post(
                     "/api/image-shelf/v1/images/{image_id}/transfer",
                     self.transfer_image,
@@ -400,6 +405,39 @@ class GalleryApi:
                 "parse_error": parse_error,
             }
         )
+
+    async def parse_workflow_metadata(self, request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+            if not isinstance(body, dict):
+                raise TypeError("Metadata parse request must be an object.")
+
+            api_workflow = body.get("api_workflow")
+            ui_workflow = body.get("ui_workflow")
+            if not isinstance(api_workflow, dict):
+                raise TypeError("API workflow must be an object.")
+            if not isinstance(ui_workflow, dict):
+                raise TypeError("UI workflow must be an object.")
+
+            if "hints" in body:
+                raw_hints = body["hints"]
+                if not isinstance(raw_hints, list):
+                    raise TypeError("Metadata parse hints must be an array.")
+                hints = tuple(
+                    PromptHint(**PromptHintSettings.model_validate(hint).model_dump())
+                    for hint in raw_hints
+                )
+            else:
+                hints = self.settings.get_prompt_hints()
+        except (TypeError, ValueError) as error:
+            raise web.HTTPBadRequest(text=str(error)) from error
+
+        parsed_metadata = await asyncio.to_thread(
+            parse_metadata,
+            {"prompt": api_workflow, "workflow": ui_workflow},
+            MetadataParseOptions(hints=hints),
+        )
+        return web.json_response(asdict(parsed_metadata))
 
     async def reveal_image(self, request: web.Request) -> web.Response:
         path = self.repository.path_for_public_id(request.match_info["image_id"])

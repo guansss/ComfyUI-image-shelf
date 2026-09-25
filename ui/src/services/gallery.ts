@@ -1,8 +1,9 @@
 import mitt, { Emitter } from "mitt"
 
+import { ComfyApiWorkflow, ComfyWorkflowJSON } from "../comfy-shims"
 import { API_ROOT } from "../global"
 import { SearchQuery, toBackendSearchTerms } from "../lib/search"
-import { ImageShelfSettings } from "../lib/settings"
+import { ImageShelfSettings, PromptHintSetting } from "../lib/settings"
 import { api } from "./network"
 
 export interface GalleryFolder {
@@ -402,6 +403,18 @@ export async function reindexFolder(folder: string, force: boolean): Promise<voi
 
 export async function revealImage(imageId: string): Promise<void> {
   return await api(`images/${encodeURIComponent(imageId)}/reveal`, "POST", undefined, "ignore")
+}
+
+export async function parseMetadataFromWorkflow({
+  ui_workflow,
+  api_workflow,
+  hints,
+}: {
+  ui_workflow: ComfyWorkflowJSON
+  api_workflow: ComfyApiWorkflow
+  hints?: PromptHintSetting[]
+}): Promise<ImageMetadata> {
+  return await api(`metadata/parse-workflow`, "POST", { ui_workflow, api_workflow, hints }, "json")
 }
 
 export async function pickFolder(): Promise<void> {

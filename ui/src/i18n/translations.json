@@ -30,6 +30,22 @@
       "en": "Delete",
       "cn": "删除"
     },
+    "edit": {
+      "en": "Edit",
+      "cn": "编辑"
+    },
+    "save": {
+      "en": "Save",
+      "cn": "保存"
+    },
+    "saved": {
+      "en": "Saved",
+      "cn": "已保存"
+    },
+    "saveFailed": {
+      "en": "Save failed",
+      "cn": "保存失败"
+    },
     "configure": {
       "en": "Configure",
       "cn": "配置"
@@ -351,6 +367,18 @@
       "en": "User Interface",
       "cn": "用户界面"
     },
+    "metadata": {
+      "en": "Metadata",
+      "cn": "元数据"
+    },
+    "promptHints": {
+      "en": "Prompt hints",
+      "cn": "提示词提示"
+    },
+    "promptHintsDescription": {
+      "en": "Tell the parser which nodes contain prompt text or conditioning.",
+      "cn": "告诉解析器哪些节点包含提示词文本或条件。"
+    },
     "language": {
       "en": "Language",
       "cn": "语言"
@@ -410,6 +438,68 @@
     "clearCacheFailed": {
       "en": "Failed to clear thumbnail cache",
       "cn": "清除缩略图缓存失败"
+    }
+  },
+  "hintEditor": {
+    "editHint": {
+      "en": "Edit Hint",
+      "cn": "编辑提示"
+    },
+    "addHint": {
+      "en": "Add hint",
+      "cn": "添加提示"
+    },
+    "hintId": {
+      "en": "Hint ID",
+      "cn": "提示 ID"
+    },
+    "hintClassType": {
+      "en": "Node Class",
+      "cn": "节点类型"
+    },
+    "hintInputName": {
+      "en": "Node Input name",
+      "cn": "节点输入名称"
+    },
+    "hintKind": {
+      "en": "Input Kind",
+      "cn": "输入类型"
+    },
+    "hintRole": {
+      "en": "Role",
+      "cn": "角色"
+    },
+    "hintIgnore": {
+      "en": "Ignore",
+      "cn": "忽略"
+    },
+    "type": {
+      "text": {
+        "en": "Text",
+        "cn": "文本"
+      },
+      "conditioning": {
+        "en": "Conditioning",
+        "cn": "条件"
+      }
+    },
+    "role": {
+      "positive": {
+        "en": "Positive",
+        "cn": "正面"
+      },
+      "negative": {
+        "en": "Negative",
+        "cn": "负面"
+      },
+      "unknown": {
+        "en": "Unknown",
+        "cn": "未知"
+      }
+    },
+    "parseCurrentWorkflow": {
+      "en": "Parse Current Workflow",
+      "cn": "解析当前工作流"
     }
   },
   "transfer": {

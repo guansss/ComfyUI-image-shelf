@@ -1,5 +1,6 @@
 import type {
   LGraphNode as _LGraphNode,
+  SubgraphNode as _SubgraphNode,
   ComfyButton,
   ComfyNodeDef,
   ExecutableLGraphNode,
@@ -53,6 +54,8 @@ interface LGraphNodeConstructor<T extends LGraphNode = LGraphNode> extends _LGra
   category?: string
   new (): T
 }
+
+export type SubgraphNode = _SubgraphNode & LGraphNode
 
 // Copied from https://github.com/Comfy-Org/ComfyUI_frontend/blob/dfefba0729333852f351f3bc9a16958f1ca8690e/src/types/litegraph-augmentation.d.ts
 export interface LGraphNode extends _LGraphNode {

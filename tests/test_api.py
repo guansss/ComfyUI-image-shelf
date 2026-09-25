@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock, Mock, patch
 
 from aiohttp import web
@@ -13,6 +14,135 @@ from image_shelf.configuration import ShelfSettings
 from image_shelf.database import ImageRepository
 from image_shelf.indexer import IndexingResult
 from image_shelf.models import GalleryFolder
+
+ASSETS = Path(__file__).parent / "assets"
+
+
+class GalleryApiMetadataTests(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def _workflow_body() -> dict[str, Any]:
+        body: dict[str, Any] = {}
+        for key, filename in (
+            ("api_workflow", "api-workflow.json"),
+            ("ui_workflow", "ui-workflow.json"),
+        ):
+            with open(ASSETS / filename, encoding="utf-8") as workflow_file:
+                body[key] = json.load(workflow_file)
+        return body
+
+    @staticmethod
+    def _request(body: Any) -> Mock:
+        request = Mock()
+        request.json = AsyncMock(return_value=body)
+        return request
+
+    async def _parse(self, api: GalleryApi, body: Any) -> dict[str, Any]:
+        response = await api.parse_workflow_metadata(self._request(body))
+        self.assertEqual(response.status, 200)
+        return json.loads(response.text or "")
+
+    async def test_registers_parse_workflow_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            api = GalleryApi(
+                cast(ImageRepository, None),
+                ShelfSettings(root, root / "settings.json"),
+            )
+            app = web.Application()
+
+            api.register(app, register_startup=False)
+
+            self.assertIn(
+                "/api/image-shelf/v1/metadata/parse-workflow",
+                {resource.canonical for resource in app.router.resources()},
+            )
+
+    async def test_parses_api_and_ui_workflow_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            api = GalleryApi(
+                cast(ImageRepository, None),
+                ShelfSettings(root, root / "settings.json"),
+            )
+            workflows = self._workflow_body()
+
+            result = await self._parse(api, workflows)
+
+            self.assertEqual(result["type"], "comfy")
+            self.assertIsNone(result["parse_error"])
+            self.assertEqual(result["tags"], ["best quality"])
+            self.assertEqual(result["negative_tags"], ["lowres"])
+            self.assertEqual(result["info"]["prompt"], workflows["api_workflow"])
+            self.assertEqual(result["info"]["workflow"], workflows["ui_workflow"])
+
+    async def test_request_hints_override_saved_hints(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            settings = ShelfSettings(root, root / "settings.json")
+            settings.update(
+                {
+                    "prompt_hints": [
+                        {
+                            "id": "force-positive",
+                            "class_type": "CLIPTextEncode",
+                            "input_name": "text",
+                            "role": "positive",
+                        }
+                    ]
+                }
+            )
+            api = GalleryApi(None, settings)  # pyrefly: ignore [bad-argument-type]
+            workflows = self._workflow_body()
+
+            saved_hint_result = await self._parse(api, workflows)
+            request_hint_result = await self._parse(
+                api,
+                {
+                    **workflows,
+                    "hints": [
+                        {
+                            "id": "force-negative",
+                            "class_type": "CLIPTextEncode",
+                            "input_name": "text",
+                            "role": "negative",
+                        }
+                    ],
+                },
+            )
+            empty_hint_result = await self._parse(
+                api,
+                {
+                    **workflows,
+                    "hints": [],
+                },
+            )
+
+            self.assertIn("lowres", saved_hint_result["tags"])
+            self.assertEqual(saved_hint_result["negative_tags"], [])
+            self.assertIn("lowres", request_hint_result["negative_tags"])
+            self.assertNotIn("lowres", request_hint_result["tags"])
+            self.assertEqual(empty_hint_result["tags"], ["best quality"])
+            self.assertEqual(empty_hint_result["negative_tags"], ["lowres"])
+
+    async def test_rejects_invalid_workflow_and_hint_requests(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            api = GalleryApi(
+                cast(ImageRepository, None),
+                ShelfSettings(root, root / "settings.json"),
+            )
+            invalid_bodies = (
+                [],
+                {"ui_workflow": {}},
+                {"api_workflow": {}, "ui_workflow": []},
+                {"api_workflow": {}, "ui_workflow": {}, "hints": {}},
+                {"api_workflow": {}, "ui_workflow": {}, "hints": [{"id": "bad"}]},
+            )
+
+            for body in invalid_bodies:
+                with self.subTest(body=body):
+                    with self.assertRaises(web.HTTPBadRequest):
+                        await api.parse_workflow_metadata(self._request(body))
 
 
 class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
@@ -123,9 +253,7 @@ class GalleryApiTransferTests(unittest.IsolatedAsyncioTestCase):
                 GalleryFolder("target", "Target", target_folder),
             )
             request = Mock(match_info={"image_id": "image-id"})
-            request.json = AsyncMock(
-                return_value={"folder": "target", "mode": "copy"}
-            )
+            request.json = AsyncMock(return_value={"folder": "target", "mode": "copy"})
 
             response = await api.transfer_image(request)
 
@@ -357,6 +485,7 @@ class GalleryApiTransferTests(unittest.IsolatedAsyncioTestCase):
             with patch.dict(sys.modules, {"folder_paths": folder_paths}):
                 with self.assertRaises(web.HTTPBadRequest):
                     await api.transfer_assets(request)
+
 
 class DevelopmentCorsMiddlewareTests(unittest.IsolatedAsyncioTestCase):
     async def test_adds_cors_headers_to_http_errors(self) -> None:

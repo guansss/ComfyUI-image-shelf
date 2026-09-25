@@ -1,5 +1,5 @@
 import mitt, { Emitter } from "mitt"
-import { Fragment, ReactNode, useEffect, useState } from "react"
+import { Fragment, ReactNode, useCallback, useEffect, useState } from "react"
 
 export function joinJSX(elements: ReactNode[], separator: ReactNode): ReactNode[] {
   return elements.reduce((acc: ReactNode[], element, index) => {
@@ -13,16 +13,16 @@ export function preserveLineBreaks(text: string) {
 }
 
 interface PopoverTrigger {
-  emitter: Emitter<{ toggle: boolean }>
-  toggle: (open: boolean) => void
+  emitter: Emitter<{ toggle: boolean | undefined }>
+  toggle: (open?: boolean) => void
 }
 
 export function usePopoverTrigger() {
   const [trigger] = useState<PopoverTrigger>(() => {
-    const emitter = mitt<{ toggle: boolean }>()
+    const emitter = mitt<{ toggle: boolean | undefined }>()
     return {
       emitter,
-      toggle: (open: boolean) => emitter.emit("toggle", open),
+      toggle: (open?: boolean) => emitter.emit("toggle", open),
     }
   })
   return trigger
@@ -37,12 +37,15 @@ export function usePopoverControl({ trigger, delay = 300 }: PopoverControlOption
   const [isOpen, setIsOpen] = useState(false)
   const [shouldRender, setShouldRender] = useState(false)
 
-  const setOpenState = (open: boolean) => {
-    setIsOpen(open)
-    if (open) {
-      setShouldRender(true)
-    }
-  }
+  const setOpenState = useCallback((open?: boolean) => {
+    setIsOpen((prev) => {
+      const next = open ?? !prev
+      if (next) {
+        setShouldRender(true)
+      }
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     if (!isOpen) {
@@ -57,14 +60,14 @@ export function usePopoverControl({ trigger, delay = 300 }: PopoverControlOption
 
   useEffect(() => {
     if (!trigger) return
-    const handleToggle = (open: boolean) => {
+    const handleToggle = (open?: boolean) => {
       setOpenState(open)
     }
     trigger.emitter.on("toggle", handleToggle)
     return () => {
       trigger.emitter.off("toggle", handleToggle)
     }
-  }, [trigger, isOpen])
+  }, [trigger, isOpen, setOpenState])
 
   return { isOpen, shouldRender, setOpenState }
 }

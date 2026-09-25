@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue } from "jotai"
-import { AlertCircleIcon, InfoIcon, MonitorIcon, Trash2Icon } from "lucide-react"
+import { AlertCircleIcon, InfoIcon, MonitorIcon, TagsIcon, Trash2Icon } from "lucide-react"
 import { useEffect, useState } from "react"
 import useSWR from "swr"
 
@@ -28,8 +28,10 @@ import { settingsAtom } from "../lib/settings"
 import { toast } from "../lib/toast"
 import { formatFileSize } from "../lib/utils"
 import { clearThumbnailCache, fetchAppInfo } from "../services/gallery"
+import { PopoverControl, usePopoverTrigger } from "../utils/react"
+import { HintEditorDialog } from "./hint"
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert"
-import { Field, FieldGroup, FieldLabel } from "./ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "./ui/field"
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "./ui/input-group"
 import { ScrollArea } from "./ui/scroll-area"
 import { Separator } from "./ui/separator"
@@ -69,6 +71,7 @@ export function SettingsDialog({
   const [cacheLimit, setCacheLimit] = useState("")
   const [isSettingCacheLimit, setIsSettingCacheLimit] = useState(false)
   const [isClearingCache, setIsClearingCache] = useState(false)
+  const hintEditorTrigger = usePopoverTrigger()
 
   const {
     data: appInfo,
@@ -139,6 +142,10 @@ export function SettingsDialog({
               <MonitorIcon />
               {t.settings.ui}
             </TabsTrigger>
+            <TabsTrigger value="metadata">
+              <TagsIcon />
+              {t.settings.metadata}
+            </TabsTrigger>
             <TabsTrigger value="info">
               <InfoIcon />
               {t.settings.appInfo}
@@ -154,7 +161,7 @@ export function SettingsDialog({
                     value={language}
                     onValueChange={(value) => setLanguage(value as (typeof languages)[number])}
                   >
-                    <SelectTrigger id="settings-language" className="min-w-40 shrink">
+                    <SelectTrigger id="settings-language" className="min-w-40">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -174,7 +181,7 @@ export function SettingsDialog({
                     value={config.theme}
                     onValueChange={(value) => setConfig({ theme: value as typeof config.theme })}
                   >
-                    <SelectTrigger id="settings-theme" className="min-w-40 shrink">
+                    <SelectTrigger id="settings-theme" className="min-w-40">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -186,6 +193,28 @@ export function SettingsDialog({
                   </Select>
                 </Field>
               </FieldGroup>
+            </ScrollArea>
+          </TabsContent>
+          <TabsContent value="metadata" className="basis-auto h-100 flex flex-col">
+            <ScrollArea className="grow min-h-0">
+              <div className="flex flex-col gap-3 py-1">
+                <Field>
+                  <FieldLabel htmlFor="settings-prompt-hints">{t.settings.promptHints}</FieldLabel>
+                  <FieldDescription>{t.settings.promptHintsDescription}</FieldDescription>
+                </Field>
+                <Button
+                  className="self-start"
+                  variant="outline"
+                  onClick={() => hintEditorTrigger.toggle()}
+                >
+                  {t.common.edit}
+                </Button>
+                <PopoverControl trigger={hintEditorTrigger}>
+                  {({ isOpen, setOpenState }) => (
+                    <HintEditorDialog isOpen={isOpen} onOpenChange={setOpenState} />
+                  )}
+                </PopoverControl>
+              </div>
             </ScrollArea>
           </TabsContent>
           <TabsContent value="info" className="basis-auto h-100 flex flex-col">
