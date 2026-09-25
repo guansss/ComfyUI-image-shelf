@@ -315,7 +315,7 @@ function Metadata({ imageDetails, onTagClick }: MetadataProps) {
       {config.promptDisplayMode === "tags" && (
         <>
           <dt className="px-4">
-            <Badge className={ROLE_COLORS["positive"]}>positive</Badge>
+            <Badge className={ROLE_COLORS["positive"]}>{t.hint.role.positive}</Badge>
           </dt>
           <dd className="px-4 wrap-break-word whitespace-pre-wrap">
             <Tags
@@ -324,7 +324,7 @@ function Metadata({ imageDetails, onTagClick }: MetadataProps) {
             />
           </dd>
           <dt className="px-4">
-            <Badge className={ROLE_COLORS["negative"]}>negative</Badge>
+            <Badge className={ROLE_COLORS["negative"]}>{t.hint.role.negative}</Badge>
           </dt>
           <dd className="px-4 wrap-break-word whitespace-pre-wrap">
             <Tags
@@ -352,7 +352,7 @@ function Metadata({ imageDetails, onTagClick }: MetadataProps) {
             return (
               <Fragment key={node_id + input_name + role + text}>
                 <dt className="flex gap-2 items-center px-4 text-muted-foreground">
-                  <Badge className={ROLE_COLORS[role] || ROLE_COLORS.unknown}>{role}</Badge>
+                  <Badge className={ROLE_COLORS[role] || ROLE_COLORS.unknown}>{t.hint.role[role] ?? role}</Badge>
                   <span className="truncate">{getDisplayName(node_id)}</span>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -394,7 +394,7 @@ ${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${g
       {config.promptDisplayMode !== "tags" && type === "a1111" && (
         <>
           <dt className="px-4">
-            <Badge className={ROLE_COLORS["positive"]}>positive</Badge>
+            <Badge className={ROLE_COLORS["positive"]}>{t.hint.role.positive}</Badge>
           </dt>
           <dd className="px-4 wrap-break-word whitespace-pre-wrap">
             <PromptText
@@ -408,7 +408,7 @@ ${path.reduce((acc, p, i) => `${i > 0 ? acc + "\n→ " : acc}${p.input_name}[${g
             />
           </dd>
           <dt className="px-4">
-            <Badge className={ROLE_COLORS["negative"]}>negative</Badge>
+            <Badge className={ROLE_COLORS["negative"]}>{t.hint.role.negative}</Badge>
           </dt>
           <dd className="px-4 wrap-break-word whitespace-pre-wrap">
             <PromptText

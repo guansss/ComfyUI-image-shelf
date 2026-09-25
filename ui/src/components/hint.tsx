@@ -109,7 +109,7 @@ export function HintEditorDialog({ isOpen, onOpenChange }: HintEditorDialogProps
     <Dialog onOpenChange={onOpenChange} open={isOpen}>
       <DialogContent className="w-300 h-200 grid-rows-[auto_1fr_auto] gap-0">
         <DialogHeader>
-          <DialogTitle>{t.hintEditor.editHint}</DialogTitle>
+          <DialogTitle>{t.hint.editHint}</DialogTitle>
         </DialogHeader>
         <ScrollArea className="min-h-0 mt-4 -mx-4">
           <section className="flex flex-wrap gap-4 p-4">
@@ -129,7 +129,7 @@ export function HintEditorDialog({ isOpen, onOpenChange }: HintEditorDialogProps
               type="button"
             >
               <PlusIcon data-icon="inline-start" />
-              {t.hintEditor.addHint}
+              {t.hint.addHint}
             </Button>
           </section>
           <Separator className="w-auto mx-4" />
@@ -174,9 +174,7 @@ function HintItem({
   return (
     <div key={hint.id} className="flex flex-col gap-2 rounded-lg border p-2">
       <Field>
-        <FieldLabel htmlFor={`prompt-hint-class-${hint.id}`}>
-          {t.hintEditor.hintClassType}
-        </FieldLabel>
+        <FieldLabel htmlFor={`prompt-hint-class-${hint.id}`}>{t.hint.hintClassType}</FieldLabel>
         <AdvancedAutocomplete
           items={nodeClassOptions}
           value={hint.class_type}
@@ -202,9 +200,7 @@ function HintItem({
         )}
       </Field>
       <Field>
-        <FieldLabel htmlFor={`prompt-hint-input-${hint.id}`}>
-          {t.hintEditor.hintInputName}
-        </FieldLabel>
+        <FieldLabel htmlFor={`prompt-hint-input-${hint.id}`}>{t.hint.hintInputName}</FieldLabel>
         <AdvancedAutocomplete
           items={nodeInputOptions}
           value={hint.input_name}
@@ -231,7 +227,7 @@ function HintItem({
       </Field>
       <div className="grid grid-cols-2 gap-2">
         <Field>
-          <FieldLabel htmlFor={`prompt-hint-kind-${hint.id}`}>{t.hintEditor.hintKind}</FieldLabel>
+          <FieldLabel htmlFor={`prompt-hint-kind-${hint.id}`}>{t.hint.hintKind}</FieldLabel>
           <Select
             disabled={hint.ignore}
             value={hint.kind}
@@ -245,8 +241,8 @@ function HintItem({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="text">{t.hintEditor.type.text}</SelectItem>
-              <SelectItem value="conditioning">{t.hintEditor.type.conditioning}</SelectItem>
+              <SelectItem value="text">{t.hint.type.text}</SelectItem>
+              <SelectItem value="conditioning">{t.hint.type.conditioning}</SelectItem>
             </SelectContent>
           </Select>
           {errors?.kind && (
@@ -254,7 +250,7 @@ function HintItem({
           )}
         </Field>
         <Field>
-          <FieldLabel htmlFor={`prompt-hint-role-${hint.id}`}>{t.hintEditor.hintRole}</FieldLabel>
+          <FieldLabel htmlFor={`prompt-hint-role-${hint.id}`}>{t.hint.hintRole}</FieldLabel>
           <Select
             disabled={hint.ignore}
             value={hint.role}
@@ -268,9 +264,9 @@ function HintItem({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="positive">{t.hintEditor.role.positive}</SelectItem>
-              <SelectItem value="negative">{t.hintEditor.role.negative}</SelectItem>
-              <SelectItem value="unknown">{t.hintEditor.role.unknown}</SelectItem>
+              <SelectItem value="positive">{t.hint.role.positive}</SelectItem>
+              <SelectItem value="negative">{t.hint.role.negative}</SelectItem>
+              <SelectItem value="unknown">{t.hint.role.unknown}</SelectItem>
             </SelectContent>
           </Select>
           {errors?.role && (
@@ -285,9 +281,7 @@ function HintItem({
             checked={hint.ignore}
             onCheckedChange={(checked) => onUpdate(hint.id, { ignore: checked === true })}
           />
-          <FieldLabel htmlFor={`prompt-hint-ignore-${hint.id}`}>
-            {t.hintEditor.hintIgnore}
-          </FieldLabel>
+          <FieldLabel htmlFor={`prompt-hint-ignore-${hint.id}`}>{t.hint.hintIgnore}</FieldLabel>
         </Field>
         <Button
           variant="flat"
@@ -355,7 +349,7 @@ function MetadataPreview({
       <div className="flex gap-2 items-center">
         <Button variant="outline" onClick={parseCurrentWorkflow} disabled={isParsing}>
           {isParsing ? <Spinner data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}
-          {t.hintEditor.parseCurrentWorkflow}
+          {t.hint.parseCurrentWorkflow}
         </Button>
         <span className="text-muted-foreground">{currentWorkflowName}</span>
       </div>

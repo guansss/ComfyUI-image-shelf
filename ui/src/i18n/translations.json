@@ -440,7 +440,7 @@
       "cn": "清除缩略图缓存失败"
     }
   },
-  "hintEditor": {
+  "hint": {
     "editHint": {
       "en": "Edit Hint",
       "cn": "编辑提示"
