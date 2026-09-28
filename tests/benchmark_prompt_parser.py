@@ -63,12 +63,12 @@ def _benchmark(
     repetitions: int,
 ) -> None:
     workflow = workflow_factory()
-    result = parse_workflow(workflow)
+    result = parse_workflow(workflow, None)
     if not result.matches:
         raise AssertionError(f"{name} produced no matches")
 
     timings = timeit.repeat(
-        lambda: parse_workflow(workflow),
+        lambda: parse_workflow(workflow, None),
         repeat=5,
         number=repetitions,
     )

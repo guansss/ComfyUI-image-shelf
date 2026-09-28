@@ -912,7 +912,7 @@ def _parse_dimension(value: str) -> tuple[int, int]:
 
 def _reveal_in_file_explorer(path: Path) -> None:
     if sys.platform == "win32":
-        subprocess.run(["explorer", "/select,", str(path)], check=True)
+        subprocess.run(["explorer", "/select,", str(path)], check=False)
     elif sys.platform == "darwin":
         subprocess.run(["open", "-R", str(path)], check=True)
     else:

@@ -234,6 +234,31 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
             )
 
 
+class GalleryApiRevealTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reveal_image_ignores_windows_explorer_exit_code(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            image = root / "image.png"
+            image.write_bytes(b"image")
+            repository = Mock()
+            repository.path_for_public_id.return_value = image
+            api = GalleryApi(repository, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (GalleryFolder("outputs", "Outputs", root),)
+            request = Mock(match_info={"image_id": "image-id"})
+
+            with patch("image_shelf.api.sys.platform", "win32"), patch(
+                "image_shelf.api.subprocess.run",
+                return_value=SimpleNamespace(returncode=1),
+            ) as run:
+                response = await api.reveal_image(request)
+
+            self.assertEqual(response.status, 200)
+            self.assertEqual(json.loads(response.text or ""), {"accepted": True})
+            run.assert_called_once_with(
+                ["explorer", "/select,", str(image)], check=False
+            )
+
+
 class GalleryApiTransferTests(unittest.IsolatedAsyncioTestCase):
     async def test_transfers_image_to_selected_folder(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
