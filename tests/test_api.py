@@ -461,6 +461,59 @@ class GalleryApiTransferTests(unittest.IsolatedAsyncioTestCase):
             folder_paths.annotated_filepath.assert_called_once_with("image.png")
             folder_paths.get_directory_by_type.assert_called_once_with("output")
 
+    async def test_transfers_comfy_assets_with_custom_filenames(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            output = root / "output"
+            target = root / "target"
+            output.mkdir()
+            target.mkdir()
+            source = output / "image.png"
+            source.write_bytes(b"image")
+            (target / "image.png").write_bytes(b"existing image")
+            item = {"filename": "image.png"}
+            folder_paths = SimpleNamespace(
+                annotated_filepath=Mock(return_value=("image.png", None)),
+                get_directory_by_type=Mock(return_value=str(output)),
+            )
+            api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (GalleryFolder("target", "Target", target),)
+            request = Mock()
+            request.json = AsyncMock(
+                side_effect=[
+                    {"items": [item], "folder": "target"},
+                    {
+                        "items": [item],
+                        "folder": "target",
+                        "filenames": {"0": "renamed.png"},
+                    },
+                ]
+            )
+
+            with patch.dict(sys.modules, {"folder_paths": folder_paths}):
+                conflict_response = await api.transfer_assets(request)
+                response = await api.transfer_assets(request)
+
+            self.assertEqual(conflict_response.status, 409)
+            self.assertEqual(
+                json.loads(conflict_response.text or "")["conflicts"],
+                [
+                    {
+                        "index": 0,
+                        "filename": "image.png",
+                        "suggested_filename": "image_1.png",
+                    }
+                ],
+            )
+            self.assertEqual(response.status, 201)
+            self.assertEqual(
+                json.loads(response.text or "")["items"],
+                [{"item": item, "filename": "renamed.png"}],
+            )
+            self.assertEqual(source.read_bytes(), b"image")
+            self.assertEqual((target / "image.png").read_bytes(), b"existing image")
+            self.assertEqual((target / "renamed.png").read_bytes(), b"image")
+
     async def test_rejects_comfy_asset_path_escape(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

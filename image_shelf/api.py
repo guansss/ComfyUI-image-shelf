@@ -638,7 +638,7 @@ class GalleryApi:
         )
 
     async def transfer_assets(self, request: web.Request) -> web.Response:
-        sources: list[tuple[dict[str, Any], Path]] = []
+        sources: list[tuple[dict[str, Any], Path, str | None]] = []
         try:
             body = await request.json()
             if not isinstance(body, dict):
@@ -661,12 +661,27 @@ class GalleryApi:
                 raise web.HTTPNotFound(text="Target folder does not exist")
             mode = body.get("mode", "copy")
             conflict = body.get("conflict", "suggest")
+            filenames = body.get("filenames", {})
             if not isinstance(mode, str):
                 raise TypeError("Transfer mode must be a string.")
             if not isinstance(conflict, str):
                 raise TypeError("Transfer conflict must be a string.")
+            if not isinstance(filenames, dict) or not all(
+                isinstance(key, str)
+                and key.isdecimal()
+                and isinstance(value, str)
+                for key, value in filenames.items()
+            ):
+                raise TypeError(
+                    "Transfer filenames must be an object keyed by item index."
+                )
+            if any(
+                str(int(index)) != index or int(index) >= len(items)
+                for index in filenames
+            ):
+                raise ValueError("Transfer filename index is out of range.")
 
-            for item in items:
+            for index, item in enumerate(items):
                 source = resolve_comfy_asset(item)
                 if not source.is_file():
                     raise FileNotFoundError("ComfyUI asset file does not exist.")
@@ -674,11 +689,11 @@ class GalleryApi:
                     raise web.HTTPBadRequest(
                         text="Asset is already in the target folder"
                     )
-                sources.append((item, source))
+                sources.append((item, source, filenames.get(str(index))))
 
             destinations = await asyncio.to_thread(
                 transfer_files,
-                [(source, None) for _, source in sources],
+                [(source, filename) for _, source, filename in sources],
                 destination_folder,
                 mode,
                 conflict,
@@ -689,7 +704,7 @@ class GalleryApi:
                     "error": "filename_conflicts",
                     "conflicts": [
                         {
-                            "item": sources[int(item["index"])][0],
+                            "index": int(item["index"]),
                             "filename": item["filename"],
                             "suggested_filename": item["suggested_filename"],
                         }
@@ -706,7 +721,7 @@ class GalleryApi:
                 "mode": mode,
                 "items": [
                     {"item": item, "filename": destination.name}
-                    for (item, _), destination in zip(sources, destinations)
+                    for (item, _, _), destination in zip(sources, destinations)
                 ],
             },
             status=201,

@@ -105,8 +105,16 @@ export class TransferConflictError extends Error {
   }
 }
 
-export interface TransferConflict {
+export type TransferConflict = ImageTransferConflict | AssetTransferConflict
+
+export interface ImageTransferConflict {
   image_id: string
+  filename: string
+  suggested_filename: string
+}
+
+export interface AssetTransferConflict {
+  index: number
   filename: string
   suggested_filename: string
 }
@@ -346,7 +354,7 @@ export async function transferImages(
       if (res.status === 409) {
         const payload: {
           error: string
-          conflicts?: TransferConflict[]
+          conflicts?: ImageTransferConflict[]
         } = await res.json()
         if (payload.conflicts) {
           throw new TransferConflictsError(payload.conflicts)
@@ -362,29 +370,20 @@ export async function transferAssets(
   folder: string,
   mode: TransferMode,
   conflict: TransferConflictMode = "suggest",
+  filenames?: Record<string, string>,
 ): Promise<AssetTransferResult> {
   return await api(
     "assets/transfer",
     "POST",
-    { items, folder, mode, conflict },
+    { items, folder, mode, conflict, filenames },
     async (res, defaultHandler) => {
       if (res.status === 409) {
         const payload: {
           error: string
-          conflicts?: {
-            item: AssetTransferItem
-            filename: string
-            suggested_filename: string
-          }[]
+          conflicts?: AssetTransferConflict[]
         } = await res.json()
         if (payload.conflicts) {
-          throw new TransferConflictsError(
-            payload.conflicts.map((conflict) => ({
-              image_id: JSON.stringify(conflict.item),
-              filename: conflict.filename,
-              suggested_filename: conflict.suggested_filename,
-            })),
-          )
+          throw new TransferConflictsError(payload.conflicts)
         }
       }
       return defaultHandler("json")

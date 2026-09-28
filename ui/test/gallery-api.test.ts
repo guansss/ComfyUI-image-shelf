@@ -135,20 +135,20 @@ describe("gallery API client", () => {
     fetchMock.mockRestore()
   })
 
-  test("transfers ComfyUI assets through the assets endpoint", async () => {
+  test("transfers ComfyUI assets with custom filenames", async () => {
     const items = [{ filename: "image.png", subfolder: "nested", type: "output" }]
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
           folder: "custom",
           mode: "move",
-          items: [{ item: items[0], filename: "image.png" }],
+          items: [{ item: items[0], filename: "renamed.png" }],
         }),
         { status: 201, headers: { "Content-Type": "application/json" } },
       ),
     )
 
-    await transferAssets(items, "custom", "move")
+    await transferAssets(items, "custom", "move", "suggest", { "0": "renamed.png" })
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("assets/transfer"),
@@ -159,9 +159,40 @@ describe("gallery API client", () => {
           folder: "custom",
           mode: "move",
           conflict: "suggest",
+          filenames: { "0": "renamed.png" },
         }),
       }),
     )
+    fetchMock.mockRestore()
+  })
+
+  test("preserves asset indices from filename conflicts", async () => {
+    const item = { filename: "image.png", subfolder: "nested", type: "output" }
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "filename_conflicts",
+          conflicts: [
+            {
+              index: 0,
+              filename: "image.png",
+              suggested_filename: "image_1.png",
+            },
+          ],
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      ),
+    )
+
+    await expect(transferAssets([item], "custom", "copy")).rejects.toMatchObject({
+      conflicts: [
+        {
+          index: 0,
+          filename: "image.png",
+          suggested_filename: "image_1.png",
+        },
+      ],
+    })
     fetchMock.mockRestore()
   })
 })

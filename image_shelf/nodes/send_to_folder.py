@@ -23,6 +23,7 @@ class SendToFolder:
                 "images": ("IMAGE",),
                 "folder": ([folder.id for folder in folders],),
                 "send_mode": (["copy", "move"], {"default": "copy"}),
+                "conflict_mode": (["ask", "rename"], {"default": "ask"}),
             }
         }
 

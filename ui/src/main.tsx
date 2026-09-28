@@ -60,9 +60,9 @@ function registerExtension(): void {
         })
         app.menu.settingsGroup.append(openGalleryButton)
       },
-      nodeCreated: (node, app) => {
+      nodeCreated: (node) => {
         if (node.comfyClass === NODE_TYPE_SEND_TO_FOLDER) {
-          setupSendToFolderNode(node as LGraphNode, app)
+          setupSendToFolderNode(node as LGraphNode)
         }
       },
     })
