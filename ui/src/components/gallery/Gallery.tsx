@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { useAtom } from "jotai"
+import { atom, useAtom } from "jotai"
 import { clamp, isEqual } from "lodash-es"
 import {
   AlertCircleIcon,
@@ -81,15 +81,19 @@ export function GalleryControl({ openEvent }: GalleryControlProps) {
   return shouldRender ? <Gallery isOpen={isOpen} onOpenChange={setOpenState} /> : null
 }
 
+const pageAtom = atom(1)
+const selectedDimensionsAtom = atom<string[]>([])
+const selectedImageIdsAtom = atom<string[]>([])
+
 export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
   const t = useTranslation()
   const [config, setConfig] = useAtom(galleryConfigAtom)
   const [query, setQuery] = useState<SearchQuery>(() => parseSearchValue(config.query, -1))
   const [debouncedQuery, setDebouncedQuery] = useState<SearchQuery>(query)
-  const [selectedDimensions, setSelectedDimensions] = useState<string[]>([])
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useAtom(pageAtom)
+  const [selectedDimensions, setSelectedDimensions] = useAtom(selectedDimensionsAtom)
   const [activeImageId, setActiveImageId] = useState<string | undefined>(undefined)
-  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([])
+  const [selectedImageIds, setSelectedImageIds] = useAtom(selectedImageIdsAtom)
   const activeImageCrossPageLocator = useRef<{ page: number; index: number } | undefined>(undefined)
   const prevImageIds = useRef<string[]>([])
   const listScrollAreaRef = useRef<HTMLDivElement | null>(null)
