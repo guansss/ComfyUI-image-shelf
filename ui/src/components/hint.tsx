@@ -32,17 +32,23 @@ import {
 } from "../lib/settings"
 import { toast } from "../lib/toast"
 import { ImageMetadata, parseMetadataFromWorkflow, PromptParseResult } from "../services/gallery"
+import { ask } from "./ask"
 import { AdvancedAutocomplete, AdvancedAutocompleteInput } from "./custom/advanced-autocomplete"
 import { ComfyPrompts } from "./gallery/ImageViewer"
 import { AutocompleteContent, AutocompleteItem, AutocompleteList } from "./reui/autocomplete"
 import { Checkbox } from "./ui/checkbox"
-import { Field, FieldDescription, FieldLabel } from "./ui/field"
+import { Field, FieldDescription, FieldLabel, FieldTitle } from "./ui/field"
 import { ScrollArea } from "./ui/scroll-area"
 import { Separator } from "./ui/separator"
 import { Spinner } from "./ui/spinner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
+
+interface EditingHint extends PromptHintSetting {
+  selectMode: "class" | "title"
+}
 
 type PromptHintFieldErrors = Partial<Record<keyof PromptHintSetting, string>>
-type PromptHintValidationErrors = Record<number, PromptHintFieldErrors>
+type PromptHintValidationErrors = Record<string, PromptHintFieldErrors | undefined>
 
 interface HintEditorDialogProps {
   isOpen: boolean
@@ -52,21 +58,35 @@ interface HintEditorDialogProps {
 export function HintEditorDialog({ isOpen, onOpenChange }: HintEditorDialogProps) {
   const t = useTranslation()
   const [settings, setSettings] = useAtom(settingsAtom)
-  const [hints, setHints] = useState<PromptHintSetting[]>(() => settings.prompt_hints ?? [])
+  const [hints, setHints] = useState<EditingHint[]>(() =>
+    (settings.prompt_hints ?? []).map((hint) => ({
+      ...hint,
+      selectMode: hint.title ? "title" : "class",
+    })),
+  )
   const [isSavingHints, setIsSavingHints] = useState(false)
   const [promptHintErrors, setPromptHintErrors] = useState<PromptHintValidationErrors>({})
 
   const nodes = useMemo(() => getNodes(), [])
 
-  const validateHints = () => {
+  const exportHints = (): PromptHintSetting[] => {
+    return hints.map(({ selectMode, ...hint }) => {
+      if (selectMode === "title") {
+        return { ...hint, class_type: undefined }
+      }
+      return { ...hint, title: undefined }
+    })
+  }
+
+  const validateHints = (hints: PromptHintSetting[]) => {
     const validation = promptHintsSchema.safeParse(hints)
     if (!validation.success) {
       const errors: PromptHintValidationErrors = {}
       for (const issue of validation.error.issues) {
         const [hintIndex, field] = issue.path
         if (typeof hintIndex !== "number" || typeof field !== "string") continue
-        errors[hintIndex] = {
-          ...errors[hintIndex],
+        errors[hints[hintIndex].id] = {
+          ...errors[hints[hintIndex].id],
           [field as keyof PromptHintSetting]: issue.message,
         }
       }
@@ -78,11 +98,12 @@ export function HintEditorDialog({ isOpen, onOpenChange }: HintEditorDialogProps
   }
 
   const saveHints = async () => {
-    if (!validateHints()) return
+    const exportedHints = exportHints()
+    if (!validateHints(exportedHints)) return
     try {
       setIsSavingHints(true)
       setPromptHintErrors({})
-      await setSettings({ prompt_hints: hints })
+      await setSettings({ prompt_hints: exportedHints })
       toast({ type: "success", title: t.common.saved })
     } catch (e) {
       console.warn("Failed to save hints:", e)
@@ -95,18 +116,30 @@ export function HintEditorDialog({ isOpen, onOpenChange }: HintEditorDialogProps
     }
   }
 
-  const updateHint = (id: string, update: Partial<PromptHintSetting>) => {
+  const updateHint = (id: string, update: Partial<EditingHint>) => {
     setHints((current) => current.map((hint) => (hint.id === id ? { ...hint, ...update } : hint)))
-    setPromptHintErrors({})
+    setPromptHintErrors({ ...promptHintErrors, [id]: undefined })
   }
 
   const deleteHint = (id: string) => {
     setHints((current) => current.filter((hint) => hint.id !== id))
-    setPromptHintErrors({})
+    setPromptHintErrors({ ...promptHintErrors, [id]: undefined })
+  }
+
+  const handleOpenChange = async (open: boolean) => {
+    if (!open && JSON.stringify(settings.prompt_hints) !== JSON.stringify(exportHints())) {
+      const result = await ask({
+        type: "confirm",
+        title: t.common.unsavedChanges,
+        message: t.common.unsavedChangesMessage,
+      })
+      if (!result) return
+    }
+    onOpenChange(open)
   }
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={isOpen}>
+    <Dialog onOpenChange={handleOpenChange} open={isOpen}>
       <DialogContent className="w-300 h-200 grid-rows-[auto_1fr_auto] gap-0">
         <DialogHeader>
           <DialogTitle>{t.hint.editHint}</DialogTitle>
@@ -118,14 +151,16 @@ export function HintEditorDialog({ isOpen, onOpenChange }: HintEditorDialogProps
                 key={hint.id}
                 nodes={nodes}
                 hint={hint}
-                errors={promptHintErrors[index]}
+                errors={promptHintErrors[hint.id]}
                 onUpdate={updateHint}
                 onDelete={deleteHint}
               />
             ))}
             <Button
               variant="outline"
-              onClick={() => setHints((current) => [...current, createPromptHint()])}
+              onClick={() =>
+                setHints((current) => [...current, { ...createPromptHint(), selectMode: "class" }])
+              }
               type="button"
             >
               <PlusIcon data-icon="inline-start" />
@@ -133,7 +168,10 @@ export function HintEditorDialog({ isOpen, onOpenChange }: HintEditorDialogProps
             </Button>
           </section>
           <Separator className="w-auto mx-4" />
-          <MetadataPreview hints={hints} validateHints={validateHints} />
+          <MetadataPreview
+            getHints={exportHints}
+            validateHints={() => validateHints(exportHints())}
+          />
         </ScrollArea>
         <DialogFooter className="py-3">
           <Button disabled={isSavingHints} onClick={saveHints} type="button">
@@ -158,45 +196,92 @@ function HintItem({
   errors,
 }: {
   nodes: LGraphNode[]
-  hint: PromptHintSetting
+  hint: EditingHint
   errors?: PromptHintFieldErrors
-  onUpdate: (id: string, updatedHint: Partial<PromptHintSetting>) => void
+  onUpdate: (id: string, updatedHint: Partial<EditingHint>) => void
   onDelete: (id: string) => void
 }) {
   const t = useTranslation()
-  const nodeClassOptions = uniq(compact(nodes.map((node) => node.comfyClass)))
 
-  const matchedNodes = hint.class_type
-    ? nodes.filter((node) => node.comfyClass === hint.class_type)
-    : []
+  const nodeClassOptions = uniq(compact(nodes.map((node) => node.comfyClass)))
+  const nodeTitleOptions = uniq(compact(nodes.map((node) => node.title)))
+
+  const matchedNodes = nodes.filter((node) =>
+    hint.selectMode === "title"
+      ? node.title.trim() === hint.title?.trim()
+      : node.comfyClass?.trim() === hint.class_type?.trim(),
+  )
   const nodeInputOptions = matchedNodes.flatMap((node) => node.inputs.map((input) => input.name))
 
   return (
-    <div key={hint.id} className="flex flex-col gap-2 rounded-lg border p-2">
+    <div key={hint.id} className="flex flex-col gap-4 rounded-lg border p-4">
       <Field>
-        <FieldLabel htmlFor={`prompt-hint-class-${hint.id}`}>{t.hint.hintClassType}</FieldLabel>
-        <AdvancedAutocomplete
-          items={nodeClassOptions}
-          value={hint.class_type}
-          onValueChange={(newValue) => onUpdate(hint.id, { class_type: newValue })}
-          mode="none"
+        <Tabs
+          value={hint.selectMode}
+          onValueChange={(value) => onUpdate(hint.id, { selectMode: value as "class" | "title" })}
         >
-          <AdvancedAutocompleteInput
-            id={`prompt-hint-class-${hint.id}`}
-            aria-invalid={!!errors?.class_type}
-          />
-          <AutocompleteContent className="pointer-events-auto">
-            <AutocompleteList>
-              {(nodeClass: string) => (
-                <AutocompleteItem key={nodeClass} value={nodeClass} className="rounded-lg">
-                  {nodeClass}
-                </AutocompleteItem>
-              )}
-            </AutocompleteList>
-          </AutocompleteContent>
-        </AdvancedAutocomplete>
+          <FieldTitle>
+            {t.hint.hintSelectMode}
+            <TabsList aria-label={t.hint.hintSelectMode}>
+              <TabsTrigger value="class">{t.hint.hintSelectModeClass}</TabsTrigger>
+              <TabsTrigger value="title">{t.hint.hintSelectModeTitle}</TabsTrigger>
+            </TabsList>
+          </FieldTitle>
+          <TabsContent value="class">
+            <AdvancedAutocomplete
+              items={nodeClassOptions}
+              value={hint.class_type || ""}
+              onValueChange={(newValue) => onUpdate(hint.id, { class_type: newValue })}
+              mode="none"
+            >
+              <AdvancedAutocompleteInput
+                id={`prompt-hint-class-${hint.id}`}
+                aria-invalid={!!errors?.class_type}
+                placeholder={t.hint.hintClassType}
+              />
+              <AutocompleteContent className="pointer-events-auto">
+                <AutocompleteList>
+                  {(nodeClass: string) => (
+                    <AutocompleteItem key={nodeClass} value={nodeClass} className="rounded-lg">
+                      {nodeClass}
+                    </AutocompleteItem>
+                  )}
+                </AutocompleteList>
+              </AutocompleteContent>
+            </AdvancedAutocomplete>
+          </TabsContent>
+          <TabsContent value="title">
+            <AdvancedAutocomplete
+              items={nodeTitleOptions}
+              value={hint.title || ""}
+              onValueChange={(newValue) => onUpdate(hint.id, { title: newValue })}
+              mode="none"
+            >
+              <AdvancedAutocompleteInput
+                id={`prompt-hint-title-${hint.id}`}
+                aria-invalid={!!errors?.title}
+                placeholder={t.hint.hintTitle}
+              />
+              <AutocompleteContent className="pointer-events-auto">
+                <AutocompleteList>
+                  {(nodeTitle: string) => (
+                    <AutocompleteItem key={nodeTitle} value={nodeTitle} className="rounded-lg">
+                      {nodeTitle}
+                    </AutocompleteItem>
+                  )}
+                </AutocompleteList>
+              </AutocompleteContent>
+            </AdvancedAutocomplete>
+          </TabsContent>
+        </Tabs>
+        <FieldDescription>
+          {t.hint.hintMatchedNodes({ count: matchedNodes.length })}
+        </FieldDescription>
         {errors?.class_type && (
           <FieldDescription className="text-red-500">{errors.class_type}</FieldDescription>
+        )}
+        {errors?.title && (
+          <FieldDescription className="text-red-500">{errors.title}</FieldDescription>
         )}
       </Field>
       <Field>
@@ -210,6 +295,7 @@ function HintItem({
           <AdvancedAutocompleteInput
             id={`prompt-hint-input-${hint.id}`}
             aria-invalid={!!errors?.input_name}
+            placeholder={t.hint.hintInputName}
           />
           <AutocompleteContent className="pointer-events-auto">
             <AutocompleteList>
@@ -298,10 +384,10 @@ function HintItem({
 }
 
 function MetadataPreview({
-  hints,
+  getHints,
   validateHints,
 }: {
-  hints: PromptHintSetting[]
+  getHints: () => PromptHintSetting[]
   validateHints: () => boolean
 }) {
   const t = useTranslation()
@@ -321,7 +407,7 @@ function MetadataPreview({
       const metadata = await parseMetadataFromWorkflow({
         ui_workflow: workflows.workflow,
         api_workflow: workflows.output,
-        hints,
+        hints: getHints(),
       })
       setParsedMetadata(metadata)
       setCurrentApiWorkflow(workflows.output)

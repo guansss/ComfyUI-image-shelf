@@ -37,6 +37,7 @@ function AskConflictFilenames({
   return (
     <AskDialog
       {...props}
+      size="medium"
       form={true}
       content={
         <FieldGroup>

@@ -1,6 +1,7 @@
 import { atom, getDefaultStore } from "jotai"
 import { z } from "zod"
 
+import { i18n } from "../i18n/i18n"
 import { fetchSettings, updateSettings } from "../services/gallery"
 import { uuidv4 } from "../utils/lang"
 
@@ -16,14 +17,30 @@ const promptHintRoleSchema = z.enum(["positive", "negative", "unknown"])
 export type PromptHintKind = z.infer<typeof promptHintKindSchema>
 export type PromptHintRole = z.infer<typeof promptHintRoleSchema>
 
-export const promptHintSchema = z.object({
-  class_type: z.string().trim().min(1),
-  input_name: z.string().trim().min(1),
-  kind: promptHintKindSchema,
-  role: promptHintRoleSchema,
-  ignore: z.boolean(),
-  id: z.string(),
-})
+export const promptHintSchema = z
+  .object({
+    class_type: z.string().trim().min(1).optional(),
+    title: z.string().trim().min(1).optional(),
+    input_name: z.string().trim().min(1),
+    kind: promptHintKindSchema,
+    role: promptHintRoleSchema,
+    ignore: z.boolean(),
+    id: z.string(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.class_type?.trim() && !data.title?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: i18n.hint.classOrTitleRequired,
+        path: ["class_type"],
+      })
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: i18n.hint.classOrTitleRequired,
+        path: ["title"],
+      })
+    }
+  })
 
 export const promptHintsSchema = z.array(promptHintSchema)
 
@@ -32,7 +49,6 @@ export type PromptHintSetting = z.infer<typeof promptHintSchema>
 export function createPromptHint(): PromptHintSetting {
   return {
     id: `hint-${uuidv4()}`,
-    class_type: "",
     kind: "text",
     input_name: "",
     role: "unknown",

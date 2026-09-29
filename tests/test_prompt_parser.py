@@ -68,6 +68,25 @@ class PromptParserTests(unittest.TestCase):
         )
         self.assertNotIn("lowres", {match.text for match in ignored.matches})
 
+    def test_title_hint_can_classify_workflow_node(self) -> None:
+        result = parse_workflow(
+            self.api_workflow,
+            self.ui_workflow,
+            [
+                PromptHint(
+                    id="multiline-title",
+                    title="Text (Multiline)",
+                    input_name="value",
+                    role="positive",
+                )
+            ],
+        )
+
+        self.assertIn(
+            ("best quality", "positive"),
+            {(match.text, match.role) for match in result.matches},
+        )
+
     def test_preserves_unknown_string_inputs_when_no_ui_workflow_is_provided(
         self,
     ) -> None:

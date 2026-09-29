@@ -61,6 +61,14 @@
     "unknownValue": {
       "en": "Unknown value: {{value}}",
       "cn": "未知值：{{value}}"
+    },
+    "unsavedChanges": {
+      "en": "Unsaved Changes",
+      "cn": "未保存的更改"
+    },
+    "unsavedChangesMessage": {
+      "en": "You have unsaved changes. Are you sure you want to discard them?",
+      "cn": "您有未保存的更改。您确定要放弃它们吗？"
     }
   },
   "error": {
@@ -453,9 +461,29 @@
       "en": "Hint ID",
       "cn": "提示 ID"
     },
+    "hintSelectMode": {
+      "en": "Select Node By:",
+      "cn": "以该方式选择节点："
+    },
+    "hintSelectModeClass": {
+      "en": "Class",
+      "cn": "类型"
+    },
+    "hintSelectModeTitle": {
+      "en": "Title",
+      "cn": "标题"
+    },
+    "hintMatchedNodes": {
+      "en": "{{count}} nodes(s) matched in current workflow",
+      "cn": "当前工作流中匹配了 {{count}} 个节点"
+    },
     "hintClassType": {
       "en": "Node Class",
       "cn": "节点类型"
+    },
+    "hintTitle": {
+      "en": "Node Title",
+      "cn": "节点标题"
     },
     "hintInputName": {
       "en": "Node Input name",
@@ -496,6 +524,10 @@
         "en": "Unknown",
         "cn": "未知"
       }
+    },
+    "classOrTitleRequired": {
+      "en": "Either class or title must be provided",
+      "cn": "必须提供类型或标题"
     },
     "parseCurrentWorkflow": {
       "en": "Parse Current Workflow",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any, Literal, TypeVar
@@ -211,7 +211,8 @@ HintKind = Literal["text", "conditioning"]
 @dataclass(frozen=True)
 class PromptHint:
     id: str
-    class_type: str
+    class_type: str | None = None
+    title: str | None = None
     kind: HintKind = "text"
     input_name: str | None = None
     role: PromptRole = "unknown"
@@ -243,7 +244,14 @@ class Node:
     id: str
     class_type: str
     inputs: dict[str, InputValue]
-    raw_node: Any
+    raw_node: Mapping[str, Any]
+
+    @property
+    def title(self) -> str | None:
+        meta = self.raw_node.get("_meta")
+        if isinstance(meta, dict):
+            return meta.get("title")
+        return None
 
 
 @dataclass(frozen=True)

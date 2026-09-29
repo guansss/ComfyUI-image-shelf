@@ -56,6 +56,7 @@ function PickFolderDialog({
   return (
     <AskDialog
       {...props}
+      size="medium"
       content={
         <div className="flex flex-col items-end gap-2">
           <Button variant="outline" onClick={requestPickFolder}>

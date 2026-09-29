@@ -14,25 +14,25 @@ from ..models import (
 
 class HintAdapter(NodeAdapter):
     def __init__(self, hints: Iterable[PromptHint]):
-        self.hints_by_class: dict[str, tuple[PromptHint, ...]] = {
-            class_type: tuple(class_hints)
-            for class_type, class_hints in self._group_hints(hints).items()
-        }
+        self.hints_by_class: dict[str, list[PromptHint]] = defaultdict(list)
+        self.hints_by_title: dict[str, list[PromptHint]] = defaultdict(list)
 
-    @staticmethod
-    def _group_hints(
-        hints: Iterable[PromptHint],
-    ) -> dict[str, list[PromptHint]]:
-        grouped: defaultdict[str, list[PromptHint]] = defaultdict(list)
         for hint in hints:
-            grouped[hint.class_type].append(hint)
-        return grouped
+            # if both class_type and title are present, class_type takes precedence
+            if hint.class_type:
+                self.hints_by_class[hint.class_type].append(hint)
+            elif hint.title:
+                self.hints_by_title[hint.title].append(hint)
 
     @override
     def analyze(self, node, context):
         semantics = context.semantics
 
-        for hint in self.hints_by_class.get(node.class_type, ()):
+        matched_hints = self.hints_by_class.get(node.class_type, []) + (
+            self.hints_by_title.get(node.title, []) if node.title else []
+        )
+
+        for hint in matched_hints:
             if not hint.input_name:
                 continue
 

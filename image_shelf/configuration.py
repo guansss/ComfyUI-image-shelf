@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 from dotenv import dotenv_values
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from .log import logger
 from .models import GalleryFolder
@@ -34,18 +41,32 @@ class PromptHintSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     id: str
-    class_type: str
+    class_type: str | None = None
+    title: str | None = None
     kind: Literal["text", "conditioning"] = "text"
     input_name: str
     role: Literal["positive", "negative", "unknown"] = "unknown"
     ignore: bool = False
 
-    @field_validator("id", "class_type", "input_name")
+    @field_validator("id", "input_name")
     @classmethod
     def require_non_empty(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("must not be empty")
         return value
+
+    @field_validator("class_type", "title")
+    @classmethod
+    def require_non_empty_selector(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def check_class_type_or_title(self) -> PromptHintSettings:
+        if not self.class_type and not self.title:
+            raise ValueError("either class_type or title must be provided")
+        return self
 
 
 class ImageShelfSettingsModel(BaseModel):
@@ -83,7 +104,10 @@ class ShelfSettings:
             updated = ImageShelfSettingsModel.model_validate(merged)
             self.settings_path.parent.mkdir(parents=True, exist_ok=True)
             self.settings_path.write_text(
-                json.dumps(updated.model_dump(by_alias=True), indent=2) + "\n",
+                json.dumps(
+                    updated.model_dump(by_alias=True, exclude_none=True), indent=2
+                )
+                + "\n",
                 encoding="utf-8",
             )
         except (OSError, ValidationError, TypeError) as error:
@@ -107,7 +131,9 @@ class ShelfSettings:
         ]
 
     def get_prompt_hints(self) -> tuple[PromptHint, ...]:
-        return tuple(PromptHint(**hint.model_dump()) for hint in self.settings.prompt_hints)
+        return tuple(
+            PromptHint(**hint.model_dump()) for hint in self.settings.prompt_hints
+        )
 
 
 _settings: ShelfSettings | None = None

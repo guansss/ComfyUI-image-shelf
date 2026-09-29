@@ -1,3 +1,4 @@
+import { cn } from "cn"
 import { uniqueId } from "lodash-es"
 import mitt from "mitt"
 import { Fragment, memo, useCallback, useEffect, useId, useRef, useState } from "react"
@@ -21,6 +22,7 @@ export interface AskRequest<T> {
   type: "confirm" | "delete" | "custom"
   title?: React.ReactNode
   message?: React.ReactNode
+  size?: "small" | "medium" | "large"
   form?: boolean
   content?: React.ReactNode
   action?: React.ReactNode
@@ -154,6 +156,7 @@ export const AskDialog = memo(
     open,
     title,
     message,
+    size = "small",
     form,
     content,
     action,
@@ -182,12 +185,18 @@ export const AskDialog = memo(
           }
         }}
       >
-        <DialogContent className="w-150">
+        <DialogContent
+          className={cn({
+            "w-100": size === "small",
+            "w-150": size === "medium",
+            "w-200": size === "large",
+          })}
+        >
           <DialogHeader>
             {title && <DialogTitle>{title}</DialogTitle>}
             {message && <DialogDescription>{message}</DialogDescription>}
           </DialogHeader>
-          <ScrollArea className="min-h-36 max-h-[80vh]">
+          <ScrollArea className={cn("max-h-[80vh]", size !== "small" && "min-h-36")}>
             {form ? (
               <form
                 id={uid}

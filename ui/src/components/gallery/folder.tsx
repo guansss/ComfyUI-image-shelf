@@ -396,6 +396,7 @@ function EditFolderDialog({
   return (
     <AskDialog
       {...props}
+      size="medium"
       content={
         <FieldGroup>
           <Field>

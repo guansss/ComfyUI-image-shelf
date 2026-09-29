@@ -64,6 +64,23 @@ class FolderSettingsTests(unittest.TestCase):
                         ]
                     }
                 )
+
+    def test_prompt_hint_selectors_must_be_non_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            settings_file = Path(temporary_directory) / "settings.json"
+            settings = ShelfSettings(Path(temporary_directory), settings_file)
+            settings.load()
+
+            invalid_hints = [
+                {"id": "blank-class", "class_type": " ", "input_name": "prompt"},
+                {"id": "blank-title", "title": " ", "input_name": "prompt"},
+                {"id": "missing-selector", "input_name": "prompt"},
+                None,
+            ]
+            for hint in invalid_hints:
+                with self.subTest(hint=hint), self.assertRaises(ValueError):
+                    settings.update({"prompt_hints": [hint]})
+
     def test_loads_custom_folders_and_drops_unknown_fields(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

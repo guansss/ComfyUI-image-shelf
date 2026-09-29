@@ -174,6 +174,7 @@ function askConflictResolution(
     render: ({ onConfirm, onOpenChange, ...props }) => (
       <AskDialog
         {...props}
+        size="medium"
         initialValue={undefined}
         confirmText={i18n.transfer.customize}
         onConfirm={() => onConfirm?.("customize")}
