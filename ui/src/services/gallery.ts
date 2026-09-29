@@ -157,6 +157,11 @@ export type GalleryMessage = {
   indexStart: {
     folder: string
   }
+  indexProgress: {
+    folder: string
+    processed: number
+    total: number
+  }
   indexFinish: {
     folder: string
     error?: string

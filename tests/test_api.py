@@ -172,9 +172,17 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
             websocket = Mock()
             websocket.send_json = AsyncMock()
             api.websocket_clients.add(websocket)
-            api.indexer.index_folder = AsyncMock(
-                return_value=IndexingResult(2, 1, 0, 0)
-            )
+
+            async def index_folder(
+                indexed_folder: Path, force: bool = False, progress_callback=None
+            ) -> IndexingResult:
+                assert progress_callback is not None
+                await asyncio.to_thread(progress_callback, 0, 101)
+                await asyncio.to_thread(progress_callback, 100, 101)
+                await asyncio.to_thread(progress_callback, 101, 101)
+                return IndexingResult(2, 1, 0, 0)
+
+            api.indexer.index_folder = AsyncMock(side_effect=index_folder)
 
             result = await api._index_folder_and_broadcast(folder)
 
@@ -184,6 +192,54 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
                 [
                     {"event": "indexStart", "data": {"folder": "folder-1"}},
                     {"event": "indexStart", "data": {"folder": "folder-2"}},
+                    {
+                        "event": "indexProgress",
+                        "data": {
+                            "folder": "folder-1",
+                            "processed": 0,
+                            "total": 101,
+                        },
+                    },
+                    {
+                        "event": "indexProgress",
+                        "data": {
+                            "folder": "folder-2",
+                            "processed": 0,
+                            "total": 101,
+                        },
+                    },
+                    {
+                        "event": "indexProgress",
+                        "data": {
+                            "folder": "folder-1",
+                            "processed": 100,
+                            "total": 101,
+                        },
+                    },
+                    {
+                        "event": "indexProgress",
+                        "data": {
+                            "folder": "folder-2",
+                            "processed": 100,
+                            "total": 101,
+                        },
+                    },
+                    {
+                        "event": "indexProgress",
+                        "data": {
+                            "folder": "folder-1",
+                            "processed": 101,
+                            "total": 101,
+                        },
+                    },
+                    {
+                        "event": "indexProgress",
+                        "data": {
+                            "folder": "folder-2",
+                            "processed": 101,
+                            "total": 101,
+                        },
+                    },
                     {
                         "event": "indexFinish",
                         "data": {
@@ -219,7 +275,15 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
             websocket = Mock()
             websocket.send_json = AsyncMock()
             api.websocket_clients.add(websocket)
-            api.indexer.index_folder = AsyncMock(side_effect=RuntimeError("failed"))
+
+            async def index_folder(
+                indexed_folder: Path, force: bool = False, progress_callback=None
+            ) -> IndexingResult:
+                assert progress_callback is not None
+                await asyncio.to_thread(progress_callback, 0, 101)
+                raise RuntimeError("failed")
+
+            api.indexer.index_folder = AsyncMock(side_effect=index_folder)
 
             with self.assertRaisesRegex(RuntimeError, "failed"):
                 await api._index_folder_and_broadcast(folder)
@@ -228,6 +292,14 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
                 [call.args[0] for call in websocket.send_json.await_args_list],
                 [
                     {"event": "indexStart", "data": {"folder": "folder-1"}},
+                    {
+                        "event": "indexProgress",
+                        "data": {
+                            "folder": "folder-1",
+                            "processed": 0,
+                            "total": 101,
+                        },
+                    },
                     {
                         "event": "indexFinish",
                         "data": {"folder": "folder-1", "error": "failed"},

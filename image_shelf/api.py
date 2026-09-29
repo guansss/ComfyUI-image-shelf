@@ -118,17 +118,51 @@ class GalleryApi:
         for folder_id in folder_ids:
             await self._broadcast("indexStart", {"folder": folder_id})
 
+        progress_queue: asyncio.Queue[tuple[int, int] | None] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        async def broadcast_progress() -> None:
+            while True:
+                progress = await progress_queue.get()
+                if progress is None:
+                    return
+                processed, total = progress
+                for folder_id in folder_ids:
+                    await self._broadcast(
+                        "indexProgress",
+                        {
+                            "folder": folder_id,
+                            "processed": processed,
+                            "total": total,
+                        },
+                    )
+
+        progress_task = asyncio.create_task(broadcast_progress())
+
+        def report_progress(processed: int, total: int) -> None:
+            asyncio.run_coroutine_threadsafe(
+                progress_queue.put((processed, total)), loop
+            ).result()
+
         try:
-            result = await self.indexer.index_folder(folder, force=force)
+            result = await self.indexer.index_folder(
+                folder, force=force, progress_callback=report_progress
+            )
         except asyncio.CancelledError:
+            progress_task.cancel()
+            await asyncio.gather(progress_task, return_exceptions=True)
             raise
         except Exception as error:
+            progress_queue.put_nowait(None)
+            await progress_task
             for folder_id in folder_ids:
                 await self._broadcast(
                     "indexFinish", {"folder": folder_id, "error": str(error)}
                 )
             raise
 
+        progress_queue.put_nowait(None)
+        await progress_task
         for folder_id in folder_ids:
             await self._broadcast(
                 "indexFinish", {"folder": folder_id, "result": asdict(result)}

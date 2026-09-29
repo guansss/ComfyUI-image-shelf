@@ -358,6 +358,128 @@ class FolderIndexerTests(unittest.TestCase):
             self.assertEqual(result.skipped, 0)
             repository.close()
 
+    def test_reports_initial_and_completion_progress_for_100_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            for index in range(100):
+                (root / f"image-{index}.png").touch()
+            (root / "not-an-image.txt").touch()
+
+            repository = ImageRepository(root / "index.sqlite")
+            progress: list[tuple[int, int]] = []
+            result = asyncio.run(
+                FolderIndexer(repository).index_folder(
+                    root, progress_callback=lambda processed, total: progress.append(
+                        (processed, total)
+                    )
+                )
+            )
+
+            self.assertEqual(progress, [(0, 100), (100, 100)])
+            self.assertEqual(result.errors, 100)
+            repository.close()
+
+    def test_reports_progress_for_small_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "first.png").touch()
+            (root / "second.png").touch()
+            (root / "not-an-image.txt").touch()
+
+            repository = ImageRepository(root / "index.sqlite")
+            progress: list[tuple[int, int]] = []
+            result = asyncio.run(
+                FolderIndexer(repository).index_folder(
+                    root, progress_callback=lambda processed, total: progress.append(
+                        (processed, total)
+                    )
+                )
+            )
+
+            self.assertEqual(progress, [(0, 2), (2, 2)])
+            self.assertEqual(result.errors, 2)
+            repository.close()
+
+    def test_reports_initial_progress_for_empty_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            repository = ImageRepository(root / "index.sqlite")
+            progress: list[tuple[int, int]] = []
+
+            asyncio.run(
+                FolderIndexer(repository).index_folder(
+                    root, progress_callback=lambda processed, total: progress.append(
+                        (processed, total)
+                    )
+                )
+            )
+
+            self.assertEqual(progress, [(0, 0)])
+            repository.close()
+
+    def test_reports_initial_and_100_file_progress_for_101_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            for index in range(101):
+                (root / f"image-{index}.png").touch()
+
+            repository = ImageRepository(root / "index.sqlite")
+            progress: list[tuple[int, int]] = []
+            result = asyncio.run(
+                FolderIndexer(repository).index_folder(
+                    root, progress_callback=lambda processed, total: progress.append(
+                        (processed, total)
+                    )
+                )
+            )
+
+            self.assertEqual(progress, [(0, 101), (100, 101), (101, 101)])
+            self.assertEqual(result.errors, 101)
+            repository.close()
+
+    def test_reports_progress_at_each_100_files_including_skips_and_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            image_paths = []
+            for index in range(201):
+                image_path = root / f"image-{index}.png"
+                image_path.touch()
+                image_paths.append(image_path)
+            (root / "not-an-image.txt").touch()
+
+            repository = ImageRepository(root / "index.sqlite")
+            skipped_stat = image_paths[0].stat()
+            repository.upsert_image(
+                IndexedImage(
+                    image_paths[0],
+                    1,
+                    1,
+                    skipped_stat.st_size,
+                    0.0,
+                    skipped_stat.st_mtime,
+                    None,
+                    None,
+                    (),
+                    (),
+                )
+            )
+            progress: list[tuple[int, int]] = []
+
+            result = asyncio.run(
+                FolderIndexer(repository).index_folder(
+                    root, progress_callback=lambda processed, total: progress.append(
+                        (processed, total)
+                    )
+                )
+            )
+
+            self.assertEqual(
+                progress, [(0, 201), (100, 201), (200, 201), (201, 201)]
+            )
+            self.assertEqual(result.skipped, 1)
+            self.assertEqual(result.errors, 200)
+            repository.close()
+
 
 if __name__ == "__main__":
     unittest.main()

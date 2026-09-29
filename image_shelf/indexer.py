@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+from collections.abc import Callable
 from dataclasses import dataclass
 from os import stat_result
 from pathlib import Path
@@ -42,14 +43,24 @@ class FolderIndexer:
         self._folder_locks: dict[Path, asyncio.Lock] = {}
 
     async def index_folder(
-        self, folder: str | Path, force: bool = False
+        self,
+        folder: str | Path,
+        force: bool = False,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> IndexingResult:
         normalized_folder = normalize_path(folder)
         lock = self._folder_locks.setdefault(normalized_folder, asyncio.Lock())
         async with lock:
-            return await asyncio.to_thread(self._index_folder, normalized_folder, force)
+            return await asyncio.to_thread(
+                self._index_folder, normalized_folder, force, progress_callback
+            )
 
-    def _index_folder(self, folder: Path, force: bool = False) -> IndexingResult:
+    def _index_folder(
+        self,
+        folder: Path,
+        force: bool = False,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> IndexingResult:
         timings = Timings()
 
         with timings.measure("db_lookup"):
@@ -65,6 +76,16 @@ class FolderIndexer:
                     self.repository.delete_path(path)
             raise CustomError(ERROR_INVALID_DIR, f"Folder {folder} is not a directory.")
 
+        candidate_paths = [
+            path
+            for path in folder.iterdir()
+            if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
+        ]
+        total = len(candidate_paths)
+        report_progress = progress_callback
+        if report_progress is not None:
+            report_progress(0, total)
+
         seen_paths: set[Path] = set()
         indexed = 0
         skipped = 0
@@ -74,9 +95,7 @@ class FolderIndexer:
             hints=self.settings.get_prompt_hints() if self.settings else ()
         )
 
-        for path in folder.iterdir():
-            if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
-                continue
+        for processed, path in enumerate(candidate_paths, start=1):
             normalized_path = normalize_path(path)
             seen_paths.add(normalized_path)
             try:
@@ -85,12 +104,18 @@ class FolderIndexer:
                 existing_state = existing_states.get(normalized_path)
                 if existing_state == (stat.st_mtime, stat.st_size):
                     skipped += 1
-                    continue
-                image = self._read_image(normalized_path, stat, timings, parse_options)
-                pending_images.append(image)
-                indexed += 1
+                else:
+                    image = self._read_image(
+                        normalized_path, stat, timings, parse_options
+                    )
+                    pending_images.append(image)
+                    indexed += 1
             except (OSError, ValueError):
                 errors += 1
+            if report_progress is not None and (
+                processed % 100 == 0 or processed == total
+            ):
+                report_progress(processed, total)
 
         if pending_images:
             with timings.measure("db_upsert"):

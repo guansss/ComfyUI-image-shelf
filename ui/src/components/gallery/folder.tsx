@@ -8,7 +8,6 @@ import {
   EllipsisVerticalIcon,
   FolderIcon,
   FolderSyncIcon,
-  LoaderCircleIcon,
   PlusIcon,
   RefreshCwIcon,
   RotateCcwClockIcon,
@@ -59,6 +58,9 @@ export function FolderList({
   const t = useTranslation()
   const selectedFolder = folders?.find((folder) => folder.id === selectedFolderId)
   const [settings, setSettings] = useAtom(settingsAtom)
+  const [indexProgress, setIndexProgress] = useState<
+    Record<string, GalleryMessage["indexProgress"]>
+  >({})
 
   const addFolder = async () => {
     const result = await askCreateFolder({})
@@ -157,9 +159,17 @@ export function FolderList({
       )
     }
     const handleIndexStart = ({ folder }: GalleryMessage["indexStart"]) => {
+      setIndexProgress((current) => {
+        const updated = { ...current }
+        delete updated[folder]
+        return updated
+      })
       updateTabs((current) =>
         current?.map((item) => (item.id === folder ? { ...item, indexing: true } : item)),
       )
+    }
+    const handleIndexProgress = (progress: GalleryMessage["indexProgress"]) => {
+      setIndexProgress((current) => ({ ...current, [progress.folder]: progress }))
     }
     const handleIndexFinish = ({ folder, result, error }: GalleryMessage["indexFinish"]) => {
       updateTabs((current) =>
@@ -177,14 +187,15 @@ export function FolderList({
     }
     socket.on("foldersUpdated", handleFoldersUpdated)
     socket.on("indexStart", handleIndexStart)
+    socket.on("indexProgress", handleIndexProgress)
     socket.on("indexFinish", handleIndexFinish)
     return () => {
       socket.off("foldersUpdated", handleFoldersUpdated)
       socket.off("indexStart", handleIndexStart)
+      socket.off("indexProgress", handleIndexProgress)
       socket.off("indexFinish", handleIndexFinish)
     }
   }, [updateTabs])
-
   return (
     <nav className="flex flex-col gap-1 p-4 border-t">
       {folders?.map((folder) => {
@@ -214,11 +225,12 @@ export function FolderList({
               ) : (
                 <FolderIcon data-icon="inline-start" />
               )}
-              {folder.name}
-              {folder.indexing ? (
-                <LoaderCircleIcon data-icon="inline-end" className="animate-spin" />
+              {folder.indexing && indexProgress[folder.id] ? (
+                <span className="shimmer text-muted-foreground">
+                  {`${folder.name} (${indexProgress[folder.id].processed}/${indexProgress[folder.id].total})`}
+                </span>
               ) : (
-                ` (${folder.count})`
+                `${folder.name} (${folder.count})`
               )}
               {folder.error && (
                 <span title={formatError(folder.error)}>
