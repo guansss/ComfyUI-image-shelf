@@ -104,7 +104,7 @@ export function ImageViewer({
     <Dialog onOpenChange={onOpenChange} open={isOpen}>
       <DialogContent
         aria-describedby={undefined}
-        className="max-w-screen! w-screen h-screen flex gap-0 overflow-hidden p-0 bg-transparent"
+        className="max-w-screen max-h-screen w-screen h-screen flex gap-0 overflow-hidden p-0 bg-transparent"
         closeButtonProps={{ size: "icon", className: "size-12 top-4 right-4 p-2" }}
       >
         <aside className="md:w-80 w-40 shrink-0 border-r bg-card">
