@@ -18,7 +18,7 @@ from .log import logger
 from .metadata.metadata import get_image_metadata, parse_metadata
 from .metadata.models import MetadataParseOptions
 from .models import GalleryFolder
-from .paths import is_within_directory, normalize_path, resolve_comfy_asset
+from .paths import is_immediate_child, normalize_path, resolve_comfy_asset
 from .prompt_parser.models import PromptHint
 from .search import SearchTerm
 from .thumbnails import ThumbnailService
@@ -396,7 +396,7 @@ class GalleryApi:
             path is None
             or not path.is_file()
             or not any(
-                is_within_directory(path, folder) for folder in self._tracked_paths()
+                is_immediate_child(path, folder) for folder in self._tracked_paths()
             )
         ):
             raise web.HTTPNotFound()
@@ -424,7 +424,7 @@ class GalleryApi:
             details is None
             or path is None
             or not any(
-                is_within_directory(path, folder) for folder in self._tracked_paths()
+                is_immediate_child(path, folder) for folder in self._tracked_paths()
             )
         ):
             raise web.HTTPNotFound()
@@ -483,7 +483,7 @@ class GalleryApi:
             path is None
             or not path.is_file()
             or not any(
-                is_within_directory(path, folder) for folder in self._tracked_paths()
+                is_immediate_child(path, folder) for folder in self._tracked_paths()
             )
         ):
             raise web.HTTPNotFound()
@@ -540,7 +540,7 @@ class GalleryApi:
     async def transfer_image(self, request: web.Request) -> web.Response:
         source = self.repository.path_for_public_id(request.match_info["image_id"])
         if source is None or not any(
-            is_within_directory(source, folder) for folder in self._tracked_paths()
+            is_immediate_child(source, folder) for folder in self._tracked_paths()
         ):
             raise web.HTTPNotFound(text="Image not found or not within tracked folders")
         try:
@@ -558,7 +558,7 @@ class GalleryApi:
                 raise web.HTTPNotFound(text="Unknown Image Shelf folder")
             if not destination_folder.is_dir():
                 raise web.HTTPNotFound(text="Target folder does not exist")
-            if is_within_directory(source, destination_folder):
+            if is_immediate_child(source, destination_folder):
                 raise web.HTTPBadRequest(text="Image is already in the target folder")
             mode = body.get("mode", "copy")
             conflict = body.get("conflict", "suggest")
@@ -627,13 +627,13 @@ class GalleryApi:
             for image_id in image_ids:
                 source = self.repository.path_for_public_id(image_id)
                 if source is None or not any(
-                    is_within_directory(source, folder)
+                    is_immediate_child(source, folder)
                     for folder in self._tracked_paths()
                 ):
                     raise web.HTTPNotFound(
                         text=f"Image not found or not within tracked folders: {image_id}"
                     )
-                if is_within_directory(source, destination_folder):
+                if is_immediate_child(source, destination_folder):
                     raise web.HTTPBadRequest(
                         text="Image is already in the target folder"
                     )
@@ -723,7 +723,7 @@ class GalleryApi:
                 source = resolve_comfy_asset(item)
                 if not source.is_file():
                     raise FileNotFoundError("ComfyUI asset file does not exist.")
-                if is_within_directory(source, destination_folder):
+                if is_immediate_child(source, destination_folder):
                     raise web.HTTPBadRequest(
                         text="Asset is already in the target folder"
                     )
@@ -877,7 +877,7 @@ class GalleryApi:
             path
             and path.is_file()
             and any(
-                is_within_directory(path, folder) for folder in self._tracked_paths()
+                is_immediate_child(path, folder) for folder in self._tracked_paths()
             )
         )
 

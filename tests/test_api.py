@@ -391,6 +391,62 @@ class GalleryApiTransferTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(source.is_file())
             self.assertTrue((target_folder / "image.png").is_file())
 
+    async def test_moves_image_from_nested_folder_to_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source_folder = root / "nested"
+            source_folder.mkdir()
+            source = source_folder / "image.png"
+            source.write_bytes(b"image")
+
+            repository = Mock()
+            repository.path_for_public_id.return_value = source
+            api = GalleryApi(repository, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (
+                GalleryFolder("source", "Source", source_folder),
+                GalleryFolder("target", "Target", root),
+            )
+            request = Mock(match_info={"image_id": "image-id"})
+            request.json = AsyncMock(
+                return_value={"folder": "target", "mode": "move"}
+            )
+
+            response = await api.transfer_image(request)
+
+            self.assertEqual(response.status, 201)
+            self.assertFalse(source.exists())
+            self.assertTrue((root / "image.png").is_file())
+
+    async def test_batch_moves_image_from_nested_folder_to_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source_folder = root / "nested"
+            source_folder.mkdir()
+            source = source_folder / "image.png"
+            source.write_bytes(b"image")
+
+            repository = Mock()
+            repository.path_for_public_id.return_value = source
+            api = GalleryApi(repository, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (
+                GalleryFolder("source", "Source", source_folder),
+                GalleryFolder("target", "Target", root),
+            )
+            request = Mock()
+            request.json = AsyncMock(
+                return_value={
+                    "image_ids": ["image-id"],
+                    "folder": "target",
+                    "mode": "move",
+                }
+            )
+
+            response = await api.transfer_images(request)
+
+            self.assertEqual(response.status, 201)
+            self.assertFalse(source.exists())
+            self.assertTrue((root / "image.png").is_file())
+
     async def test_rejects_unknown_target_folder(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
