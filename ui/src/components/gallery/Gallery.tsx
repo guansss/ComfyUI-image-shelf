@@ -35,7 +35,7 @@ import { useTranslation } from "../../i18n/i18n"
 import { galleryConfigAtom } from "../../lib/config"
 import { formatError } from "../../lib/error"
 import { queryToString, SearchQuery, SearchTerm } from "../../lib/search"
-import { GalleryFolder, GalleryImage } from "../../services/gallery"
+import { GalleryFolder, GalleryImage, GalleryMessage, socket } from "../../services/gallery"
 import { EMPTY_ARRAY } from "../../utils/lang"
 import { PopoverControl, usePopoverControl, usePopoverTrigger } from "../../utils/react"
 import { SettingsDialog } from "../settings"
@@ -106,6 +106,7 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
     data: imageList,
     error: imageListError,
     isLoading: imageListIsLoading,
+    mutate: mutateImageList,
   } = useImageQuery({
     folder: config.activeFolder,
     query: debouncedQuery,
@@ -148,6 +149,18 @@ export function Gallery({ isOpen, onOpenChange }: GalleryProps) {
       activeImageCrossPageLocator.current = undefined
     }
   }, [imageList])
+
+  useEffect(() => {
+    const handleIndexFinish = ({ folder }: GalleryMessage["indexFinish"]) => {
+      if (folder === config.activeFolder) {
+        mutateImageList()
+      }
+    }
+    socket.on("indexFinish", handleIndexFinish)
+    return () => {
+      socket.off("indexFinish", handleIndexFinish)
+    }
+  }, [config.activeFolder, mutateImageList])
 
   const handleNavigate = async (offset: number) => {
     if (offset === 0) return
