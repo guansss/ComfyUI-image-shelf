@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable
 from pathlib import Path
 from threading import Lock, Timer
-from typing import Any, cast
+from typing import cast
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 from watchdog.observers.api import ObservedWatch
 
-from .indexer import SUPPORTED_EXTENSIONS, IndexingResult
+from .indexer import SUPPORTED_EXTENSIONS
 from .paths import normalize_path
 
 
@@ -19,10 +19,10 @@ class FolderWatcher:
 
     def __init__(
         self,
-        index_folder: Callable[[Path], Coroutine[Any, Any, IndexingResult]],
+        schedule_indexing: Callable[[Path], None],
         loop: asyncio.AbstractEventLoop,
     ) -> None:
-        self.index_folder = index_folder
+        self.schedule_indexing = schedule_indexing
         self.loop = loop
         self.observer = Observer()
         self._watches: dict[Path, ObservedWatch] = {}
@@ -65,7 +65,7 @@ class FolderWatcher:
     def _submit_index(self, folder: Path) -> None:
         with self._lock:
             self._timers.pop(folder, None)
-        self.loop.call_soon_threadsafe(asyncio.create_task, self.index_folder(folder))
+        self.loop.call_soon_threadsafe(self.schedule_indexing, folder)
 
     def _cancel_timer(self, folder: Path) -> None:
         timer = self._timers.pop(folder, None)

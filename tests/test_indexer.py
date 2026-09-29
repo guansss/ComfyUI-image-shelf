@@ -154,6 +154,38 @@ class FolderIndexerTests(unittest.TestCase):
             )
             repository.close()
 
+    def test_tag_upsert_handles_more_than_1000_tags(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            repository = ImageRepository(root / "index.sqlite")
+            image = IndexedImage(
+                root / "many-tags.png",
+                1,
+                1,
+                1,
+                1.0,
+                1.0,
+                None,
+                None,
+                tuple(f"tag-{index}" for index in range(1001)),
+                (),
+            )
+
+            if repository._parameter_limit() < 3000:
+                repository.close()
+                self.skipTest("SQLite variable limit is too low for this regression")
+
+            with patch.object(repository, "_parameter_limit", return_value=3000):
+                repository.upsert_image(image)
+
+            self.assertEqual(
+                repository.connection.execute(
+                    "SELECT COUNT(*) FROM image_tags"
+                ).fetchone()[0],
+                1001,
+            )
+            repository.close()
+
     def test_deleting_images_removes_images(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

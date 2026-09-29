@@ -476,12 +476,11 @@ class ImageRepository:
         tag_lookup_batch_size = max(1, parameter_limit // 2)
         for start in range(0, len(tag_keys), tag_lookup_batch_size):
             tag_key_batch = tag_keys[start : start + tag_lookup_batch_size]
-            conditions = " OR ".join(
-                "(normalized_name = ? AND type = ?)" for _ in tag_key_batch
-            )
+            placeholders = ", ".join("?" for _ in tag_key_batch)
             rows = self.connection.execute(
-                f"SELECT id, normalized_name, type FROM tags WHERE {conditions}",
-                tuple(value for tag_key in tag_key_batch for value in tag_key),
+                "SELECT id, normalized_name, type FROM tags "
+                f"WHERE type = ? AND normalized_name IN ({placeholders})",
+                (tag_type, *(tag_key[0] for tag_key in tag_key_batch)),
             ).fetchall()
             tag_ids.update(
                 {

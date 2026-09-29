@@ -1,3 +1,4 @@
+import asyncio
 import json
 import sys
 import tempfile
@@ -14,6 +15,7 @@ from image_shelf.configuration import ShelfSettings
 from image_shelf.database import ImageRepository
 from image_shelf.indexer import IndexingResult
 from image_shelf.models import GalleryFolder
+from image_shelf.watcher import FolderWatcher
 
 ASSETS = Path(__file__).parent / "assets"
 
@@ -231,6 +233,33 @@ class GalleryApiIndexingEventsTests(unittest.IsolatedAsyncioTestCase):
                         "data": {"folder": "folder-1", "error": "failed"},
                     },
                 ],
+            )
+
+    async def test_watcher_indexing_records_and_broadcasts_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            folder = Path(temporary_directory)
+            api = GalleryApi(None, None)  # pyrefly: ignore [bad-argument-type]
+            api.folders = (GalleryFolder("folder-1", "First", folder),)
+            websocket = Mock()
+            websocket.send_json = AsyncMock()
+            api.websocket_clients.add(websocket)
+            api.indexer.index_folder = AsyncMock(side_effect=RuntimeError("failed"))
+            watcher = FolderWatcher(api._ensure_indexing_task, asyncio.get_running_loop())
+
+            watcher._submit_index(folder)
+            await asyncio.sleep(0)
+            task = api.indexing_tasks[folder]
+            with self.assertRaisesRegex(RuntimeError, "failed"):
+                await task
+            await asyncio.sleep(0)
+
+            self.assertEqual(str(api.indexing_errors[folder]), "failed")
+            self.assertIn(
+                {
+                    "event": "indexFinish",
+                    "data": {"folder": "folder-1", "error": "failed"},
+                },
+                [call.args[0] for call in websocket.send_json.await_args_list],
             )
 
 

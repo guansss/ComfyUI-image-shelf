@@ -84,9 +84,12 @@ class GalleryApi:
 
     async def _index_folders(self, folders: set[Path]) -> None:
         for folder in folders:
-            task = self.indexing_tasks.get(folder)
-            if task is None or task.done():
-                self.indexing_tasks[folder] = self._create_indexing_task(folder)
+            self._ensure_indexing_task(folder)
+
+    def _ensure_indexing_task(self, folder: Path, force: bool = False) -> None:
+        task = self.indexing_tasks.get(folder)
+        if task is None or task.done():
+            self.indexing_tasks[folder] = self._create_indexing_task(folder, force)
 
     def _create_indexing_task(
         self, folder: Path, force: bool = False
@@ -100,12 +103,13 @@ class GalleryApi:
     ) -> None:
         if task.cancelled():
             logger.info("Indexing task for %s was cancelled", folder)
-        elif (error := task.exception()) is not None:
-            logger.error("Indexing task for %s failed: %s", folder, error)
-            self.indexing_errors[folder] = error
         else:
-            self.indexing_errors.pop(folder, None)
-            task.result()
+            try:
+                task.result()
+                self.indexing_errors.pop(folder, None)
+            except Exception as error:
+                logger.exception("Indexing task for %s failed: %s", folder, error)
+                self.indexing_errors[folder] = error
 
     async def _index_folder_and_broadcast(
         self, folder: Path, force: bool = False
@@ -135,7 +139,7 @@ class GalleryApi:
         logger.info("Starting Image Shelf API")
         await self.thumbnails.start()
         if self.watcher is None:
-            self.watcher = FolderWatcher(self._index_folder_and_broadcast, loop)
+            self.watcher = FolderWatcher(self._ensure_indexing_task, loop)
             self.watcher.start()
         self.settings.load()
         await self.apply_settings()
@@ -747,10 +751,7 @@ class GalleryApi:
     async def reindex(self, request: web.Request) -> web.Response:
         folder = self._folder_from_request(request)
         force = request.query.get("force", "false").lower() == "true"
-        path = folder.path
-        task = self.indexing_tasks.get(path)
-        if task is None or task.done():
-            self.indexing_tasks[path] = self._create_indexing_task(path, force)
+        self._ensure_indexing_task(folder.path, force)
         return web.json_response({"accepted": True}, status=202)
 
     async def get_settings(self, request: web.Request) -> web.Response:
